@@ -1,4 +1,4 @@
-import type { EventStore, AuthStore, EventCache } from '@shared/storage'
+import type { EventStore, AuthStore, EventCache } from '../db/storage'
 import type { Event, EventInput, Reminder } from '@shared/types'
 import { serializeICal, parseICal, toEventInputs } from './ical'
 

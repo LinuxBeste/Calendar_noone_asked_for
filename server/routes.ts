@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyRequest, RouteGenericInterface } from 'fastify'
-import type { EventStore, AuthStore } from '@shared/storage'
-import type { AuthService } from '../electron/services/auth'
-import type { CalendarService } from '../electron/services/calendar-service'
-import type { EventService } from '../electron/services/event-service'
-import type { ICalService } from '../electron/services/ical-service'
+import type { EventStore, AuthStore } from './db/storage'
+import type { AuthService } from './services/auth'
+import type { CalendarService } from './services/calendar-service'
+import type { EventService } from './services/event-service'
+import type { ICalService } from './services/ical-service'
 
 export interface Services {
   auth: AuthService

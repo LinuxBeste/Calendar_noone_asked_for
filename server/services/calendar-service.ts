@@ -1,4 +1,4 @@
-import type { EventStore, AuthStore, EventCache } from '@shared/storage'
+import type { EventStore, AuthStore, EventCache } from '../db/storage'
 import type { Calendar, CalendarInput } from '@shared/types'
 
 export class PermissionError extends Error {

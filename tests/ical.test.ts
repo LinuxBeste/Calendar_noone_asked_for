@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { serializeICal, parseICal, toEventInputs } from '../electron/services/ical'
+import { serializeICal, parseICal, toEventInputs } from '../server/services/ical'
 import type { Event, Reminder } from '../shared/types'
 
 const base: Event = {

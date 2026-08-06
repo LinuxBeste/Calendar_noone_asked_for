@@ -1,4 +1,4 @@
-import type { EventStore, AuthStore, EventCache } from '@shared/storage'
+import type { EventStore, AuthStore, EventCache } from '../db/storage'
 import type { Event, EventInput, EventDetail, EventOccurrence } from '@shared/types'
 import { expandEvent, withDtstart } from './recurrence'
 import rrule from 'rrule'

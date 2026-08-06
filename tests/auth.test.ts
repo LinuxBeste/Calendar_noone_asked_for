@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { SqliteStore } from '../electron/db/sqlite'
-import { AuthService, AuthError } from '../electron/services/auth'
+import { SqliteStore } from '../server/db/sqlite'
+import { AuthService, AuthError } from '../server/services/auth'
 
 function makeAuth(): { auth: AuthService; store: SqliteStore } {
   const dir = mkdtempSync(join(tmpdir(), 'cal-auth-'))

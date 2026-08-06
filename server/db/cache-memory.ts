@@ -1,4 +1,4 @@
-import type { EventCache } from '@shared/storage'
+import type { EventCache } from './storage'
 import type { Event } from '@shared/types'
 
 /**

@@ -2,9 +2,9 @@ import Database from 'better-sqlite3'
 import { drizzle, BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
-import type { EventStore, AuthStore } from '@shared/storage'
+import type { EventStore, AuthStore } from './storage'
 import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder } from '@shared/types'
-import { calendars, events, eventExceptions, attendees, reminders, settings, users, sessions, calendarShares } from '@shared/db-schema'
+import { calendars, events, eventExceptions, attendees, reminders, settings, users, sessions, calendarShares } from './schema'
 
 type Db = BetterSQLite3Database
 

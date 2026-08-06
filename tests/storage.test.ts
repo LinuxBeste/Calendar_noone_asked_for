@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { SqliteStore } from '../electron/db/sqlite'
-import { InMemoryCache } from '../electron/db/cache-memory'
-import type { EventStore, EventCache } from '../shared/storage'
+import { SqliteStore } from '../server/db/sqlite'
+import { InMemoryCache } from '../server/db/cache-memory'
+import type { EventStore, EventCache } from '../server/db/storage'
 
 function makeStore(): { store: EventStore; cache: EventCache } {
   const dir = mkdtempSync(join(tmpdir(), 'cal-test-'))

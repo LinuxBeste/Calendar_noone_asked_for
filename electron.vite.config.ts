@@ -4,7 +4,7 @@ import { resolve } from 'path'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['rrule'] })],
+    plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: { '@shared': resolve(__dirname, 'shared') }
     },

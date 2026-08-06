@@ -2,7 +2,7 @@ import { Pool } from 'pg'
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, ilike, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
-import type { EventStore, AuthStore } from '@shared/storage'
+import type { EventStore, AuthStore } from './storage'
 import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder } from '@shared/types'
 import {
   pgCalendars,
@@ -14,7 +14,7 @@ import {
   pgSessions,
   pgCalendarShares,
   pgSettings
-} from '@shared/db-schema'
+} from './schema'
 
 type Db = NodePgDatabase
 

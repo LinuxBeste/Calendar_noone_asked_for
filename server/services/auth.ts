@@ -1,6 +1,6 @@
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'crypto'
 import { promisify } from 'util'
-import type { AuthStore } from '@shared/storage'
+import type { AuthStore } from '../db/storage'
 import type { LoginResult, User, ShareInput } from '@shared/types'
 
 const scrypt = promisify(scryptCb)

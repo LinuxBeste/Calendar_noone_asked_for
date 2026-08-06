@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { expandEvent, buildRrule } from '../electron/services/recurrence'
+import { expandEvent, buildRrule } from '../server/services/recurrence'
 import type { Event, EventException } from '../shared/types'
 
 const base = (over: Partial<Event>): Event => ({
