@@ -1,0 +1,151 @@
+import type { CalendarInput, EventInput, ShareInput } from '@shared/types'
+
+const BASE = process.env.CALENDAR_API_URL ?? 'http://localhost:3001'
+
+/** Thin HTTP client for the calendar backend. All methods mirror the IPC surface. */
+class ApiClient {
+  private async call(method: string, path: string, token?: string | null, body?: unknown): Promise<unknown> {
+    let res: Response
+    try {
+      res = await fetch(`${BASE}${path}`, {
+        method,
+        headers: {
+          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined
+      })
+    } catch (err) {
+      throw new Error(`Backend unreachable at ${BASE} — is the server running? (${err instanceof Error ? err.message : 'network error'})`)
+    }
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string }
+      throw new Error(data.error ?? `Request failed (${res.status})`)
+    }
+    if (res.status === 204) return undefined
+    return res.json().catch(() => undefined)
+  }
+
+  async info(): Promise<{ using: string }> {
+    return (await this.call('GET', '/info')) as { using: string }
+  }
+
+  // ---- auth ----
+  async register(payload: { email: string; name: string; password: string }): Promise<{ token: string; user: unknown }> {
+    return (await this.call('POST', '/auth/register', null, payload)) as { token: string; user: unknown }
+  }
+  async login(email: string, password: string): Promise<{ token: string; user: unknown }> {
+    return (await this.call('POST', '/auth/login', null, { email, password })) as { token: string; user: unknown }
+  }
+  async logout(token: string): Promise<void> {
+    await this.call('POST', '/auth/logout', token)
+  }
+  async validate(token: string): Promise<unknown> {
+    return this.call('GET', '/auth/validate', token)
+  }
+
+  // ---- calendars ----
+  async listCalendars(token: string): Promise<unknown> {
+    return this.call('GET', '/calendars', token)
+  }
+  async createCalendar(token: string, input: CalendarInput): Promise<unknown> {
+    return this.call('POST', '/calendars', token, input)
+  }
+  async updateCalendar(token: string, id: string, input: Partial<CalendarInput>): Promise<unknown> {
+    return this.call('PUT', `/calendars/${id}`, token, input)
+  }
+  async deleteCalendar(token: string, id: string): Promise<unknown> {
+    return this.call('DELETE', `/calendars/${id}`, token)
+  }
+  async shareCalendar(token: string, id: string, input: ShareInput): Promise<unknown> {
+    return this.call('POST', `/calendars/${id}/share`, token, input)
+  }
+  async unshareCalendar(token: string, id: string, userId: string): Promise<unknown> {
+    return this.call('DELETE', `/calendars/${id}/share/${encodeURIComponent(userId)}`, token)
+  }
+  async listShares(token: string, id: string): Promise<unknown> {
+    return this.call('GET', `/calendars/${id}/shares`, token)
+  }
+
+  // ---- events ----
+  async listEvents(token: string, from: string, to: string, calendarIds?: string[]): Promise<unknown> {
+    const q = calendarIds?.length ? `&calendarIds=${calendarIds.join(',')}` : ''
+    return this.call('GET', `/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${q}`, token)
+  }
+  async getEvent(token: string, id: string): Promise<unknown> {
+    return this.call('GET', `/events/${id}`, token)
+  }
+  async createEvent(token: string, input: EventInput): Promise<unknown> {
+    return this.call('POST', '/events', token, input)
+  }
+  async updateEvent(token: string, id: string, input: Partial<EventInput>): Promise<unknown> {
+    return this.call('PUT', `/events/${id}`, token, input)
+  }
+  async deleteEvent(token: string, id: string): Promise<unknown> {
+    return this.call('DELETE', `/events/${id}`, token)
+  }
+  async searchEvents(token: string, q: string, calendarIds?: string[], limit?: number): Promise<unknown> {
+    const params = new URLSearchParams({ q })
+    if (calendarIds?.length) params.set('calendarIds', calendarIds.join(','))
+    if (limit) params.set('limit', String(limit))
+    return this.call('GET', `/events/search?${params}`, token)
+  }
+  async listOccurrences(token: string, from: string, to: string, calendarIds?: string[]): Promise<unknown> {
+    const params = new URLSearchParams({ from, to })
+    if (calendarIds?.length) params.set('calendarIds', calendarIds.join(','))
+    return this.call('GET', `/events/occurrences?${params}`, token)
+  }
+  async listEventOccurrences(token: string, eventId: string, from: string, to: string): Promise<unknown> {
+    return this.call('GET', `/events/${eventId}/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, token)
+  }
+  async updateOccurrence(token: string, eventId: string, occurrence: string, input: Partial<EventInput>): Promise<unknown> {
+    return this.call('PUT', `/events/${eventId}/occurrences/${encodeURIComponent(occurrence)}`, token, input)
+  }
+  async deleteOccurrence(token: string, eventId: string, occurrence: string): Promise<unknown> {
+    return this.call('DELETE', `/events/${eventId}/occurrences/${encodeURIComponent(occurrence)}`, token)
+  }
+  async splitSeries(token: string, eventId: string, occurrence: string, input: Partial<EventInput>): Promise<unknown> {
+    return this.call('POST', `/events/${eventId}/split/${encodeURIComponent(occurrence)}`, token, input)
+  }
+
+  // ---- reminders ----
+  async createReminder(token: string, eventId: string, minutes: number): Promise<unknown> {
+    return this.call('POST', '/reminders', token, { eventId, minutes })
+  }
+  async deleteReminder(token: string, id: string): Promise<unknown> {
+    return this.call('DELETE', `/reminders/${id}`, token)
+  }
+
+  // ---- settings ----
+  async getSetting(token: string, key: string): Promise<unknown> {
+    return this.call('GET', `/settings/${encodeURIComponent(key)}`, token)
+  }
+  async setSetting(token: string, key: string, value: unknown): Promise<void> {
+    await this.call('PUT', `/settings/${encodeURIComponent(key)}`, token, { value })
+  }
+
+  // ---- import / export ----
+  async exportICal(token: string, calendarIds?: string[]): Promise<string> {
+    const q = calendarIds?.length ? `?calendarIds=${calendarIds.join(',')}` : ''
+    return (await this.call('GET', `/export/ical${q}`, token)) as string
+  }
+  async exportJson(token: string): Promise<string> {
+    return (await this.call('GET', '/export/json', token)) as string
+  }
+  async importICal(token: string, calendarId: string, content: string): Promise<number> {
+    return (await this.call('POST', '/import/ical', token, { calendarId, content })) as number
+  }
+  async importJson(token: string, content: string): Promise<number> {
+    return (await this.call('POST', '/import/json', token, { content })) as number
+  }
+
+  // ---- reminder engine (system-level) ----
+  async listDueReminders(windowMinutes = 5): Promise<Array<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }>> {
+    return (await this.call('GET', `/reminders/due?window=${windowMinutes}`)) as never
+  }
+  async markReminderSent(id: string): Promise<void> {
+    await this.call('POST', `/reminders/${id}/sent`)
+  }
+}
+
+export const api = new ApiClient()

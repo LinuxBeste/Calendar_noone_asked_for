@@ -1,4 +1,5 @@
-import { RRule, datetime } from 'rrule'
+import rrule from 'rrule'
+const { RRule, datetime } = rrule as unknown as typeof import('rrule')
 import type { Event, EventDetail, EventException } from '@shared/types'
 
 export interface Occurrence {
@@ -29,7 +30,7 @@ export function expandEvent(event: Event, exceptions: EventException[], from: Da
     ? (event.startDate ? new Date(event.startDate + 'T00:00:00') : new Date())
     : new Date(event.startsAt!)
 
-  let rule: RRule
+  let rule: import('rrule').RRule
   try {
     rule = RRule.fromString(event.rrule.startsWith('DTSTART') ? event.rrule : withDtstart(event.rrule, base))
   } catch {

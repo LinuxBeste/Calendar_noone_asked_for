@@ -1,7 +1,8 @@
 import type { EventStore, AuthStore, EventCache } from '@shared/storage'
 import type { Event, EventInput, EventDetail, EventOccurrence } from '@shared/types'
 import { expandEvent, withDtstart } from './recurrence'
-import { RRule, datetime } from 'rrule'
+import rrule from 'rrule'
+const { RRule, datetime } = rrule as unknown as typeof import('rrule')
 
 export class EventService {
   constructor(
