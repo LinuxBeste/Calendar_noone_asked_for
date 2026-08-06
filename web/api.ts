@@ -145,14 +145,16 @@ async function call(method: string, path: string, token: string | null, body?: u
   return res.json().catch(() => undefined)
 }
 
-/** Browser reminder engine: polls the backend and shows web notifications. */
+/** Browser reminder engine: polls the backend (user-scoped) and shows web notifications. */
 export function startWebReminderEngine(): void {
   let running = false
   const check = async (): Promise<void> => {
+    const token = localStorage.getItem('calendar.token')
+    if (!token) return
     if (running) return
     running = true
     try {
-      const due = (await call('GET', '/reminders/due?window=5', null)) as Array<{
+      const due = (await call('GET', '/reminders/due?window=5', token)) as Array<{
         id: string
         title: string
         startsAt?: string
@@ -168,7 +170,7 @@ export function startWebReminderEngine(): void {
         } catch (err) {
           logger.warn('notification failed:', err)
         }
-        await call('POST', `/reminders/${r.id}/sent`, null)
+        await call('POST', `/reminders/${r.id}/sent`, token)
       }
     } catch (err) {
       logger.warn('reminder check failed:', err)

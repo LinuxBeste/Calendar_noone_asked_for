@@ -24,6 +24,7 @@ export class AuthService {
     if (existing) throw new AuthError('An account with this email already exists')
     const passwordHash = await this.hashPassword(input.password)
     const user = await this.store.createUser({ email, name: input.name.trim() || email.split('@')[0]!, passwordHash })
+    await this.store.claimOwnerlessCalendars(user.id)
     const token = await this.createSession(user.id)
     return { token, user }
   }
@@ -33,6 +34,7 @@ export class AuthService {
     if (!user) throw new AuthError('Invalid email or password')
     const ok = await this.verifyPassword(password, user.passwordHash)
     if (!ok) throw new AuthError('Invalid email or password')
+    await this.store.claimOwnerlessCalendars(user.id)
     const token = await this.createSession(user.id)
     const { passwordHash: _ph, ...safeUser } = user
     return { token, user: safeUser }

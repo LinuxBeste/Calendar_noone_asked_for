@@ -25,9 +25,9 @@ export class CalendarService {
     ])
     const shareMap = new Map(shares.map((s) => [s.calendarId, s.role]))
     return owned
-      .filter((c) => c.ownerId === undefined || c.ownerId === userId || shareMap.has(c.id))
+      .filter((c) => c.ownerId === userId || shareMap.has(c.id))
       .map((c) => {
-        if (c.ownerId === userId || c.ownerId === undefined) return { ...c, role: 'owner' as const }
+        if (c.ownerId === userId) return { ...c, role: 'owner' as const }
         const role = shareMap.get(c.id)
         if (!role) return { ...c, role: 'viewer' as const }
         return { ...c, role }
@@ -58,7 +58,7 @@ export class CalendarService {
   async assertCanRead(userId: string, calendarId: string): Promise<void> {
     const cal = await this.store.getCalendar(calendarId)
     if (!cal) throw new PermissionError('Calendar not found')
-    if (cal.ownerId === undefined || cal.ownerId === userId) return
+    if (cal.ownerId === userId) return
     const shares = await this.store.getUserShares(userId)
     if (!shares.some((s) => s.calendarId === calendarId)) throw new PermissionError('You do not have access to this calendar')
   }
@@ -67,7 +67,7 @@ export class CalendarService {
   async assertCanWrite(userId: string, calendarId: string): Promise<void> {
     const cal = await this.store.getCalendar(calendarId)
     if (!cal) throw new PermissionError('Calendar not found')
-    if (cal.ownerId === undefined || cal.ownerId === userId) return
+    if (cal.ownerId === userId) return
     const shares = await this.store.getUserShares(userId)
     const share = shares.find((s) => s.calendarId === calendarId)
     if (!share || share.role !== 'editor') throw new PermissionError('You only have read access to this calendar')

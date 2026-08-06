@@ -18,6 +18,9 @@ import { registerRoutes } from './routes'
 
 export const PORT = Number(process.env.CALENDAR_API_PORT ?? 3001)
 export const HOST = process.env.CALENDAR_API_HOST ?? '0.0.0.0'
+export const API_KEY = process.env.CALENDAR_API_KEY?.trim() || undefined
+
+const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://localhost']
 
 async function setupDatabase(): Promise<{ store: EventStore & AuthStore; cache: EventCache; using: string }> {
   const pgUrl = process.env.CALENDAR_PG_URL
@@ -65,8 +68,22 @@ async function bootstrap(): Promise<void> {
   const ical = new ICalService(store, setup.cache, perms)
 
   const app = Fastify({ logger: true })
-  await app.register(fastifyCors, { origin: true })
-  await registerRoutes(app, { auth, calendars, events, ical, store, using: setup.using })
+
+  // CORS: only allow explicitly listed origins (browser clients). Same-origin
+  // requests and non-browser clients (curl, Electron main) are unaffected.
+  const corsOrigins = (process.env.CALENDAR_CORS_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  const allowed = corsOrigins.length > 0 ? corsOrigins : DEFAULT_CORS_ORIGINS
+  await app.register(fastifyCors, {
+    origin: (origin, cb) => {
+      if (!origin || allowed.includes(origin)) cb(null, true)
+      else cb(new Error('Origin not allowed'), false)
+    }
+  })
+  await registerRoutes(app, { auth, calendars, events, ical, store, using: setup.using, apiKey: API_KEY })
+
+  if (!API_KEY) {
+    app.log.warn('CALENDAR_API_KEY not set — reminder endpoints require an authenticated user session (dev mode)')
+  }
 
   // Serve the built web client (SPA) when available
   const webDir = process.env.CALENDAR_WEB_DIR ?? join(process.cwd(), 'web', 'dist')

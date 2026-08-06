@@ -420,6 +420,22 @@ export class PgStore implements EventStore, AuthStore {
     await this.db.delete(pgReminders).where(eq(pgReminders.id, id))
   }
 
+  private collectDue(
+    rows: { id: string; eventId: string; minutes: number; startsAt: string | null; title: string; calendarName: string }[],
+    now: string,
+    lookAheadMinutes: number
+  ): { id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[] {
+    const due = new Date(now).getTime()
+    const windowMs = lookAheadMinutes * 60000
+    const dueList: { id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[] = []
+    for (const r of rows) {
+      if (!r.startsAt) continue
+      const t = new Date(r.startsAt).getTime() - r.minutes * 60000
+      if (t <= due && t > due - windowMs) dueList.push({ id: r.id, eventId: r.eventId, minutes: r.minutes, startsAt: r.startsAt, title: r.title, calendarName: r.calendarName })
+    }
+    return dueList
+  }
+
   async listDueReminders(now: string, lookAheadMinutes: number): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]> {
     const rows = await this.db
       .select({
@@ -434,15 +450,25 @@ export class PgStore implements EventStore, AuthStore {
       .innerJoin(pgEvents, eq(pgReminders.eventId, pgEvents.id))
       .innerJoin(pgCalendars, eq(pgEvents.calendarId, pgCalendars.id))
       .where(isNull(pgReminders.sentAt))
-    const due = new Date(now).getTime()
-    const windowMs = lookAheadMinutes * 60000
-    const dueList: { id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[] = []
-    for (const r of rows) {
-      if (!r.startsAt) continue
-      const t = new Date(r.startsAt).getTime() - r.minutes * 60000
-      if (t <= due && t > due - windowMs) dueList.push({ id: r.id, eventId: r.eventId, minutes: r.minutes, startsAt: r.startsAt, title: r.title, calendarName: r.calendarName })
-    }
-    return dueList
+    return this.collectDue(rows, now, lookAheadMinutes)
+  }
+
+  async listDueRemindersForUser(now: string, lookAheadMinutes: number, userId: string): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]> {
+    const rows = await this.db
+      .select({
+        id: pgReminders.id,
+        eventId: pgReminders.eventId,
+        minutes: pgReminders.minutes,
+        startsAt: pgEvents.startsAt,
+        title: pgEvents.title,
+        calendarName: pgCalendars.name
+      })
+      .from(pgReminders)
+      .innerJoin(pgEvents, eq(pgReminders.eventId, pgEvents.id))
+      .innerJoin(pgCalendars, eq(pgEvents.calendarId, pgCalendars.id))
+      .leftJoin(pgCalendarShares, and(eq(pgCalendarShares.calendarId, pgEvents.calendarId), eq(pgCalendarShares.userId, userId)))
+      .where(and(isNull(pgReminders.sentAt), or(eq(pgCalendars.ownerId, userId), isNotNull(pgCalendarShares.userId))))
+    return this.collectDue(rows, now, lookAheadMinutes)
   }
 
   async markReminderSent(id: string, at: string): Promise<void> {
@@ -551,5 +577,9 @@ export class PgStore implements EventStore, AuthStore {
       .insert(pgSettings)
       .values({ key, value: JSON.stringify(value) })
       .onConflictDoUpdate({ target: pgSettings.key, set: { value: JSON.stringify(value) } })
+  }
+
+  async claimOwnerlessCalendars(userId: string): Promise<void> {
+    await this.db.update(pgCalendars).set({ ownerId: userId }).where(isNull(pgCalendars.ownerId))
   }
 }

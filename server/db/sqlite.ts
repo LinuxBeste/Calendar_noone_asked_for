@@ -419,6 +419,22 @@ export class SqliteStore implements EventStore, AuthStore {
     this.db.delete(reminders).where(eq(reminders.id, id)).run()
   }
 
+  private collectDue(
+    rows: { id: string; eventId: string; minutes: number; startsAt: string | null; title: string; calendarName: string }[],
+    now: string,
+    lookAheadMinutes: number
+  ): { id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[] {
+    const due = new Date(now).getTime()
+    const windowMs = lookAheadMinutes * 60000
+    const dueList: { id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[] = []
+    for (const r of rows) {
+      if (!r.startsAt) continue
+      const t = new Date(r.startsAt).getTime() - r.minutes * 60000
+      if (t <= due && t > due - windowMs) dueList.push({ id: r.id, eventId: r.eventId, minutes: r.minutes, startsAt: r.startsAt, title: r.title, calendarName: r.calendarName })
+    }
+    return dueList
+  }
+
   async listDueReminders(now: string, lookAheadMinutes: number): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]> {
     const rows = this.db
       .select({
@@ -434,15 +450,26 @@ export class SqliteStore implements EventStore, AuthStore {
       .innerJoin(calendars, eq(events.calendarId, calendars.id))
       .where(isNull(reminders.sentAt))
       .all()
-    const due = new Date(now).getTime()
-    const windowMs = lookAheadMinutes * 60000
-    const dueList: { id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[] = []
-    for (const r of rows) {
-      if (!r.startsAt) continue
-      const t = new Date(r.startsAt).getTime() - r.minutes * 60000
-      if (t <= due && t > due - windowMs) dueList.push({ id: r.id, eventId: r.eventId, minutes: r.minutes, startsAt: r.startsAt, title: r.title, calendarName: r.calendarName })
-    }
-    return dueList
+    return this.collectDue(rows, now, lookAheadMinutes)
+  }
+
+  async listDueRemindersForUser(now: string, lookAheadMinutes: number, userId: string): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]> {
+    const rows = this.db
+      .select({
+        id: reminders.id,
+        eventId: reminders.eventId,
+        minutes: reminders.minutes,
+        startsAt: events.startsAt,
+        title: events.title,
+        calendarName: calendars.name
+      })
+      .from(reminders)
+      .innerJoin(events, eq(reminders.eventId, events.id))
+      .innerJoin(calendars, eq(events.calendarId, calendars.id))
+      .leftJoin(calendarShares, and(eq(calendarShares.calendarId, events.calendarId), eq(calendarShares.userId, userId)))
+      .where(and(isNull(reminders.sentAt), or(eq(calendars.ownerId, userId), isNotNull(calendarShares.userId))))
+      .all()
+    return this.collectDue(rows, now, lookAheadMinutes)
   }
 
   async markReminderSent(id: string, at: string): Promise<void> {
@@ -549,5 +576,9 @@ export class SqliteStore implements EventStore, AuthStore {
       .values({ key, value: JSON.stringify(value) })
       .onConflictDoUpdate({ target: settings.key, set: { value: JSON.stringify(value) } })
       .run()
+  }
+
+  async claimOwnerlessCalendars(userId: string): Promise<void> {
+    this.db.update(calendars).set({ ownerId: userId }).where(isNull(calendars.ownerId)).run()
   }
 }

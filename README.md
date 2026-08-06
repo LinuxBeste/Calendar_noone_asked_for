@@ -73,8 +73,11 @@ Env vars are read from the shell or from a `.env` file in the project root
 |---|---|
 | `CALENDAR_PG_URL` | Use PostgreSQL instead of SQLite (e.g. `postgres://user:pass@localhost:5432/calendar`). Falls back to SQLite if unreachable. |
 | `CALENDAR_REDIS_URL` | Use Redis for event caching + pub/sub (e.g. `redis://localhost:6379`). Falls back to in-memory. |
+| `CALENDAR_API_KEY` | API key for system calls (reminder poller sends `X-Api-Key`). Without it, `/reminders/due` and `/reminders/:id/sent` only work with a user token. |
+| `CALENDAR_CORS_ORIGINS` | Comma-separated CORS allowlist for the web client (default: `http://localhost:5173, http://127.0.0.1:5173, https://localhost`). |
+| `CALENDAR_PORT` / `CALENDAR_HOST` | Backend listen port (default `3001`) and host (default `0.0.0.0`). |
 
-SQLite data lives in Electron's `userData` directory (`calendar.db`). A default calendar is created automatically on first run; register an account on the login screen to get started.
+SQLite data lives in Electron's `userData` directory (`calendar.db`). A default calendar is created automatically on first run and assigned to the first account that registers or logs in.
 
 ## Docker (optional backend)
 
@@ -114,7 +117,7 @@ computer's LAN IP from a device). Cleartext HTTP is enabled for local backends.
 ## Testing
 
 ```bash
-npm test          # 34 unit tests across 4 suites
+npm test          # 41 unit tests across 5 suites
 npm run typecheck
 npm run build
 ```

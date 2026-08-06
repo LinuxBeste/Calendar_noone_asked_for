@@ -28,6 +28,7 @@ export interface EventStore {
   getReminder(id: string): Promise<{ id: string; eventId: string; minutes: number } | null>
   deleteReminder(id: string): Promise<void>
   listDueReminders(now: string, lookAheadMinutes: number): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]>
+  listDueRemindersForUser(now: string, lookAheadMinutes: number, userId: string): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]>
   markReminderSent(id: string, at: string): Promise<void>
 
   // ---- recurrence exceptions ----
@@ -54,6 +55,8 @@ export interface AuthStore {
   removeShare(calendarId: string, userId: string): Promise<void>
   getSetting<T>(key: string): Promise<T | undefined>
   setSetting<T>(key: string, value: T): Promise<void>
+  /** Assigns any ownerless calendars (e.g. the seeded default) to the given user. */
+  claimOwnerlessCalendars(userId: string): Promise<void>
 }
 
 /**

@@ -1,17 +1,19 @@
 import type { CalendarInput, EventInput, ShareInput } from '@shared/types'
 
 const BASE = process.env.CALENDAR_API_URL ?? 'http://localhost:3001'
+const API_KEY = process.env.CALENDAR_API_KEY?.trim() || undefined
 
 /** Thin HTTP client for the calendar backend. All methods mirror the IPC surface. */
 class ApiClient {
-  private async call(method: string, path: string, token?: string | null, body?: unknown): Promise<unknown> {
+  private async call(method: string, path: string, token?: string | null, body?: unknown, system = false): Promise<unknown> {
     let res: Response
     try {
       res = await fetch(`${BASE}${path}`, {
         method,
         headers: {
           ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(system && API_KEY ? { 'X-Api-Key': API_KEY } : {})
         },
         body: body !== undefined ? JSON.stringify(body) : undefined
       })
@@ -139,12 +141,12 @@ class ApiClient {
     return (await this.call('POST', '/import/json', token, { content })) as number
   }
 
-  // ---- reminder engine (system-level) ----
+  // ---- reminder engine (system-level, API key) ----
   async listDueReminders(windowMinutes = 5): Promise<Array<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }>> {
-    return (await this.call('GET', `/reminders/due?window=${windowMinutes}`)) as never
+    return (await this.call('GET', `/reminders/due?window=${windowMinutes}`, null, undefined, true)) as never
   }
   async markReminderSent(id: string): Promise<void> {
-    await this.call('POST', `/reminders/${id}/sent`)
+    await this.call('POST', `/reminders/${id}/sent`, null, undefined, true)
   }
 }
 
