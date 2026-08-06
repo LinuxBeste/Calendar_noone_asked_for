@@ -1,6 +1,7 @@
 import { useAuth, useCalendar } from '../store'
 import { headerTitle } from '../utils/date'
 import type { ViewType } from '@shared/types'
+import SearchBox from './SearchBox'
 
 const VIEWS: { id: ViewType; label: string; key: string }[] = [
   { id: 'day', label: 'Day', key: 'd' },
@@ -52,7 +53,9 @@ export default function Toolbar(): React.JSX.Element {
 
       <div className="flex-1" />
 
-      <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+      <SearchBox />
+
+      <div className="ml-2 flex bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
         {VIEWS.map((v) => (
           <button
             key={v.id}
