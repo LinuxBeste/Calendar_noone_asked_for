@@ -54,6 +54,8 @@ npm run dev
 ## Configuration (environment variables)
 
 The app runs fully offline with zero config (SQLite + in-memory cache).
+Env vars are read from the shell or from a `.env` file in the project root
+(see `.env.example`).
 
 | Variable | Effect |
 |---|---|
@@ -61,6 +63,23 @@ The app runs fully offline with zero config (SQLite + in-memory cache).
 | `CALENDAR_REDIS_URL` | Use Redis for event caching + pub/sub (e.g. `redis://localhost:6379`). Falls back to in-memory. |
 
 SQLite data lives in Electron's `userData` directory (`calendar.db`). A default calendar is created automatically on first run; register an account on the login screen to get started.
+
+## Docker (optional backend)
+
+The Electron app itself is a desktop GUI and cannot run in Docker, but its
+optional storage backend (PostgreSQL + Redis) can:
+
+```bash
+cp .env.example .env     # optional: adjust credentials
+docker compose up -d
+npm run dev              # app now uses PostgreSQL + Redis automatically
+```
+
+- PostgreSQL listens on `localhost:5432`, Redis on `localhost:6379`
+- Data persists in the `pgdata` / `redisdata` volumes; `docker compose down`
+  stops the containers without deleting data
+- If the containers aren't running, the app silently falls back to SQLite +
+  in-memory cache
 
 ## Testing
 
