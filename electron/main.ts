@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, dialog } from 'electron'
 import { join } from 'path'
 import { mkdirSync } from 'fs'
+import { readFile, writeFile } from 'fs/promises'
 import type { EventStore, AuthStore, EventCache } from '@shared/storage'
 import { SqliteStore } from './db/sqlite'
 import { PgStore } from './db/pg'
@@ -9,6 +10,7 @@ import { RedisCache } from './db/cache-redis'
 import { AuthService } from './services/auth'
 import { CalendarService } from './services/calendar-service'
 import { EventService } from './services/event-service'
+import { ICalService } from './services/ical-service'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
@@ -68,6 +70,7 @@ async function setupCache(): Promise<EventCache> {
 let auth: AuthService
 let calendars: CalendarService
 let events: EventService
+let ical: ICalService
 let store: EventStore & AuthStore
 let reminderTimer: ReturnType<typeof setInterval> | null = null
 
@@ -106,6 +109,7 @@ async function bootstrap(): Promise<void> {
   }
   calendars = new CalendarService(store, setup.cache)
   events = new EventService(store, setup.cache, perms)
+  ical = new ICalService(store, setup.cache, perms)
   startReminderEngine()
 }
 
@@ -173,6 +177,44 @@ function registerIpc(): void {
     withUser(payload.token, (uid) => events.addReminder(uid, payload.eventId, payload.minutes)))
   ipcMain.handle('reminders:delete', (_e, payload: { token: string; id: string }) =>
     withUser(payload.token, (uid) => events.removeReminder(uid, payload.id)))
+
+  // ---- iCal / backup ----
+  ipcMain.handle('export:ical', async (_e, payload: { token: string; calendarIds?: string[] }) => {
+    const uid = (await auth.validateSession(payload.token))?.id
+    if (!uid) throw new Error('Not authenticated')
+    const content = await ical.exportICal(uid, payload.calendarIds)
+    const res = await dialog.showSaveDialog({ title: 'Export iCal', defaultPath: 'calendar.ics', filters: [{ name: 'iCalendar', extensions: ['ics'] }] })
+    if (res.canceled || !res.filePath) return { canceled: true }
+    await writeFile(res.filePath, content, 'utf8')
+    return { canceled: false, filePath: res.filePath }
+  })
+  ipcMain.handle('import:ical', async (_e, payload: { token: string; calendarId: string }) => {
+    const uid = (await auth.validateSession(payload.token))?.id
+    if (!uid) throw new Error('Not authenticated')
+    const res = await dialog.showOpenDialog({ title: 'Import iCal', filters: [{ name: 'iCalendar', extensions: ['ics'] }], properties: ['openFile'] })
+    if (res.canceled || res.filePaths.length === 0) return { canceled: true }
+    const content = await readFile(res.filePaths[0]!, 'utf8')
+    const count = await ical.importICal(uid, payload.calendarId, content)
+    return { canceled: false, count }
+  })
+  ipcMain.handle('export:json', async (_e, payload: { token: string }) => {
+    const uid = (await auth.validateSession(payload.token))?.id
+    if (!uid) throw new Error('Not authenticated')
+    const content = await ical.exportJson(uid)
+    const res = await dialog.showSaveDialog({ title: 'Export backup', defaultPath: 'calendar-backup.json', filters: [{ name: 'JSON', extensions: ['json'] }] })
+    if (res.canceled || !res.filePath) return { canceled: true }
+    await writeFile(res.filePath, content, 'utf8')
+    return { canceled: false, filePath: res.filePath }
+  })
+  ipcMain.handle('import:json', async (_e, payload: { token: string }) => {
+    const uid = (await auth.validateSession(payload.token))?.id
+    if (!uid) throw new Error('Not authenticated')
+    const res = await dialog.showOpenDialog({ title: 'Import backup', filters: [{ name: 'JSON', extensions: ['json'] }], properties: ['openFile'] })
+    if (res.canceled || res.filePaths.length === 0) return { canceled: true }
+    const content = await readFile(res.filePaths[0]!, 'utf8')
+    const count = await ical.importJson(uid, content)
+    return { canceled: false, count }
+  })
 
   // ---- storage info ----
   ipcMain.handle('app:info', () => ({ using: process.env.CALENDAR_PG_URL ? 'postgresql' : 'sqlite' }))

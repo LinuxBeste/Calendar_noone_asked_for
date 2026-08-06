@@ -10,6 +10,7 @@ export default function Sidebar(): React.JSX.Element {
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState('#1a73e8')
   const [sharing, setSharing] = useState<Calendar | null>(null)
+  const [transfer, setTransfer] = useState(false)
 
   const createCalendar = async (): Promise<void> => {
     if (!newName.trim() || !token) return
@@ -84,9 +85,101 @@ export default function Sidebar(): React.JSX.Element {
         {user && (
           <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">Signed in as {user.name}</p>
         )}
+        <button
+          onClick={() => setTransfer(true)}
+          className="mt-3 flex items-center gap-2 px-2 py-1.5 w-full text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+        >
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+          </svg>
+          Import / Export
+        </button>
       </div>
 
       {sharing && <ShareDialog calendar={sharing} onClose={() => setSharing(null)} />}
+      {transfer && <TransferDialog onClose={() => setTransfer(false)} />}
+    </div>
+  )
+}
+
+function TransferDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
+  const { token } = useAuth()
+  const { calendars, refreshCalendars, refreshEvents } = useCalendar()
+  const [target, setTarget] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!target && calendars.length > 0) setTarget(calendars[0]!.id)
+  }, [calendars, target])
+
+  const run = async (fn: () => Promise<unknown>, label: string): Promise<void> => {
+    if (!token) return
+    setBusy(label)
+    setMessage(null)
+    try {
+      const res = await fn()
+      await useCalendar.getState().refreshCalendars()
+      await useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
+      const r = res as { canceled?: boolean; count?: number; filePath?: string }
+      setMessage(
+        r?.canceled
+          ? 'Canceled.'
+          : typeof r?.count === 'number'
+            ? `Imported ${r.count} event${r.count === 1 ? '' : 's'}.`
+            : r?.filePath
+              ? `Exported to ${r.filePath}`
+              : 'Done.'
+      )
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Operation failed')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const btnCls =
+    'px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 w-full'
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-[460px] max-w-[92vw] p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Import / Export</h2>
+
+        <div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Import into calendar</p>
+          <select value={target} onChange={(e) => setTarget(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
+            {calendars.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button className={btnCls} disabled={busy !== null} onClick={() => void run(() => window.calendarApi.ical.importICal(token!, target), 'import-ical')}>
+            {busy === 'import-ical' ? 'Importing…' : 'Import .ics'}
+          </button>
+          <button className={btnCls} disabled={busy !== null} onClick={() => void run(() => window.calendarApi.ical.importJson(token!), 'import-json')}>
+            {busy === 'import-json' ? 'Importing…' : 'Import backup'}
+          </button>
+          <button className={btnCls} disabled={busy !== null} onClick={() => void run(() => window.calendarApi.ical.exportICal(token!), 'export-ical')}>
+            {busy === 'export-ical' ? 'Exporting…' : 'Export .ics'}
+          </button>
+          <button className={btnCls} disabled={busy !== null} onClick={() => void run(() => window.calendarApi.ical.exportJson(token!), 'export-json')}>
+            {busy === 'export-json' ? 'Exporting…' : 'Export backup'}
+          </button>
+        </div>
+
+        {message && <p className="text-sm text-gray-600 dark:text-gray-300 break-all">{message}</p>}
+
+        <div className="flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200">
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

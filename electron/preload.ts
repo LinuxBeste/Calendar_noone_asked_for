@@ -43,6 +43,12 @@ const api = {
     create: (token: string, eventId: string, minutes: number) => invoke('reminders:create', { token, eventId, minutes }),
     delete: (token: string, id: string) => invoke('reminders:delete', { token, id })
   },
+  ical: {
+    exportICal: (token: string, calendarIds?: string[]) => invoke('export:ical', { token, calendarIds }),
+    importICal: (token: string, calendarId: string) => invoke('import:ical', { token, calendarId }),
+    exportJson: (token: string) => invoke('export:json', { token }),
+    importJson: (token: string) => invoke('import:json', { token })
+  },
   settings: {
     get: (token: string, key: string) => invoke('settings:get', { token, key }),
     set: (token: string, key: string, value: unknown) => invoke('settings:set', { token, key, value })
