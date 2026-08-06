@@ -115,7 +115,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   },
   async refreshEvents(from, to) {
     const token = useAuth.getState().token
-    if (!token) return
+    if (!token) return [] as Event[]
     const visible = Object.entries(get().visibleCalendars)
       .filter(([, v]) => v)
       .map(([id]) => id)
