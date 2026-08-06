@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Calendar, Event, User, ViewType, EventDetail } from '@shared/types'
+import type { Calendar, Event, EventOccurrence, User, ViewType, EventDetail } from '@shared/types'
 
 export const DEFAULT_SETTINGS = {
   firstDayOfWeek: 1 as 0 | 1,
@@ -66,14 +66,14 @@ interface CalendarState {
   view: ViewType
   date: Date
   calendars: Calendar[]
-  events: Record<string, Event[]>
+  events: Record<string, EventOccurrence[]>
   visibleCalendars: Record<string, boolean>
   settings: typeof DEFAULT_SETTINGS
   setView(view: ViewType): void
   setDate(date: Date): void
   navigate(delta: number): void
   refreshCalendars(): Promise<void>
-  refreshEvents(from: string, to: string): Promise<Event[]>
+  refreshEvents(from: string, to: string): Promise<EventOccurrence[]>
   toggleCalendar(id: string): void
   setSettings(patch: Partial<typeof DEFAULT_SETTINGS>): void
 }
@@ -115,11 +115,11 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   },
   async refreshEvents(from, to) {
     const token = useAuth.getState().token
-    if (!token) return [] as Event[]
+    if (!token) return [] as EventOccurrence[]
     const visible = Object.entries(get().visibleCalendars)
       .filter(([, v]) => v)
       .map(([id]) => id)
-    const events = (await window.calendarApi.events.list(token, from, to, visible.length ? visible : undefined)) as Event[]
+    const events = (await window.calendarApi.events.listOccurrences(token, from, to, visible.length ? visible : undefined)) as EventOccurrence[]
     set((s) => ({ events: { ...s.events, [`${from}|${to}`]: events } }))
     return events ?? []
   },

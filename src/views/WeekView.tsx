@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { format, isSameDay, isToday } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
-import type { Event } from '@shared/types'
+import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 
 interface WeekViewProps {
@@ -41,15 +41,15 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const dayColumns = useMemo(() => [...iterateDays(from, to)], [from, to])
 
   const { byDay, allDayEvents } = useMemo(() => {
-    const byDay = new Map<string, Event[]>()
-    const allDay: Event[] = []
-    for (const ev of Object.values(events).flat()) {
-      if (ev.allDay) {
-        allDay.push(ev)
+    const byDay = new Map<string, EventOccurrence[]>()
+    const allDay: EventOccurrence[] = []
+    for (const occ of Object.values(events).flat()) {
+      if (occ.allDay) {
+        allDay.push(occ)
         continue
       }
-      const dayKey = ev.startsAt ? format(new Date(ev.startsAt), 'yyyy-MM-dd') : null
-      if (dayKey && byDay.has(dayKey)) byDay.get(dayKey)!.push(ev)
+      const dayKey = format(new Date(occ.start), 'yyyy-MM-dd')
+      if (byDay.has(dayKey)) byDay.get(dayKey)!.push(occ)
     }
     return { byDay, allDayEvents: allDay }
   }, [events])
@@ -59,34 +59,34 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const positioned = useMemo(() => {
     const result = new Map<string, Positioned[]>()
     for (const [dayKey, evs] of byDay) {
-      const timed = evs.filter((e) => e.startsAt && e.endsAt)
-      const clusters: Event[][] = []
-      for (const ev of timed) {
-        const s = new Date(ev.startsAt!).getTime()
-        const e = new Date(ev.endsAt!).getTime()
+      const timed = evs.filter((o) => o.start && o.end)
+      const clusters: EventOccurrence[][] = []
+      for (const occ of timed) {
+        const s = new Date(occ.start).getTime()
+        const e = new Date(occ.end).getTime()
         let placed = false
         for (const cluster of clusters) {
           const overlaps = cluster.some((other) => {
-            const os = new Date(other.startsAt!).getTime()
-            const oe = new Date(other.endsAt!).getTime()
+            const os = new Date(other.start).getTime()
+            const oe = new Date(other.end).getTime()
             return s < oe && e > os
           })
           if (!overlaps) {
-            cluster.push(ev)
+            cluster.push(occ)
             placed = true
             break
           }
         }
-        if (!placed) clusters.push([ev])
+        if (!placed) clusters.push([occ])
       }
       const positioned: Positioned[] = []
       for (const cluster of clusters) {
         const n = cluster.length
-        cluster.forEach((ev, i) => {
+        cluster.forEach((occ, i) => {
           positioned.push({
-            event: ev,
-            startMin: new Date(ev.startsAt!).getHours() * 60 + new Date(ev.startsAt!).getMinutes(),
-            endMin: new Date(ev.endsAt!).getHours() * 60 + new Date(ev.endsAt!).getMinutes(),
+            event: occ.event,
+            startMin: new Date(occ.start).getHours() * 60 + new Date(occ.start).getMinutes(),
+            endMin: new Date(occ.end).getHours() * 60 + new Date(occ.end).getMinutes(),
             col: i,
             cols: n
           })
@@ -101,15 +101,30 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
 
   const moveEvent = async (event: Event, newStart: Date): Promise<void> => {
     if (!token) return
-    const dur = new Date(event.endsAt!).getTime() - new Date(event.startsAt!).getTime()
+    const occ = Object.values(events).flat().find((o) => o.event.id === event.id)
+    const dur = occ ? new Date(occ.end).getTime() - new Date(occ.start).getTime() : 3600000
     const newEnd = new Date(newStart.getTime() + dur)
-    await window.calendarApi.events.update(token, event.id, { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() })
+    if (event.rrule) {
+      const dayKey = format(newStart, 'yyyy-MM-dd')
+      await window.calendarApi.events.updateOccurrence(token, event.id, dayKey, {
+        startsAt: newStart.toISOString(),
+        endsAt: newEnd.toISOString()
+      })
+    } else {
+      await window.calendarApi.events.update(token, event.id, { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() })
+    }
     void refreshEvents(toISO(from), toISO(to))
   }
 
   const resizeEvent = async (event: Event, newEnd: Date): Promise<void> => {
     if (!token) return
-    await window.calendarApi.events.update(token, event.id, { endsAt: newEnd.toISOString() })
+    const occ = Object.values(events).flat().find((o) => o.event.id === event.id)
+    if (event.rrule && occ) {
+      const dayKey = format(new Date(occ.start), 'yyyy-MM-dd')
+      await window.calendarApi.events.updateOccurrence(token, event.id, dayKey, { endsAt: newEnd.toISOString() })
+    } else {
+      await window.calendarApi.events.update(token, event.id, { endsAt: newEnd.toISOString() })
+    }
     void refreshEvents(toISO(from), toISO(to))
   }
 
@@ -140,14 +155,15 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                 </div>
                 <div className="mt-0.5 space-y-0.5">
                   {allDayEvents
-                    .filter((ev) => daySpan(ev, d))
-                    .map((ev) => {
+                    .filter((occ) => occDaySpan(occ, d))
+                    .map((occ) => {
+                      const ev = occ.event
                       const cal = calendarById.get(ev.calendarId)
                       const color = ev.color ?? cal?.color ?? '#1a73e8'
-                      const continues = ev.endDate ? new Date(ev.endDate + 'T00:00:00') > d : false
+                      const continues = new Date(occ.end) > new Date(d.getTime() + 86400000 - 1)
                       return (
                         <button
-                          key={ev.id}
+                          key={ev.id + d.toISOString()}
                           onClick={() => setDialog({ event: ev })}
                           draggable={editableFor(ev)}
                           onDragStart={(e) => {
@@ -209,21 +225,32 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / PX_PER_MIN) / 15) * 15))
                   const start = new Date(d)
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
+                  const occ = Object.values(events).flat().find((x) => x.event.id === id)
+                  if (!occ) return
+                  const ev = occ.event
+                  const dayKey = format(d, 'yyyy-MM-dd')
                   if (allDay) {
                     void (async () => {
-                      const ev = Object.values(events).flat().find((x) => x.id === id)
-                      if (!ev) return
-                      const dur = ev.endDate ? new Date(ev.endDate + 'T00:00:00').getTime() - new Date(ev.startDate! + 'T00:00:00').getTime() : 0
-                      const dayKey = format(d, 'yyyy-MM-dd')
-                      await window.calendarApi.events.update(token!, id, {
-                        startDate: dayKey,
-                        endDate: dur > 0 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey
-                      })
+                      if (ev.rrule) {
+                        await window.calendarApi.events.updateOccurrence(token!, id, dayKey, { startDate: dayKey, endDate: dayKey, allDay: true })
+                      } else {
+                        const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
+                        await window.calendarApi.events.update(token!, id, {
+                          startDate: dayKey,
+                          endDate: dur > 86400000 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey
+                        })
+                      }
                       void refreshEvents(toISO(from), toISO(to))
                     })()
+                  } else if (ev.rrule) {
+                    const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
+                    const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
+                    void window.calendarApi.events.updateOccurrence(token!, id, sourceDay, {
+                      startsAt: start.toISOString(),
+                      endsAt: new Date(start.getTime() + dur).toISOString()
+                    }).then(() => refreshEvents(toISO(from), toISO(to)))
                   } else {
-                    const ev = Object.values(events).flat().find((x) => x.id === id)
-                    if (ev) void moveEvent(ev, start)
+                    void moveEvent(ev, start)
                   }
                 }}
                 className={`relative border-l border-gray-200 dark:border-gray-700 ${weekend ? 'bg-gray-50 dark:bg-gray-800/60' : ''} cursor-pointer`}
@@ -309,9 +336,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   )
 }
 
-function daySpan(ev: Event, day: Date): boolean {
+function occDaySpan(occ: EventOccurrence, day: Date): boolean {
   const dayKey = format(day, 'yyyy-MM-dd')
-  const start = ev.startDate ?? (ev.startsAt ? format(new Date(ev.startsAt), 'yyyy-MM-dd') : null)
-  if (!start) return false
-  return start <= dayKey && (ev.endDate ?? start) >= dayKey
+  const start = format(new Date(occ.start), 'yyyy-MM-dd')
+  return start <= dayKey && format(new Date(occ.end), 'yyyy-MM-dd') >= dayKey
 }

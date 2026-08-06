@@ -1,4 +1,4 @@
-import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session } from '@shared/types'
+import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException } from '@shared/types'
 
 /**
  * Storage abstraction. Implemented by SqliteStore (embedded fallback)
@@ -21,6 +21,11 @@ export interface EventStore {
   createEvent(input: EventInput): Promise<Event>
   updateEvent(id: string, input: Partial<EventInput>): Promise<Event>
   deleteEvent(id: string): Promise<void>
+
+  // ---- recurrence exceptions ----
+  listExceptions(eventId: string): Promise<EventException[]>
+  upsertException(eventId: string, input: Partial<Omit<EventException, 'id' | 'eventId'>> & { occurrence: string; deleted?: boolean }): Promise<EventException>
+  deleteException(id: string): Promise<void>
 
   // ---- search ----
   searchEvents(query: string, opts?: { limit?: number; calendarIds?: string[] }): Promise<Event[]>

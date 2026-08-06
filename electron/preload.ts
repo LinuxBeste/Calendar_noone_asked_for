@@ -27,7 +27,17 @@ const api = {
     update: (token: string, id: string, input: Partial<EventInput>) => invoke('events:update', { token, id, input }),
     delete: (token: string, id: string) => invoke('events:delete', { token, id }),
     search: (token: string, query: string, calendarIds?: string[], limit?: number) =>
-      invoke('events:search', { token, query, calendarIds, limit })
+      invoke('events:search', { token, query, calendarIds, limit }),
+    listOccurrences: (token: string, from: string, to: string, calendarIds?: string[]) =>
+      invoke('events:listOccurrences', { token, from, to, calendarIds }),
+    occurrences: (token: string, eventId: string, from: string, to: string) =>
+      invoke('events:occurrences', { token, eventId, from, to }),
+    updateOccurrence: (token: string, eventId: string, occurrence: string, input: Partial<EventInput>) =>
+      invoke('events:updateOccurrence', { token, eventId, occurrence, input }),
+    deleteOccurrence: (token: string, eventId: string, occurrence: string) =>
+      invoke('events:deleteOccurrence', { token, eventId, occurrence }),
+    splitSeries: (token: string, eventId: string, occurrence: string, input: Partial<EventInput>) =>
+      invoke('events:splitSeries', { token, eventId, occurrence, input })
   },
   settings: {
     get: (token: string, key: string) => invoke('settings:get', { token, key }),

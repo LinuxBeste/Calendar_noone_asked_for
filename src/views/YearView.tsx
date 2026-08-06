@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { format, isSameDay, isToday, addMonths } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { startOfYear, endOfYear, toISO, iterateDays } from '../utils/date'
-import type { Event } from '@shared/types'
+import type { Event, EventOccurrence } from '@shared/types'
 
 interface YearViewProps {
   date: Date
@@ -18,16 +18,13 @@ export default function YearView({ date }: YearViewProps): React.JSX.Element {
   }, [date, refreshEvents, token])
 
   const months = useMemo(() => {
-    const out: { name: string; days: Date[]; events: Event[] }[] = []
+    const out: { name: string; days: Date[]; events: EventOccurrence[] }[] = []
     for (let m = 0; m < 12; m++) {
       const first = new Date(date.getFullYear(), m, 1)
       const days = [...iterateDays(new Date(date.getFullYear(), m, 1), new Date(date.getFullYear(), m + 1, 0))]
       const evs = Object.values(events)
         .flat()
-        .filter((e) => {
-          const d = e.startDate ?? (e.startsAt ? format(new Date(e.startsAt), 'yyyy-MM-dd') : '')
-          return d.startsWith(`${date.getFullYear()}-${String(m + 1).padStart(2, '0')}`)
-        })
+        .filter((e) => e.start.startsWith(`${date.getFullYear()}-${String(m + 1).padStart(2, '0')}`))
       out.push({ name: format(first, 'MMMM'), days, events: evs })
     }
     return out
@@ -58,11 +55,8 @@ export default function YearView({ date }: YearViewProps): React.JSX.Element {
             </div>
             <div className="grid grid-cols-7 gap-y-0.5">
               {month.days.map((d, i) => {
-                const ev = month.events.find((e) => {
-                  const k = e.startDate ?? (e.startsAt ? format(new Date(e.startsAt), 'yyyy-MM-dd') : '')
-                  return k === format(d, 'yyyy-MM-dd')
-                })
-                const cal = ev ? calendarById.get(ev.calendarId) : undefined
+                const ev = month.events.find((e) => e.start.slice(0, 10) === format(d, 'yyyy-MM-dd'))
+                const cal = ev ? calendarById.get(ev.event.calendarId) : undefined
                 return (
                   <button
                     key={i}
@@ -72,7 +66,7 @@ export default function YearView({ date }: YearViewProps): React.JSX.Element {
                     }`}
                   >
                     {d.getDate()}
-                    {ev && <span className="absolute translate-y-2.5 h-1 w-1 rounded-full" style={{ backgroundColor: ev.color ?? cal?.color }} />}
+                    {ev && <span className="absolute translate-y-2.5 h-1 w-1 rounded-full" style={{ backgroundColor: ev.event.color ?? cal?.color }} />}
                   </button>
                 )
               })}

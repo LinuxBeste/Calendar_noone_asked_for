@@ -3,7 +3,7 @@ import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, ilike, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import type { EventStore, AuthStore } from '@shared/storage'
-import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session } from '@shared/types'
+import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException } from '@shared/types'
 import {
   pgCalendars,
   pgEvents,
@@ -315,6 +315,88 @@ export class PgStore implements EventStore, AuthStore {
 
   async deleteEvent(id: string): Promise<void> {
     await this.db.delete(pgEvents).where(eq(pgEvents.id, id))
+  }
+
+  async listExceptions(eventId: string): Promise<EventException[]> {
+    const rows = await this.db.select().from(pgEventExceptions).where(eq(pgEventExceptions.eventId, eventId))
+    return rows.map((ex) => ({
+      id: ex.id,
+      eventId: ex.eventId,
+      occurrence: ex.occurrence,
+      title: opt(ex.title),
+      description: opt(ex.description),
+      location: opt(ex.location),
+      allDay: ex.allDay ?? undefined,
+      startsAt: opt(ex.startsAt),
+      endsAt: opt(ex.endsAt),
+      startDate: opt(ex.startDate),
+      endDate: opt(ex.endDate),
+      color: opt(ex.color),
+      busy: ex.busy ?? undefined,
+      deleted: ex.deleted
+    }))
+  }
+
+  async upsertException(
+    eventId: string,
+    input: Partial<Omit<EventException, 'id' | 'eventId'>> & { occurrence: string; deleted?: boolean }
+  ): Promise<EventException> {
+    const rows = await this.db
+      .insert(pgEventExceptions)
+      .values({
+        id: randomUUID(),
+        eventId,
+        occurrence: input.occurrence,
+        title: input.title,
+        description: input.description,
+        location: input.location,
+        allDay: input.allDay,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        color: input.color,
+        busy: input.busy,
+        deleted: input.deleted ?? false
+      })
+      .onConflictDoUpdate({
+        target: [pgEventExceptions.eventId, pgEventExceptions.occurrence],
+        set: {
+          title: input.title,
+          description: input.description,
+          location: input.location,
+          allDay: input.allDay,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          color: input.color,
+          busy: input.busy,
+          deleted: input.deleted ?? false
+        }
+      })
+      .returning()
+    const r = rows[0]!
+    return {
+      id: r.id,
+      eventId: r.eventId,
+      occurrence: r.occurrence,
+      title: opt(r.title),
+      description: opt(r.description),
+      location: opt(r.location),
+      allDay: r.allDay ?? undefined,
+      startsAt: opt(r.startsAt),
+      endsAt: opt(r.endsAt),
+      startDate: opt(r.startDate),
+      endDate: opt(r.endDate),
+      color: opt(r.color),
+      busy: r.busy ?? undefined,
+      deleted: r.deleted
+    }
+  }
+
+  async deleteException(id: string): Promise<void> {
+    await this.db.delete(pgEventExceptions).where(eq(pgEventExceptions.id, id))
   }
 
   async searchEvents(query: string, opts?: { limit?: number; calendarIds?: string[] }): Promise<Event[]> {

@@ -130,6 +130,16 @@ function registerIpc(): void {
     withUser(payload.token, (uid) => events.deleteEvent(uid, payload.id)))
   ipcMain.handle('events:search', (_e, payload: { token: string; query: string; calendarIds?: string[]; limit?: number }) =>
     withUser(payload.token, (uid) => events.searchEvents(uid, payload.query, { calendarIds: payload.calendarIds, limit: payload.limit })))
+  ipcMain.handle('events:listOccurrences', (_e, payload: { token: string; from: string; to: string; calendarIds?: string[] }) =>
+    withUser(payload.token, (uid) => events.listOccurrencesForRange(uid, payload.from, payload.to, payload.calendarIds)))
+  ipcMain.handle('events:occurrences', (_e, payload: { token: string; eventId: string; from: string; to: string }) =>
+    withUser(payload.token, (uid) => events.listOccurrences(uid, payload.eventId, payload.from, payload.to)))
+  ipcMain.handle('events:updateOccurrence', (_e, payload: { token: string; eventId: string; occurrence: string; input: unknown }) =>
+    withUser(payload.token, (uid) => events.updateOccurrence(uid, payload.eventId, payload.occurrence, payload.input as never)))
+  ipcMain.handle('events:deleteOccurrence', (_e, payload: { token: string; eventId: string; occurrence: string }) =>
+    withUser(payload.token, (uid) => events.deleteOccurrence(uid, payload.eventId, payload.occurrence)))
+  ipcMain.handle('events:splitSeries', (_e, payload: { token: string; eventId: string; occurrence: string; input: unknown }) =>
+    withUser(payload.token, (uid) => events.splitSeries(uid, payload.eventId, payload.occurrence, payload.input as never)))
 
   // ---- storage info ----
   ipcMain.handle('app:info', () => ({ using: process.env.CALENDAR_PG_URL ? 'postgresql' : 'sqlite' }))

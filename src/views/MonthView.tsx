@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { format, isSameDay, isToday, isSameMonth } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
-import type { Event } from '@shared/types'
+import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 
 interface MonthViewProps {
@@ -24,16 +24,16 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
     const from = rangeStart('month', date, settings.firstDayOfWeek)
     const to = rangeEnd('month', date, settings.firstDayOfWeek)
     const days = [...iterateDays(from, to)]
-    const byDay = new Map<string, Event[]>()
-    for (const ev of Object.values(events).flat()) {
-      const first = ev.startDate ?? (ev.startsAt ? format(new Date(ev.startsAt), 'yyyy-MM-dd') : null)
+    const byDay = new Map<string, EventOccurrence[]>()
+    for (const occ of Object.values(events).flat()) {
+      const first = occ.allDay ? occ.start.slice(0, 10) : format(new Date(occ.start), 'yyyy-MM-dd')
+      const last = occ.allDay ? occ.end.slice(0, 10) : first
       if (!first) continue
-      const last = ev.endDate ?? first
       let d = new Date(first + 'T00:00:00')
       const end = new Date(last + 'T00:00:00')
       while (d <= end) {
         const key = format(d, 'yyyy-MM-dd')
-        byDay.set(key, [...(byDay.get(key) ?? []), ev])
+        byDay.set(key, [...(byDay.get(key) ?? []), occ])
         d = new Date(d.getTime() + 86400000)
       }
     }
@@ -72,20 +72,21 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                 const raw = e.dataTransfer.getData('application/x-cal-event')
                 if (!raw || !token) return
                 const { id, allDay } = JSON.parse(raw) as { id: string; allDay?: boolean }
-                const ev = Object.values(events).flat().find((x) => x.id === id)
-                if (!ev) return
+                const occ = Object.values(events).flat().find((x) => x.event.id === id)
+                if (!occ) return
+                const ev = occ.event
                 const dayKey = format(d, 'yyyy-MM-dd')
                 if (allDay || ev.allDay) {
-                  const dur = ev.endDate
-                    ? new Date(ev.endDate + 'T00:00:00').getTime() - new Date(ev.startDate! + 'T00:00:00').getTime()
+                  const dur = occ.end && occ.start
+                    ? new Date(occ.end).getTime() - new Date(occ.start).getTime()
                     : 0
                   void window.calendarApi.events.update(token, id, {
                     startDate: dayKey,
                     endDate: dur > 0 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey
                   }).then(() => refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek))))
                 } else {
-                  const dur = new Date(ev.endsAt!).getTime() - new Date(ev.startsAt!).getTime()
-                  const start = new Date(dayKey + 'T' + format(new Date(ev.startsAt!), 'HH:mm:ss'))
+                  const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
+                  const start = new Date(dayKey + 'T' + format(new Date(occ.start), 'HH:mm:ss'))
                   void window.calendarApi.events.update(token, id, {
                     startsAt: start.toISOString(),
                     endsAt: new Date(start.getTime() + dur).toISOString()
@@ -112,10 +113,11 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                 )}
               </div>
               <div className="space-y-0.5">
-                {visible.map((ev) => {
+                {visible.map((occ) => {
+                  const ev = occ.event
                   const cal = calendarById.get(ev.calendarId)
                   const color = ev.color ?? cal?.color ?? '#1a73e8'
-                  const continues = ev.endDate ? new Date(ev.endDate + 'T00:00:00') > d : false
+                  const continues = new Date(occ.end) > new Date(d.getTime() + 86400000 - 1)
                   return (
                     <button
                       key={ev.id}
@@ -123,16 +125,16 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                         e.stopPropagation()
                         setDialog({ event: ev })
                       }}
-                      draggable={!ev.color || calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
+                      draggable={calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
                       onDragStart={(e) => {
-                        e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: ev.allDay }))
+                        e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: occ.allDay }))
                         e.dataTransfer.effectAllowed = 'move'
                       }}
                       className={`w-full text-left text-[11px] px-1 py-0.5 rounded truncate hover:shadow ${continues ? '' : 'rounded-r-full'}`}
                       style={{ backgroundColor: color + '22', color }}
                       title={ev.title}
                     >
-                      {ev.allDay ? '' : format(new Date(ev.startsAt!), 'H:mm') + ' '}
+                      {occ.allDay ? '' : format(new Date(occ.start), 'H:mm') + ' '}
                       {ev.title}
                     </button>
                   )

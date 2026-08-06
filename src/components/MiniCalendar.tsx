@@ -12,6 +12,7 @@ import {
   isToday
 } from 'date-fns'
 import { useCalendar } from '../store'
+import type { EventOccurrence } from '@shared/types'
 
 interface MiniCalendarProps {
   weekStartsOn: 0 | 1
@@ -40,16 +41,12 @@ export default function MiniCalendar({ weekStartsOn }: MiniCalendarProps): React
   const eventDays = useMemo(() => {
     const set = new Set<string>()
     for (const list of Object.values(events)) {
-      for (const ev of list) {
-        if (ev.startDate) {
-          let d = new Date(ev.startDate + 'T00:00:00')
-          const end = new Date((ev.endDate ?? ev.startDate) + 'T00:00:00')
-          while (d <= end) {
-            set.add(format(d, 'yyyy-MM-dd'))
-            d = addDays(d, 1)
-          }
-        } else if (ev.startsAt) {
-          set.add(format(new Date(ev.startsAt), 'yyyy-MM-dd'))
+      for (const occ of list as EventOccurrence[]) {
+        let d = new Date(occ.start.slice(0, 10) + 'T00:00:00')
+        const end = new Date(occ.end.slice(0, 10) + 'T00:00:00')
+        while (d <= end) {
+          set.add(format(d, 'yyyy-MM-dd'))
+          d = addDays(d, 1)
         }
       }
     }

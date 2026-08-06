@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { format, isToday, addDays, isSameDay } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
-import type { Event } from '@shared/types'
+import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 
 interface AgendaViewProps {
@@ -23,16 +23,15 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
   }, [from, to, refreshEvents, token])
 
   const byDay = useMemo(() => {
-    const map = new Map<string, Event[]>()
-    for (const ev of Object.values(events).flat()) {
-      const first = ev.startDate ?? (ev.startsAt ? format(new Date(ev.startsAt), 'yyyy-MM-dd') : null)
-      if (!first) continue
-      const last = ev.endDate ?? first
+    const map = new Map<string, EventOccurrence[]>()
+    for (const occ of Object.values(events).flat()) {
+      const first = format(new Date(occ.start), 'yyyy-MM-dd')
+      const last = format(new Date(occ.end), 'yyyy-MM-dd')
       let d = new Date(first + 'T00:00:00')
       const end = new Date(last + 'T00:00:00')
       while (d <= end) {
         const key = format(d, 'yyyy-MM-dd')
-        map.set(key, [...(map.get(key) ?? []), ev])
+        map.set(key, [...(map.get(key) ?? []), occ])
         d = addDays(d, 1)
       }
     }
@@ -40,7 +39,7 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
       list.sort((a, b) => {
         if (a.allDay && !b.allDay) return -1
         if (!a.allDay && b.allDay) return 1
-        return (a.startsAt ?? '').localeCompare(b.startsAt ?? '')
+        return a.start.localeCompare(b.start)
       })
     }
     return map
@@ -63,7 +62,8 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
               {isToday(d) && <span className="text-xs text-blue-600 bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 rounded-full">Today</span>}
             </div>
             <div className="space-y-1">
-              {dayEvents.map((ev) => {
+              {dayEvents.map((occ) => {
+                const ev = occ.event
                 const cal = calendarById.get(ev.calendarId)
                 const color = ev.color ?? cal?.color ?? '#1a73e8'
                 return (
@@ -74,7 +74,7 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
                   >
                     <span className="w-1 self-stretch rounded-full" style={{ backgroundColor: color }} />
                     <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0">
-                      {ev.allDay ? 'All day' : ev.startsAt ? `${format(new Date(ev.startsAt), 'HH:mm')} – ${format(new Date(ev.endsAt!), 'HH:mm')}` : ''}
+                      {occ.allDay ? 'All day' : `${format(new Date(occ.start), 'HH:mm')} – ${format(new Date(occ.end), 'HH:mm')}`}
                     </span>
                     <span className="flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                       {ev.title}

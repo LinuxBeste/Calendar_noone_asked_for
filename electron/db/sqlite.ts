@@ -3,7 +3,7 @@ import { drizzle, BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import type { EventStore, AuthStore } from '@shared/storage'
-import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session } from '@shared/types'
+import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException } from '@shared/types'
 import { calendars, events, eventExceptions, attendees, reminders, settings, users, sessions, calendarShares } from '@shared/db-schema'
 
 type Db = BetterSQLite3Database
@@ -335,6 +335,68 @@ export class SqliteStore implements EventStore, AuthStore {
 
   async deleteEvent(id: string): Promise<void> {
     this.db.delete(events).where(eq(events.id, id)).run()
+  }
+
+  async listExceptions(eventId: string): Promise<EventException[]> {
+    const rows = this.db.select().from(eventExceptions).where(eq(eventExceptions.eventId, eventId)).all()
+    return rows.map((ex) => ({
+      id: ex.id,
+      eventId: ex.eventId,
+      occurrence: ex.occurrence,
+      title: opt(ex.title),
+      description: opt(ex.description),
+      location: opt(ex.location),
+      allDay: ex.allDay === null ? undefined : ex.allDay === 1,
+      startsAt: opt(ex.startsAt),
+      endsAt: opt(ex.endsAt),
+      startDate: opt(ex.startDate),
+      endDate: opt(ex.endDate),
+      color: opt(ex.color),
+      busy: ex.busy === null ? undefined : ex.busy === 1,
+      deleted: ex.deleted === 1
+    }))
+  }
+
+  async upsertException(
+    eventId: string,
+    input: Partial<Omit<EventException, 'id' | 'eventId'>> & { occurrence: string; deleted?: boolean }
+  ): Promise<EventException> {
+    const existing = this.db.select().from(eventExceptions).where(and(eq(eventExceptions.eventId, eventId), eq(eventExceptions.occurrence, input.occurrence))).get()
+    const patch: Partial<typeof eventExceptions.$inferInsert> = { ...existing }
+    const map: Record<string, unknown> = {
+      title: input.title,
+      description: input.description,
+      location: input.location,
+      allDay: input.allDay === undefined ? patch.allDay : input.allDay ? 1 : 0,
+      startsAt: input.startsAt ?? patch.startsAt,
+      endsAt: input.endsAt ?? patch.endsAt,
+      startDate: input.startDate ?? patch.startDate,
+      endDate: input.endDate ?? patch.endDate,
+      color: input.color ?? patch.color,
+      busy: input.busy === undefined ? patch.busy : input.busy ? 1 : 0,
+      deleted: input.deleted === undefined ? patch.deleted : input.deleted ? 1 : 0
+    }
+    const values = {
+      id: existing?.id ?? randomUUID(),
+      eventId,
+      occurrence: input.occurrence,
+      ...map
+    }
+    this.db
+      .insert(eventExceptions)
+      .values(values as typeof eventExceptions.$inferInsert)
+      .onConflictDoUpdate({
+        target: [eventExceptions.eventId, eventExceptions.occurrence],
+        set: Object.fromEntries(
+          Object.entries(map).map(([k, v]) => [k, v as never])
+        )
+      })
+      .run()
+    return (await this.listExceptions(eventId)).find((e) => e.occurrence === input.occurrence)!
+  }
+
+  async deleteException(id: string): Promise<void> {
+    this.db.delete(eventExceptions).where(eq(eventExceptions.id, id)).run()
   }
 
   async searchEvents(query: string, opts?: { limit?: number; calendarIds?: string[] }): Promise<Event[]> {

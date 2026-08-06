@@ -1,5 +1,7 @@
 import type { EventStore, AuthStore, EventCache } from '@shared/storage'
-import type { Event, EventInput } from '@shared/types'
+import type { Event, EventInput, EventDetail, EventOccurrence } from '@shared/types'
+import { expandEvent, withDtstart } from './recurrence'
+import { RRule, datetime } from 'rrule'
 
 export class EventService {
   constructor(
@@ -68,6 +70,149 @@ export class EventService {
       await Promise.all(opts.calendarIds.map((id) => this.permissions.assertCanRead(userId, id)))
     }
     return this.store.searchEvents(query, opts)
+  }
+
+  /** Expands series into concrete occurrences for the range (with exceptions applied). */
+  async listOccurrences(userId: string, eventId: string, from: string, to: string): Promise<EventOccurrence[]> {
+    const detail = await this.getEvent(userId, eventId)
+    const exceptions = await this.store.listExceptions(eventId)
+    return expandEvent(detail, exceptions, new Date(from), new Date(to)).map((o) => ({
+      event: detail,
+      exception: o.exception,
+      start: o.start.toISOString(),
+      end: o.end.toISOString(),
+      allDay: o.exception?.allDay ?? detail.allDay,
+      isException: o.isException
+    }))
+  }
+
+  /** Lists all occurrences (expanded series) overlapping the range. What the views actually render. */
+  async listOccurrencesForRange(userId: string, from: string, to: string, calendarIds?: string[]): Promise<EventOccurrence[]> {
+    if (calendarIds && calendarIds.length > 0) {
+      await Promise.all(calendarIds.map((id) => this.permissions.assertCanRead(userId, id)))
+    }
+    const cacheKey = `occ:${from}|${to}|${(calendarIds ?? []).sort().join(',')}`
+    const cached = await this.cache.getEvents(cacheKey)
+    if (cached) return cached as unknown as EventOccurrence[]
+    const masterEvents = await this.store.listEvents(from, to, calendarIds)
+    const out: EventOccurrence[] = []
+    for (const ev of masterEvents) {
+      const exceptions = ev.rrule ? await this.store.listExceptions(ev.id) : []
+      const occs = expandEvent(ev, exceptions, new Date(from), new Date(to))
+      for (const o of occs) {
+        out.push({
+          event: ev,
+          exception: o.exception,
+          start: o.start.toISOString(),
+          end: o.end.toISOString(),
+          allDay: o.exception?.allDay ?? ev.allDay,
+          isException: o.isException
+        })
+      }
+    }
+    out.sort((a, b) => a.start.localeCompare(b.start))
+    await this.cache.setEvents(cacheKey, out as unknown as Event[], 120)
+    return out
+  }
+
+  /** Edits a single occurrence of a series by creating/updating an exception. */
+  async updateOccurrence(userId: string, eventId: string, occurrence: string, input: Partial<EventInput>): Promise<void> {
+    const detail = await this.getEvent(userId, eventId)
+    if (!detail.rrule) {
+      await this.updateEvent(userId, eventId, input)
+      return
+    }
+    await this.permissions.assertCanWrite(userId, detail.calendarId)
+    await this.store.upsertException(eventId, {
+      occurrence,
+      title: input.title,
+      description: input.description,
+      location: input.location,
+      allDay: input.allDay,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      color: input.color,
+      busy: input.busy,
+      deleted: false
+    })
+    await this.invalidateForCalendar(detail.calendarId)
+    await this.cache.publish('events.changed', { type: 'updated', eventId })
+  }
+
+  /** Deletes a single occurrence of a series (exception marked deleted). */
+  async deleteOccurrence(userId: string, eventId: string, occurrence: string): Promise<void> {
+    const detail = await this.getEvent(userId, eventId)
+    if (!detail.rrule) {
+      await this.deleteEvent(userId, eventId)
+      return
+    }
+    await this.permissions.assertCanWrite(userId, detail.calendarId)
+    await this.store.upsertException(eventId, { occurrence, deleted: true })
+    await this.invalidateForCalendar(detail.calendarId)
+    await this.cache.publish('events.changed', { type: 'updated', eventId })
+  }
+
+  /** Splits the series at an occurrence: old series ends before it, a new series starts there. */
+  async splitSeries(userId: string, eventId: string, occurrence: string, input: Partial<EventInput>): Promise<Event> {
+    const detail = await this.getEvent(userId, eventId)
+    if (!detail.rrule) {
+      await this.updateEvent(userId, eventId, input)
+      return (await this.getEvent(userId, eventId))!
+    }
+    await this.permissions.assertCanWrite(userId, detail.calendarId)
+
+    const occDate = new Date(occurrence + 'T00:00:00')
+    const thisOcc = expandEvent(
+      detail,
+      [],
+      new Date(detail.allDay ? detail.startDate! + 'T00:00:00' : detail.startsAt!),
+      new Date(occDate.getTime() + 86400000)
+    ).find((o) => {
+      const d = o.start
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === occurrence
+    })
+
+    const rule = RRule.fromString(detail.rrule.startsWith('DTSTART') ? detail.rrule : withDtstart(detail.rrule, new Date(detail.startsAt ?? detail.startDate! + 'T00:00:00')))
+    const options = rule.options
+    const freq = options.freq as 0 | 1 | 2 | 3
+    const freqName = ['YEARLY', 'MONTHLY', 'WEEKLY', 'DAILY'][freq]
+    const interval = options.interval
+    const byweekday = options.byweekday?.length ? options.byweekday[0] : undefined
+
+    const until = new Date(occDate.getTime() - 86400000)
+    const oldRule = new RRule({
+      freq: freq as never,
+      interval,
+      ...(byweekday !== undefined ? { byweekday: [byweekday] } : {}),
+      until: datetime(until.getFullYear(), until.getMonth() + 1, until.getDate())
+    }).toString()
+    await this.store.updateEvent(eventId, { rrule: withDtstart(oldRule, new Date(detail.allDay ? detail.startDate! + 'T00:00:00' : detail.startsAt!)) })
+
+    const newRule = new RRule({
+      freq: freq as never,
+      interval,
+      ...(byweekday !== undefined ? { byweekday: [byweekday] } : {})
+    }).toString()
+    const created = await this.store.createEvent({
+      calendarId: detail.calendarId,
+      title: input.title ?? detail.title,
+      description: input.description ?? detail.description,
+      location: input.location ?? detail.location,
+      allDay: input.allDay ?? detail.allDay,
+      startsAt: input.startsAt ?? thisOcc?.start.toISOString(),
+      endsAt: input.endsAt ?? (thisOcc ? new Date(thisOcc.end.getTime()).toISOString() : undefined),
+      startDate: input.startDate ?? occurrence,
+      endDate: input.endDate ?? occurrence,
+      timezone: detail.timezone,
+      color: input.color ?? detail.color,
+      busy: input.busy ?? detail.busy,
+      rrule: withDtstart(newRule, occDate)
+    })
+    await this.invalidateForCalendar(detail.calendarId)
+    await this.cache.publish('events.changed', { type: 'created', eventId: created.id })
+    return created
   }
 
   private async invalidateForCalendar(calendarId: string): Promise<void> {
