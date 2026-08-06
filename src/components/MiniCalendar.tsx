@@ -1,0 +1,108 @@
+import { useMemo, useEffect, useState } from 'react'
+import {
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  addMonths,
+  subMonths,
+  format,
+  isSameDay,
+  isToday
+} from 'date-fns'
+import { useCalendar } from '../store'
+
+interface MiniCalendarProps {
+  weekStartsOn: 0 | 1
+}
+
+export default function MiniCalendar({ weekStartsOn }: MiniCalendarProps): React.JSX.Element {
+  const { date, setDate, events } = useCalendar()
+  const [cursor, setCursor] = useState(date)
+
+  useEffect(() => {
+    setCursor(date)
+  }, [date.getFullYear(), date.getMonth()])
+
+  const days = useMemo(() => {
+    const start = startOfWeek(startOfMonth(cursor), { weekStartsOn })
+    const end = endOfWeek(endOfMonth(cursor), { weekStartsOn })
+    const out: Date[] = []
+    let d = start
+    while (d <= end) {
+      out.push(d)
+      d = addDays(d, 1)
+    }
+    return out
+  }, [cursor, weekStartsOn])
+
+  const eventDays = useMemo(() => {
+    const set = new Set<string>()
+    for (const list of Object.values(events)) {
+      for (const ev of list) {
+        if (ev.startDate) {
+          let d = new Date(ev.startDate + 'T00:00:00')
+          const end = new Date((ev.endDate ?? ev.startDate) + 'T00:00:00')
+          while (d <= end) {
+            set.add(format(d, 'yyyy-MM-dd'))
+            d = addDays(d, 1)
+          }
+        } else if (ev.startsAt) {
+          set.add(format(new Date(ev.startsAt), 'yyyy-MM-dd'))
+        }
+      }
+    }
+    return set
+  }, [events])
+
+  return (
+    <div className="p-2 select-none">
+      <div className="flex items-center justify-between px-1 mb-1">
+        <button
+          onClick={() => setCursor(subMonths(cursor, 1))}
+          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500"
+          aria-label="Previous month"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z" /></svg>
+        </button>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+          {format(cursor, 'MMMM yyyy')}
+        </span>
+        <button
+          onClick={() => setCursor(addMonths(cursor, 1))}
+          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500"
+          aria-label="Next month"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6z" /></svg>
+        </button>
+      </div>
+      <div className="grid grid-cols-7 text-center text-[10px] text-gray-400 mb-1">
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].slice(weekStartsOn).concat(['S', 'M', 'T', 'W', 'T', 'F', 'S'].slice(0, weekStartsOn)).map((d, i) => (
+          <span key={i}>{d}</span>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-y-0.5">
+        {days.map((d, i) => {
+          const selected = isSameDay(d, date)
+          const today = isToday(d)
+          const hasEvents = eventDays.has(format(d, 'yyyy-MM-dd'))
+          const inMonth = d.getMonth() === cursor.getMonth()
+          return (
+            <button
+              key={i}
+              onClick={() => setDate(d)}
+              className={`relative h-7 w-7 mx-auto rounded-full text-xs flex items-center justify-center transition-colors
+                ${selected ? 'bg-blue-600 text-white' : today ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200' : inMonth ? 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+            >
+              {d.getDate()}
+              {hasEvents && !selected && (
+                <span className={`absolute bottom-0.5 h-1 w-1 rounded-full ${today ? 'bg-blue-500' : 'bg-gray-400 dark:bg-gray-500'}`} />
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
