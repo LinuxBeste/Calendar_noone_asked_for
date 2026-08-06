@@ -1,0 +1,57 @@
+import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session } from '@shared/types'
+
+/**
+ * Storage abstraction. Implemented by SqliteStore (embedded fallback)
+ * and PgStore (PostgreSQL). All methods must be atomic (transactional).
+ */
+export interface EventStore {
+  /** Create tables and run migrations. Idempotent. */
+  migrate(): Promise<void>
+
+  // ---- calendars ----
+  listCalendars(): Promise<Calendar[]>
+  getCalendar(id: string): Promise<Calendar | undefined>
+  createCalendar(input: CalendarInput & { ownerId?: string }): Promise<Calendar>
+  updateCalendar(id: string, input: Partial<CalendarInput>): Promise<Calendar>
+  deleteCalendar(id: string): Promise<void>
+
+  // ---- events ----
+  listEvents(from: string, to: string, calendarIds?: string[]): Promise<Event[]>
+  getEvent(id: string): Promise<EventDetail | undefined>
+  createEvent(input: EventInput): Promise<Event>
+  updateEvent(id: string, input: Partial<EventInput>): Promise<Event>
+  deleteEvent(id: string): Promise<void>
+
+  // ---- search ----
+  searchEvents(query: string, opts?: { limit?: number; calendarIds?: string[] }): Promise<Event[]>
+}
+
+/** Storage for users, sessions and calendar shares (multi-user). */
+export interface AuthStore {
+  createUser(input: { email: string; name: string; passwordHash: string }): Promise<User>
+  getUserByEmail(email: string): Promise<(User & { passwordHash: string }) | undefined>
+  getUser(id: string): Promise<User | undefined>
+  createSession(token: string, userId: string, expiresAt: string): Promise<void>
+  getSession(token: string): Promise<Session | undefined>
+  deleteSession(token: string): Promise<void>
+  deleteExpiredSessions(now: string): Promise<void>
+  listShares(calendarId: string): Promise<{ userId: string; role: 'viewer' | 'editor' }[]>
+  getUserShares(userId: string): Promise<{ calendarId: string; role: 'viewer' | 'editor' }[]>
+  upsertShare(calendarId: string, userId: string, role: 'viewer' | 'editor'): Promise<void>
+  removeShare(calendarId: string, userId: string): Promise<void>
+  getSetting<T>(key: string): Promise<T | undefined>
+  setSetting<T>(key: string, value: T): Promise<void>
+}
+
+/**
+ * Cache abstraction. Implemented by RedisCache (external server)
+ * and InMemoryCache (embedded fallback, always available).
+ */
+export interface EventCache {
+  getEvents(rangeKey: string): Promise<Event[] | undefined>
+  setEvents(rangeKey: string, events: Event[], ttlSeconds?: number): Promise<void>
+  invalidate(rangeKey: string): Promise<void>
+  invalidateAll(): Promise<void>
+  publish(channel: string, payload: unknown): Promise<void>
+  subscribe(channel: string, handler: (payload: unknown) => void): Promise<() => void>
+}
