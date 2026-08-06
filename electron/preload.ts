@@ -39,6 +39,10 @@ const api = {
     splitSeries: (token: string, eventId: string, occurrence: string, input: Partial<EventInput>) =>
       invoke('events:splitSeries', { token, eventId, occurrence, input })
   },
+  reminders: {
+    create: (token: string, eventId: string, minutes: number) => invoke('reminders:create', { token, eventId, minutes }),
+    delete: (token: string, id: string) => invoke('reminders:delete', { token, id })
+  },
   settings: {
     get: (token: string, key: string) => invoke('settings:get', { token, key }),
     set: (token: string, key: string, value: unknown) => invoke('settings:set', { token, key, value })

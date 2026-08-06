@@ -162,6 +162,62 @@ describe('SqliteStore', () => {
       expect((await store.searchEvents('studio')).map((e) => e.title)).toEqual(['Gym'])
     })
   })
+
+  describe('reminders', () => {
+    it('creates, lists, marks sent and deletes reminders', async () => {
+      const cals = await store.listCalendars()
+      const ev = await store.createEvent({
+        calendarId: cals[0]!.id,
+        title: 'Doctor',
+        startsAt: '2026-08-06T14:00:00.000Z',
+        endsAt: '2026-08-06T14:30:00.000Z'
+      })
+      const r = await store.createReminder(ev.id, 30)
+      expect((await store.listReminders(ev.id)).map((x) => x.minutes)).toEqual([30])
+      expect((await store.getReminder(r.id))?.eventId).toBe(ev.id)
+
+      const due = await store.listDueReminders('2026-08-06T13:31:00.000Z', 5)
+      expect(due).toHaveLength(1)
+      expect(due[0]!.title).toBe('Doctor')
+      expect(due[0]!.startsAt).toBe('2026-08-06T14:00:00.000Z')
+
+      expect(await store.listDueReminders('2026-08-06T13:20:00.000Z', 5)).toHaveLength(0)
+      expect(await store.listDueReminders('2026-08-06T14:00:00.000Z', 5)).toHaveLength(0)
+
+      await store.markReminderSent(r.id, new Date().toISOString())
+      expect(await store.listDueReminders('2026-08-06T13:31:00.000Z', 5)).toHaveLength(0)
+
+      await store.deleteReminder(r.id)
+      expect(await store.getReminder(r.id)).toBeNull()
+    })
+
+    it('ignores all-day and already-sent reminders', async () => {
+      const cals = await store.listCalendars()
+      const allday = await store.createEvent({
+        calendarId: cals[0]!.id,
+        title: 'Holiday',
+        allDay: true,
+        startDate: '2026-08-06',
+        endDate: '2026-08-06'
+      })
+      const r = await store.createReminder(allday.id, 60)
+      expect(await store.listDueReminders('2026-08-06T00:00:00.000Z', 5)).toHaveLength(0)
+      await store.markReminderSent(r.id, new Date().toISOString())
+    })
+
+    it('deletes reminders when the event is deleted', async () => {
+      const cals = await store.listCalendars()
+      const ev = await store.createEvent({
+        calendarId: cals[0]!.id,
+        title: 'Meeting',
+        startsAt: '2026-08-06T10:00:00.000Z',
+        endsAt: '2026-08-06T11:00:00.000Z'
+      })
+      const r = await store.createReminder(ev.id, 10)
+      await store.deleteEvent(ev.id)
+      expect(await store.getReminder(r.id)).toBeNull()
+    })
+  })
 })
 
 describe('InMemoryCache', () => {

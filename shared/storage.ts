@@ -1,4 +1,4 @@
-import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException } from '@shared/types'
+import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder } from '@shared/types'
 
 /**
  * Storage abstraction. Implemented by SqliteStore (embedded fallback)
@@ -21,6 +21,14 @@ export interface EventStore {
   createEvent(input: EventInput): Promise<Event>
   updateEvent(id: string, input: Partial<EventInput>): Promise<Event>
   deleteEvent(id: string): Promise<void>
+
+  // ---- reminders ----
+  createReminder(eventId: string, minutes: number): Promise<{ id: string; eventId: string; minutes: number }>
+  listReminders(eventId: string): Promise<Reminder[]>
+  getReminder(id: string): Promise<{ id: string; eventId: string; minutes: number } | null>
+  deleteReminder(id: string): Promise<void>
+  listDueReminders(now: string, lookAheadMinutes: number): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]>
+  markReminderSent(id: string, at: string): Promise<void>
 
   // ---- recurrence exceptions ----
   listExceptions(eventId: string): Promise<EventException[]>

@@ -58,11 +58,15 @@ export class EventService {
     await this.cache.publish('events.changed', { type: 'deleted', eventId: id })
   }
 
-  async getEvent(userId: string, id: string) {
+  async getEvent(userId: string, id: string): Promise<EventDetail> {
     const event = await this.store.getEvent(id)
     if (!event) throw new Error('Event not found')
     await this.permissions.assertCanRead(userId, event.calendarId)
-    return event
+    const [reminders, exceptions] = await Promise.all([
+      this.store.listReminders(id),
+      this.store.listExceptions(id)
+    ])
+    return { ...event, attendees: [], reminders, exceptions }
   }
 
   async searchEvents(userId: string, query: string, opts?: { limit?: number; calendarIds?: string[] }) {
@@ -70,6 +74,22 @@ export class EventService {
       await Promise.all(opts.calendarIds.map((id) => this.permissions.assertCanRead(userId, id)))
     }
     return this.store.searchEvents(query, opts)
+  }
+
+  async addReminder(userId: string, eventId: string, minutes: number) {
+    const event = await this.getEvent(userId, eventId)
+    await this.permissions.assertCanWrite(userId, event.calendarId)
+    if (!event.startsAt) throw new Error('Cannot remind all-day or undated events')
+    if (!(minutes > 0)) throw new Error('Reminder minutes must be positive')
+    return this.store.createReminder(eventId, minutes)
+  }
+
+  async removeReminder(userId: string, reminderId: string) {
+    const reminder = await this.store.getReminder(reminderId)
+    if (!reminder) throw new Error('Reminder not found')
+    const event = await this.getEvent(userId, reminder.eventId)
+    await this.permissions.assertCanWrite(userId, event.calendarId)
+    return this.store.deleteReminder(reminderId)
   }
 
   /** Expands series into concrete occurrences for the range (with exceptions applied). */

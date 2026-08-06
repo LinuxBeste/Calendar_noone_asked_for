@@ -3,7 +3,7 @@ import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, ilike, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import type { EventStore, AuthStore } from '@shared/storage'
-import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException } from '@shared/types'
+import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder } from '@shared/types'
 import {
   pgCalendars,
   pgEvents,
@@ -314,6 +314,7 @@ export class PgStore implements EventStore, AuthStore {
   }
 
   async deleteEvent(id: string): Promise<void> {
+    await this.db.delete(pgReminders).where(eq(pgReminders.eventId, id))
     await this.db.delete(pgEvents).where(eq(pgEvents.id, id))
   }
 
@@ -397,6 +398,55 @@ export class PgStore implements EventStore, AuthStore {
 
   async deleteException(id: string): Promise<void> {
     await this.db.delete(pgEventExceptions).where(eq(pgEventExceptions.id, id))
+  }
+
+  async createReminder(eventId: string, minutes: number): Promise<{ id: string; eventId: string; minutes: number }> {
+    const rows = await this.db.insert(pgReminders).values({ id: randomUUID(), eventId, minutes }).returning()
+    const r = rows[0]!
+    return { id: r.id, eventId: r.eventId, minutes: r.minutes }
+  }
+
+  async listReminders(eventId: string): Promise<Reminder[]> {
+    const rows = await this.db.select().from(pgReminders).where(eq(pgReminders.eventId, eventId))
+    return rows as unknown as Reminder[]
+  }
+
+  async getReminder(id: string): Promise<{ id: string; eventId: string; minutes: number } | null> {
+    const rows = await this.db.select({ id: pgReminders.id, eventId: pgReminders.eventId, minutes: pgReminders.minutes }).from(pgReminders).where(eq(pgReminders.id, id))
+    return rows[0] ?? null
+  }
+
+  async deleteReminder(id: string): Promise<void> {
+    await this.db.delete(pgReminders).where(eq(pgReminders.id, id))
+  }
+
+  async listDueReminders(now: string, lookAheadMinutes: number): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]> {
+    const rows = await this.db
+      .select({
+        id: pgReminders.id,
+        eventId: pgReminders.eventId,
+        minutes: pgReminders.minutes,
+        startsAt: pgEvents.startsAt,
+        title: pgEvents.title,
+        calendarName: pgCalendars.name
+      })
+      .from(pgReminders)
+      .innerJoin(pgEvents, eq(pgReminders.eventId, pgEvents.id))
+      .innerJoin(pgCalendars, eq(pgEvents.calendarId, pgCalendars.id))
+      .where(isNull(pgReminders.sentAt))
+    const due = new Date(now).getTime()
+    const windowMs = lookAheadMinutes * 60000
+    const dueList: { id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[] = []
+    for (const r of rows) {
+      if (!r.startsAt) continue
+      const t = new Date(r.startsAt).getTime() - r.minutes * 60000
+      if (t <= due && t > due - windowMs) dueList.push({ id: r.id, eventId: r.eventId, minutes: r.minutes, startsAt: r.startsAt, title: r.title, calendarName: r.calendarName })
+    }
+    return dueList
+  }
+
+  async markReminderSent(id: string, at: string): Promise<void> {
+    await this.db.update(pgReminders).set({ sentAt: at }).where(eq(pgReminders.id, id))
   }
 
   async searchEvents(query: string, opts?: { limit?: number; calendarIds?: string[] }): Promise<Event[]> {

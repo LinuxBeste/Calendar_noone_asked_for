@@ -44,6 +44,8 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
   const [repeatInterval, setRepeatInterval] = useState(1)
   const [repeatUntil, setRepeatUntil] = useState('')
   const [editMode, setEditMode] = useState<'all' | 'this' | 'following'>('all')
+  const [reminder, setReminder] = useState(0)
+  const [existingReminderId, setExistingReminderId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -65,6 +67,10 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
       if (d.location !== undefined) setLocation(d.location ?? '')
       if (d.color !== undefined) setColor(d.color ?? '')
       if (d.busy !== undefined) setBusy(d.busy)
+      if (d.reminders && d.reminders.length > 0) {
+        setReminder(d.reminders[0]!.minutes)
+        setExistingReminderId(d.reminders[0]!.id)
+      }
     })()
   }, [event, token])
 
@@ -134,8 +140,17 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
         }
       } else if (event) {
         await window.calendarApi.events.update(token, event.id, buildInput())
+        if (reminder > 0) {
+          if (existingReminderId) await window.calendarApi.reminders.delete(token, existingReminderId)
+          await window.calendarApi.reminders.create(token, event.id, reminder)
+        } else if (existingReminderId) {
+          await window.calendarApi.reminders.delete(token, existingReminderId)
+        }
       } else {
-        await window.calendarApi.events.create(token, buildInput())
+        const created = (await window.calendarApi.events.create(token, buildInput())) as { id: string }
+        if (reminder > 0) {
+          await window.calendarApi.reminders.create(token, created.id, reminder)
+        }
       }
       onClose()
       const s = useCalendar.getState()
@@ -215,6 +230,28 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
               <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z" />
             </svg>
             <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Add location" disabled={!editable} className={inputCls} />
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-400 shrink-0" fill="currentColor">
+              <path d="M12 22a2.98 2.98 0 0 0 2.818-2h-5.636A2.98 2.98 0 0 0 12 22zm7-7.586V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0V4.16A7 7 0 0 0 5 11v3.414l-1.293 1.293A1 1 0 0 0 4.414 17h15.172a1 1 0 0 0 .707-1.707L19 14.414zM12 6a5 5 0 0 1 5 5v4H7v-4a5 5 0 0 1 5-5z" />
+            </svg>
+            <div className="flex-1 flex gap-2 items-center">
+              <select
+                value={reminder}
+                onChange={(e) => setReminder(Number(e.target.value))}
+                disabled={!editable || allDay}
+                className={inputCls + ' w-40'}
+              >
+                <option value={0}>No reminder</option>
+                <option value={5}>5 minutes before</option>
+                <option value={10}>10 minutes before</option>
+                <option value={30}>30 minutes before</option>
+                <option value={60}>1 hour before</option>
+                <option value={1440}>1 day before</option>
+              </select>
+              {event?.allDay && <span className="text-xs text-gray-400">Reminders not supported for all-day events</span>}
+            </div>
           </div>
 
           <div className="mt-4 flex items-start gap-3">

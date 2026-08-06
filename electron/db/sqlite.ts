@@ -3,7 +3,7 @@ import { drizzle, BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import type { EventStore, AuthStore } from '@shared/storage'
-import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException } from '@shared/types'
+import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder } from '@shared/types'
 import { calendars, events, eventExceptions, attendees, reminders, settings, users, sessions, calendarShares } from '@shared/db-schema'
 
 type Db = BetterSQLite3Database
@@ -334,6 +334,7 @@ export class SqliteStore implements EventStore, AuthStore {
   }
 
   async deleteEvent(id: string): Promise<void> {
+    this.db.delete(reminders).where(eq(reminders.eventId, id)).run()
     this.db.delete(events).where(eq(events.id, id)).run()
   }
 
@@ -397,6 +398,55 @@ export class SqliteStore implements EventStore, AuthStore {
 
   async deleteException(id: string): Promise<void> {
     this.db.delete(eventExceptions).where(eq(eventExceptions.id, id)).run()
+  }
+
+  async createReminder(eventId: string, minutes: number): Promise<{ id: string; eventId: string; minutes: number }> {
+    const id = randomUUID()
+    this.db.insert(reminders).values({ id, eventId, minutes }).run()
+    return { id, eventId, minutes }
+  }
+
+  async listReminders(eventId: string): Promise<Reminder[]> {
+    return this.db.select().from(reminders).where(eq(reminders.eventId, eventId)).all() as unknown as Reminder[]
+  }
+
+  async getReminder(id: string): Promise<{ id: string; eventId: string; minutes: number } | null> {
+    const row = this.db.select({ id: reminders.id, eventId: reminders.eventId, minutes: reminders.minutes }).from(reminders).where(eq(reminders.id, id)).get()
+    return row ?? null
+  }
+
+  async deleteReminder(id: string): Promise<void> {
+    this.db.delete(reminders).where(eq(reminders.id, id)).run()
+  }
+
+  async listDueReminders(now: string, lookAheadMinutes: number): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]> {
+    const rows = this.db
+      .select({
+        id: reminders.id,
+        eventId: reminders.eventId,
+        minutes: reminders.minutes,
+        startsAt: events.startsAt,
+        title: events.title,
+        calendarName: calendars.name
+      })
+      .from(reminders)
+      .innerJoin(events, eq(reminders.eventId, events.id))
+      .innerJoin(calendars, eq(events.calendarId, calendars.id))
+      .where(isNull(reminders.sentAt))
+      .all()
+    const due = new Date(now).getTime()
+    const windowMs = lookAheadMinutes * 60000
+    const dueList: { id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[] = []
+    for (const r of rows) {
+      if (!r.startsAt) continue
+      const t = new Date(r.startsAt).getTime() - r.minutes * 60000
+      if (t <= due && t > due - windowMs) dueList.push({ id: r.id, eventId: r.eventId, minutes: r.minutes, startsAt: r.startsAt, title: r.title, calendarName: r.calendarName })
+    }
+    return dueList
+  }
+
+  async markReminderSent(id: string, at: string): Promise<void> {
+    this.db.update(reminders).set({ sentAt: at }).where(eq(reminders.id, id)).run()
   }
 
   async searchEvents(query: string, opts?: { limit?: number; calendarIds?: string[] }): Promise<Event[]> {

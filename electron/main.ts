@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification } from 'electron'
 import { join } from 'path'
 import { mkdirSync } from 'fs'
 import type { EventStore, AuthStore, EventCache } from '@shared/storage'
@@ -69,6 +69,32 @@ let auth: AuthService
 let calendars: CalendarService
 let events: EventService
 let store: EventStore & AuthStore
+let reminderTimer: ReturnType<typeof setInterval> | null = null
+
+function startReminderEngine(): void {
+  if (reminderTimer) return
+  const check = async (): Promise<void> => {
+    const now = new Date().toISOString()
+    const due = await store.listDueReminders(now, 5)
+    for (const r of due) {
+      const notif = new Notification({
+        title: r.title,
+        body: `Starting ${formatTime(new Date(r.startsAt!))} · ${r.calendarName}`,
+        silent: false
+      })
+      notif.show()
+      await store.markReminderSent(r.id, now)
+    }
+  }
+  check().catch((err) => console.error('[reminders] check failed:', err))
+  reminderTimer = setInterval(() => {
+    check().catch((err) => console.error('[reminders] check failed:', err))
+  }, 30_000)
+}
+
+function formatTime(d: Date): string {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
 async function bootstrap(): Promise<void> {
   const setup = await setupDatabase()
@@ -80,6 +106,7 @@ async function bootstrap(): Promise<void> {
   }
   calendars = new CalendarService(store, setup.cache)
   events = new EventService(store, setup.cache, perms)
+  startReminderEngine()
 }
 
 /** All IPC handlers require a valid session token; resolves to userId. */
@@ -140,6 +167,12 @@ function registerIpc(): void {
     withUser(payload.token, (uid) => events.deleteOccurrence(uid, payload.eventId, payload.occurrence)))
   ipcMain.handle('events:splitSeries', (_e, payload: { token: string; eventId: string; occurrence: string; input: unknown }) =>
     withUser(payload.token, (uid) => events.splitSeries(uid, payload.eventId, payload.occurrence, payload.input as never)))
+
+  // ---- reminders ----
+  ipcMain.handle('reminders:create', (_e, payload: { token: string; eventId: string; minutes: number }) =>
+    withUser(payload.token, (uid) => events.addReminder(uid, payload.eventId, payload.minutes)))
+  ipcMain.handle('reminders:delete', (_e, payload: { token: string; id: string }) =>
+    withUser(payload.token, (uid) => events.removeReminder(uid, payload.id)))
 
   // ---- storage info ----
   ipcMain.handle('app:info', () => ({ using: process.env.CALENDAR_PG_URL ? 'postgresql' : 'sqlite' }))
