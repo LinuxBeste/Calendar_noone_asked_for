@@ -4,6 +4,7 @@ import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
+import ContextMenu from '../components/ContextMenu'
 
 interface MonthViewProps {
   date: Date
@@ -13,6 +14,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
   const { events, calendars, refreshEvents, settings } = useCalendar()
   const { token } = useAuth()
   const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
 
   useEffect(() => {
     const from = rangeStart('month', date, settings.firstDayOfWeek)
@@ -139,6 +141,11 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                         e.stopPropagation()
                         setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
                       }}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setMenu({ x: e.clientX, y: e.clientY, event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+                      }}
                       draggable={calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: occ.allDay }))
@@ -167,6 +174,28 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
           defaultDate={dialog.date}
           occurrence={dialog.occurrence}
           onClose={() => setDialog(null)}
+        />
+      )}
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            { label: 'Edit', onClick: () => setDialog({ event: menu.event, occurrence: menu.occurrence }) },
+            {
+              label: 'Delete',
+              danger: true,
+              onClick: () => {
+                if (menu.event.rrule) {
+                  void window.calendarApi.events.deleteOccurrence(token!, menu.event.id, menu.occurrence)
+                } else {
+                  void window.calendarApi.events.delete(token!, menu.event.id)
+                }
+                void useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
+              }
+            }
+          ]}
         />
       )}
     </div>

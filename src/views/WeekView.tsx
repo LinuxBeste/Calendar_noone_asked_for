@@ -4,6 +4,7 @@ import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
+import ContextMenu from '../components/ContextMenu'
 
 interface WeekViewProps {
   date: Date
@@ -24,6 +25,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const { events, calendars, refreshEvents, settings } = useCalendar()
   const { token } = useAuth()
   const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
+  const [gridMenu, setGridMenu] = useState<{ x: number; y: number; date: Date } | null>(null)
   const [now, setNow] = useState(new Date())
 
   const from = useMemo(() => rangeStart(days === 7 ? 'week' : 'day', date, settings.firstDayOfWeek), [date, days, settings.firstDayOfWeek])
@@ -221,6 +224,15 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
                   setDialog({ date: start })
                 }}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / PX_PER_MIN) / 15) * 15))
+                  const start = new Date(d)
+                  start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
+                  setMenu(null)
+                  setGridMenu({ x: e.clientX, y: e.clientY, date: start })
+                }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault()
@@ -280,6 +292,11 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                         e.stopPropagation()
                         const occDate = key
                         setDialog({ event: p.event, occurrence: occDate })
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setMenu({ x: e.clientX, y: e.clientY, event: p.event, occurrence: key })
                       }}
                       draggable={editable}
                       onDragStart={(e) => {
@@ -346,6 +363,37 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       </div>
 
       {dialog && <EventDialog event={dialog.event} defaultDate={dialog.date} occurrence={dialog.occurrence} onClose={() => setDialog(null)} />}
+      {gridMenu && (
+        <ContextMenu
+          x={gridMenu.x}
+          y={gridMenu.y}
+          onClose={() => setGridMenu(null)}
+          items={[{ label: 'New event', onClick: () => setDialog({ date: gridMenu.date }) }]}
+        />
+      )}
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            { label: 'Edit', onClick: () => setDialog({ event: menu.event, occurrence: menu.occurrence }) },
+            {
+              label: 'Delete',
+              danger: true,
+              onClick: () => {
+                const s = useCalendar.getState()
+                if (menu.event.rrule) {
+                  void window.calendarApi.events.deleteOccurrence(token!, menu.event.id, menu.occurrence)
+                } else {
+                  void window.calendarApi.events.delete(token!, menu.event.id)
+                }
+                void refreshEvents(toISO(from), toISO(to))
+              }
+            }
+          ]}
+        />
+      )}
     </div>
   )
 }
