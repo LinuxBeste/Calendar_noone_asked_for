@@ -17,7 +17,9 @@
     "server:watch": "tsx watch server/index.ts",
     "rebuild:node": "npm rebuild better-sqlite3",
     "build:web": "vite build -c vite.web.config.ts",
-    "dev:web": "vite -c vite.web.config.ts"
+    "dev:web": "vite -c vite.web.config.ts",
+    "build:android": "npm run build:web && npx cap sync android",
+    "android:run": "npm run build:android && npx cap open android"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
@@ -36,6 +38,9 @@
     "zustand": "^5.0.6"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@electron/rebuild": "^4.2.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.0.0",
