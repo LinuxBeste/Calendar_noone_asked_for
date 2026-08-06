@@ -12,7 +12,7 @@ interface MonthViewProps {
 export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
   const { events, calendars, refreshEvents, settings } = useCalendar()
   const { token } = useAuth()
-  const [dialog, setDialog] = useState<{ event?: Event; date?: Date } | null>(null)
+  const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
 
   useEffect(() => {
     const from = rangeStart('month', date, settings.firstDayOfWeek)
@@ -120,10 +120,10 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                   const continues = new Date(occ.end) > new Date(d.getTime() + 86400000 - 1)
                   return (
                     <button
-                      key={ev.id}
+                      key={ev.id + key}
                       onClick={(e) => {
                         e.stopPropagation()
-                        setDialog({ event: ev })
+                        setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
                       }}
                       draggable={calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
                       onDragStart={(e) => {
@@ -151,6 +151,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
         <EventDialog
           event={dialog.event}
           defaultDate={dialog.date}
+          occurrence={dialog.occurrence}
           onClose={() => setDialog(null)}
         />
       )}

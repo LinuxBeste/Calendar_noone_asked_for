@@ -6,12 +6,14 @@ import type { Event, EventDetail, EventInput } from '@shared/types'
 interface EventDialogProps {
   event?: Event
   defaultDate?: Date
+  /** Occurrence date (yyyy-MM-dd) when editing a single occurrence of a series */
+  occurrence?: string
   onClose: () => void
 }
 
 const COLORS = ['#1a73e8', '#d93025', '#f4511e', '#fbbc04', '#188038', '#9334e6', '#a142f4', '#00acc1', '#e8710a']
 
-export default function EventDialog({ event, defaultDate, onClose }: EventDialogProps): React.JSX.Element {
+export default function EventDialog({ event, defaultDate, occurrence, onClose }: EventDialogProps): React.JSX.Element {
   const { token } = useAuth()
   const { calendars, refreshEvents, refreshCalendars } = useCalendar()
   const [detail, setDetail] = useState<EventDetail | null>(null)
@@ -26,8 +28,26 @@ export default function EventDialog({ event, defaultDate, onClose }: EventDialog
   const [location, setLocation] = useState(event?.location ?? '')
   const [color, setColor] = useState(event?.color ?? '')
   const [busy, setBusy] = useState(event?.busy ?? true)
+  const [repeat, setRepeat] = useState<'none' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'>(() =>
+    event?.rrule
+      ? event.rrule.includes('FREQ=DAILY')
+        ? 'DAILY'
+        : event.rrule.includes('FREQ=WEEKLY')
+          ? 'WEEKLY'
+          : event.rrule.includes('FREQ=MONTHLY')
+            ? 'MONTHLY'
+            : event.rrule.includes('FREQ=YEARLY')
+              ? 'YEARLY'
+              : 'none'
+      : 'none'
+  )
+  const [repeatInterval, setRepeatInterval] = useState(1)
+  const [repeatUntil, setRepeatUntil] = useState('')
+  const [editMode, setEditMode] = useState<'all' | 'this' | 'following'>('all')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const isSeriesEdit = !!event?.rrule && !!occurrence
 
   useEffect(() => {
     if (!event || !token) return
@@ -54,6 +74,17 @@ export default function EventDialog({ event, defaultDate, onClose }: EventDialog
 
   const editable = calendars.find((c) => c.id === calendarId)?.role !== 'viewer'
 
+  const buildRrule = (): string | undefined => {
+    if (repeat === 'none') return undefined
+    const parts = [`FREQ=${repeat}`]
+    if (repeatInterval > 1) parts.push(`INTERVAL=${repeatInterval}`)
+    if (repeatUntil) {
+      const d = new Date(repeatUntil + 'T00:00:00')
+      parts.push(`UNTIL=${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}T235959Z`)
+    }
+    return 'RRULE:' + parts.join(';')
+  }
+
   const buildInput = (): EventInput => {
     if (allDay) {
       return {
@@ -65,7 +96,8 @@ export default function EventDialog({ event, defaultDate, onClose }: EventDialog
         startDate,
         endDate,
         color: color || undefined,
-        busy
+        busy,
+        rrule: buildRrule()
       }
     }
     return {
@@ -77,7 +109,8 @@ export default function EventDialog({ event, defaultDate, onClose }: EventDialog
       startsAt: new Date(`${startDate}T${startTime}`).toISOString(),
       endsAt: new Date(`${endDate}T${endTime}`).toISOString(),
       color: color || undefined,
-      busy
+      busy,
+      rrule: buildRrule()
     }
   }
 
@@ -90,8 +123,20 @@ export default function EventDialog({ event, defaultDate, onClose }: EventDialog
     setSaving(true)
     setError(null)
     try {
-      if (event) await window.calendarApi.events.update(token, event.id, buildInput())
-      else await window.calendarApi.events.create(token, buildInput())
+      if (event && isSeriesEdit) {
+        const input = buildInput()
+        if (editMode === 'this') {
+          await window.calendarApi.events.updateOccurrence(token, event.id, occurrence!, input)
+        } else if (editMode === 'following') {
+          await window.calendarApi.events.splitSeries(token, event.id, occurrence!, input)
+        } else {
+          await window.calendarApi.events.update(token, event.id, input)
+        }
+      } else if (event) {
+        await window.calendarApi.events.update(token, event.id, buildInput())
+      } else {
+        await window.calendarApi.events.create(token, buildInput())
+      }
       onClose()
       const s = useCalendar.getState()
       await s.refreshCalendars()
@@ -106,7 +151,11 @@ export default function EventDialog({ event, defaultDate, onClose }: EventDialog
   const remove = async (): Promise<void> => {
     if (!token || !event) return
     if (!window.confirm(`Delete "${event.title}"?`)) return
-    await window.calendarApi.events.delete(token, event.id)
+    if (isSeriesEdit && editMode === 'this') {
+      await window.calendarApi.events.deleteOccurrence(token, event.id, occurrence!)
+    } else {
+      await window.calendarApi.events.delete(token, event.id)
+    }
     onClose()
   }
 
@@ -205,8 +254,72 @@ export default function EventDialog({ event, defaultDate, onClose }: EventDialog
             </label>
           </div>
 
-          {detail && detail.rrule && (
-            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Recurring event (↻ {detail.rrule}) — recurrence editing coming soon</p>
+          <div className="mt-4 flex items-center gap-3">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-400 shrink-0" fill="currentColor">
+              <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 0 0-7.07 4.03L2 5v7h7l-2.94-2.94A5.98 5.98 0 0 1 12 6c1.62 0 3.1.62 4.24 1.76L17.65 6.35zM22 18v-7h-7l2.94 2.94A5.98 5.98 0 0 1 12 18c-1.62 0-3.1-.62-4.24-1.76L6.35 17.65A7.95 7.95 0 0 0 12 20a8 8 0 0 0 7.07-4.03L22 18z" />
+            </svg>
+            <div className="flex-1 flex gap-2 items-center">
+              <select
+                value={repeat}
+                onChange={(e) => setRepeat(e.target.value as typeof repeat)}
+                disabled={!editable}
+                className={inputCls + ' w-36'}
+              >
+                <option value="none">Does not repeat</option>
+                <option value="DAILY">Daily</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="MONTHLY">Monthly</option>
+                <option value="YEARLY">Yearly</option>
+              </select>
+              {repeat !== 'none' && (
+                <>
+                  <input
+                    type="number"
+                    min={1}
+                    value={repeatInterval}
+                    onChange={(e) => setRepeatInterval(Number(e.target.value) || 1)}
+                    disabled={!editable}
+                    className={inputCls + ' w-16'}
+                  />
+                  <input
+                    type="date"
+                    value={repeatUntil}
+                    onChange={(e) => setRepeatUntil(e.target.value)}
+                    disabled={!editable}
+                    className={inputCls + ' w-36'}
+                    title="Repeat until (optional)"
+                  />
+                </>
+              )}
+            </div>
+          </div>
+
+          {isSeriesEdit && (
+            <div className="mt-3 flex items-center gap-2 text-sm">
+              <span className="text-gray-500 dark:text-gray-400 text-xs">Edit applies to:</span>
+              <div className="flex gap-1">
+                {(
+                  [
+                    ['this', 'This event'],
+                    ['following', 'This and following'],
+                    ['all', 'All events']
+                  ] as const
+                ).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    onClick={() => setEditMode(mode)}
+                    disabled={!editable}
+                    className={`px-2 py-1 text-xs rounded-full border ${
+                      editMode === mode
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           <div className="mt-6 flex items-center gap-2">

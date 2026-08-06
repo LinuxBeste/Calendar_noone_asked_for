@@ -13,7 +13,7 @@ interface AgendaViewProps {
 export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.Element {
   const { events, calendars, refreshEvents, settings } = useCalendar()
   const { token } = useAuth()
-  const [dialog, setDialog] = useState<{ event?: Event } | null>(null)
+  const [dialog, setDialog] = useState<{ event?: Event; occurrence?: string } | null>(null)
 
   const from = rangeStart('day', date, settings.firstDayOfWeek)
   const to = new Date(from.getTime() + days * 86400000)
@@ -68,8 +68,8 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
                 const color = ev.color ?? cal?.color ?? '#1a73e8'
                 return (
                   <button
-                    key={ev.id}
-                    onClick={() => setDialog({ event: ev })}
+                    key={ev.id + key}
+                    onClick={() => setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })}
                     className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
                   >
                     <span className="w-1 self-stretch rounded-full" style={{ backgroundColor: color }} />
@@ -94,7 +94,7 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
           <p className="text-sm">Create an event to see it here.</p>
         </div>
       )}
-      {dialog && <EventDialog event={dialog.event} onClose={() => setDialog(null)} />}
+      {dialog && <EventDialog event={dialog.event} occurrence={dialog.occurrence} onClose={() => setDialog(null)} />}
     </div>
   )
 }

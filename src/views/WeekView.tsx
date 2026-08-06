@@ -23,7 +23,7 @@ const PX_PER_MIN = 0.5
 export default function WeekView({ date, days }: WeekViewProps): React.JSX.Element {
   const { events, calendars, refreshEvents, settings } = useCalendar()
   const { token } = useAuth()
-  const [dialog, setDialog] = useState<{ event?: Event; date?: Date } | null>(null)
+  const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
   const [now, setNow] = useState(new Date())
 
   const from = useMemo(() => rangeStart(days === 7 ? 'week' : 'day', date, settings.firstDayOfWeek), [date, days, settings.firstDayOfWeek])
@@ -164,7 +164,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       return (
                         <button
                           key={ev.id + d.toISOString()}
-                          onClick={() => setDialog({ event: ev })}
+                          onClick={() => setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })}
                           draggable={editableFor(ev)}
                           onDragStart={(e) => {
                             e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: true }))
@@ -265,7 +265,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       key={p.event.id}
                       onClick={(e) => {
                         e.stopPropagation()
-                        setDialog({ event: p.event })
+                        const occDate = key
+                        setDialog({ event: p.event, occurrence: occDate })
                       }}
                       draggable={editable}
                       onDragStart={(e) => {
@@ -331,7 +332,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
         </div>
       </div>
 
-      {dialog && <EventDialog event={dialog.event} defaultDate={dialog.date} onClose={() => setDialog(null)} />}
+      {dialog && <EventDialog event={dialog.event} defaultDate={dialog.date} occurrence={dialog.occurrence} onClose={() => setDialog(null)} />}
     </div>
   )
 }
