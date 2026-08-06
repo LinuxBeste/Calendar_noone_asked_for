@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth, useCalendar } from '../store'
+import { toast } from '../toasts'
 import MiniCalendar from './MiniCalendar'
 import type { Calendar } from '@shared/types'
 
@@ -131,6 +132,15 @@ function TransferDialog({ onClose }: { onClose: () => void }): React.JSX.Element
               ? `Exported to ${r.filePath}`
               : 'Done.'
       )
+      if (!r?.canceled) {
+        toast(
+          typeof r?.count === 'number'
+            ? `Imported ${r.count} event${r.count === 1 ? '' : 's'}`
+            : r?.filePath
+              ? 'Export complete'
+              : 'Done'
+        )
+      }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Operation failed')
     } finally {

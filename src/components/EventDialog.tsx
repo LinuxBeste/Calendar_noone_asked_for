@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { useAuth, useCalendar } from '../store'
+import { toast } from '../toasts'
 import type { Event, EventDetail, EventInput } from '@shared/types'
 
 interface EventDialogProps {
@@ -173,11 +174,13 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
         }
       }
       onClose()
+      toast(event ? 'Event updated' : 'Event created')
       const s = useCalendar.getState()
       await s.refreshCalendars()
       await s.refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
+      toast(err instanceof Error ? err.message : 'Save failed', 'error')
     } finally {
       setSaving(false)
     }
@@ -195,6 +198,7 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
       push({ op: 'delete', eventId: event.id, deletedEvent: (detail ?? event) as never })
     }
     onClose()
+    toast(isSeriesEdit && editMode === 'this' ? 'Event occurrence deleted' : 'Event deleted')
     await useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
   }
 

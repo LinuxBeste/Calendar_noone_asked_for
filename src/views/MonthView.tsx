@@ -5,6 +5,7 @@ import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 import ContextMenu from '../components/ContextMenu'
+import { toast } from '../toasts'
 
 interface MonthViewProps {
   date: Date
@@ -153,7 +154,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                       }}
                       className={`w-full text-left text-[11px] px-1 py-0.5 rounded truncate hover:shadow ${continues ? '' : 'rounded-r-full'}`}
                       style={{ backgroundColor: color + '22', color }}
-                      title={ev.title}
+                      title={`${ev.title}${ev.location ? '\n' + ev.location : ''}`}
                     >
                       {occ.allDay ? '' : format(new Date(occ.start), 'H:mm') + ' '}
                       {ev.title}
@@ -192,6 +193,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                 } else {
                   void window.calendarApi.events.delete(token!, menu.event.id)
                 }
+                toast('Event deleted')
                 void useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
               }
             }

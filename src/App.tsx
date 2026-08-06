@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useAuth, useCalendar } from './store'
 import LoginScreen from './components/LoginScreen'
 import AppShell from './components/AppShell'
+import Toasts from './components/Toasts'
 
 export default function App(): React.JSX.Element {
   const { booting, user, boot } = useAuth()
@@ -62,5 +63,10 @@ export default function App(): React.JSX.Element {
   }
 
   if (!user) return <LoginScreen />
-  return <AppShell />
+  return (
+    <>
+      <AppShell />
+      <Toasts />
+    </>
+  )
 }

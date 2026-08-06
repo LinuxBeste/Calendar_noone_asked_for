@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { toast } from './toasts'
 import type { Calendar, Event, EventOccurrence, User, ViewType, EventDetail, EventInput } from '@shared/types'
 
 export const DEFAULT_SETTINGS = {
@@ -247,6 +248,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     const action = history[historyIndex - 1]!
     await applyInverse(action)
     set({ historyIndex: historyIndex - 1 })
+    toast('Undo', 'info')
     await refreshAll()
   },
   async redo() {
@@ -255,6 +257,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     const action = history[historyIndex]!
     await applyAction(action)
     set({ historyIndex: historyIndex + 1 })
+    toast('Redo', 'info')
     await refreshAll()
   }
 }))

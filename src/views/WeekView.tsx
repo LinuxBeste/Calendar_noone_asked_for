@@ -5,6 +5,7 @@ import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 import ContextMenu from '../components/ContextMenu'
+import { toast } from '../toasts'
 
 interface WeekViewProps {
   date: Date
@@ -314,7 +315,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                         color: '#fff',
                         zIndex: 10
                       }}
-                      title={`${format(new Date(p.event.startsAt!), 'HH:mm')} – ${format(new Date(p.event.endsAt!), 'HH:mm')} ${p.event.title}`}
+                      title={`${p.event.title}\n${format(new Date(p.event.startsAt!), 'HH:mm')} – ${format(new Date(p.event.endsAt!), 'HH:mm')}${p.event.location ? '\n' + p.event.location : ''}${p.event.description ? '\n' + p.event.description : ''}`}
                     >
                       <div className="px-1.5 py-0.5 truncate font-medium pointer-events-none">{p.event.title}</div>
                       <div className="px-1.5 truncate opacity-90 pointer-events-none">
@@ -388,6 +389,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                 } else {
                   void window.calendarApi.events.delete(token!, menu.event.id)
                 }
+                toast('Event deleted')
                 void refreshEvents(toISO(from), toISO(to))
               }
             }
