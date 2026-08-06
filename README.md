@@ -93,6 +93,24 @@ npm run dev              # app now uses PostgreSQL + Redis automatically
 - If the containers aren't running, the app silently falls back to SQLite +
   in-memory cache
 
+## Web & Android clients
+
+The standalone backend (`npm run server`) serves the full-featured web client at
+`http://localhost:3001/` — the same renderer code as the desktop app, talking to
+the backend over HTTP (login, all views, editing, search, undo, sharing,
+import/export, settings). If the backend is unreachable, a connection screen
+lets you enter the server URL (stored in `localStorage`).
+
+The Android app is the same web client wrapped in Capacitor:
+
+```bash
+npm run build:android     # builds web client + syncs into the Android project
+npm run android:run       # …then opens Android Studio (needs the Android SDK + JDK)
+```
+
+Point the app at your backend (`http://10.0.2.2:3001` on the emulator, or your
+computer's LAN IP from a device). Cleartext HTTP is enabled for local backends.
+
 ## Testing
 
 ```bash
@@ -112,14 +130,18 @@ npm run build
 electron/          Main process (Node)
   main.ts          Bootstrap, IPC handlers, reminder engine
   preload.ts       contextBridge API (window.calendarApi)
+  api-client.ts    HTTP client for the backend
   db/              SqliteStore, PgStore, InMemoryCache, RedisCache
   services/        AuthService, CalendarService, EventService, ICalService, recurrence
+server/            Standalone Fastify backend (reuses electron/db + services)
 shared/            Types + storage interfaces shared with the renderer
 src/               Renderer (React)
   components/      AppShell, Toolbar, Sidebar, EventDialog, SearchBox, dialogs
   views/           Month/Week/Year/Agenda views
   store.ts         Zustand stores (auth, calendar, undo history)
   toasts.ts        Toast store
+web/               Web + Android client (same renderer, HTTP adapter in api.ts)
+android/           Capacitor Android project
 tests/             Vitest unit tests
 FEATURES.md        Feature plan & roadmap (gitignored)
 ```

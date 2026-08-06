@@ -1,5 +1,11 @@
 import type { CalendarInput, EventInput, ShareInput } from '@shared/types'
 
+export const logger = {
+  info: (...args: unknown[]) => console.info('[calendar]', ...args),
+  warn: (...args: unknown[]) => console.warn('[calendar]', ...args),
+  error: (...args: unknown[]) => console.error('[calendar]', ...args)
+}
+
 export const getApiUrl = (): string => localStorage.getItem('calendar.apiUrl') ?? 'http://localhost:3001'
 export const setApiUrl = (url: string): void => {
   localStorage.setItem('calendar.apiUrl', url)
@@ -159,13 +165,13 @@ export function startWebReminderEngine(): void {
               body: `Starting ${new Date(r.startsAt ?? '').toLocaleTimeString()} · ${r.calendarName}`
             })
           }
-        } catch {
-          /* notification unsupported */
+        } catch (err) {
+          logger.warn('notification failed:', err)
         }
         await call('POST', `/reminders/${r.id}/sent`, null)
       }
-    } catch {
-      /* backend unreachable */
+    } catch (err) {
+      logger.warn('reminder check failed:', err)
     } finally {
       running = false
     }

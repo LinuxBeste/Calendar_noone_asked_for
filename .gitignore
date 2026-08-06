@@ -1,6 +1,7 @@
 node_modules/
 out/
 dist/
+web/dist/
 *.log
 .DS_Store
 coverage/
@@ -12,3 +13,4 @@ coverage/
 .env.local
 package-lock.json
 FEATURES.md
+.capacitor/
