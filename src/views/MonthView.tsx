@@ -65,6 +65,33 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
             <div
               key={i}
               onClick={() => setDialog({ date: d })}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                const raw = e.dataTransfer.getData('application/x-cal-event')
+                if (!raw || !token) return
+                const { id, allDay } = JSON.parse(raw) as { id: string; allDay?: boolean }
+                const ev = Object.values(events).flat().find((x) => x.id === id)
+                if (!ev) return
+                const dayKey = format(d, 'yyyy-MM-dd')
+                if (allDay || ev.allDay) {
+                  const dur = ev.endDate
+                    ? new Date(ev.endDate + 'T00:00:00').getTime() - new Date(ev.startDate! + 'T00:00:00').getTime()
+                    : 0
+                  void window.calendarApi.events.update(token, id, {
+                    startDate: dayKey,
+                    endDate: dur > 0 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey
+                  }).then(() => refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek))))
+                } else {
+                  const dur = new Date(ev.endsAt!).getTime() - new Date(ev.startsAt!).getTime()
+                  const start = new Date(dayKey + 'T' + format(new Date(ev.startsAt!), 'HH:mm:ss'))
+                  void window.calendarApi.events.update(token, id, {
+                    startsAt: start.toISOString(),
+                    endsAt: new Date(start.getTime() + dur).toISOString()
+                  }).then(() => refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek))))
+                }
+              }}
               className={`border-b border-r border-gray-200 dark:border-gray-700 p-1 overflow-hidden cursor-pointer
                 ${weekend ? 'bg-gray-50 dark:bg-gray-800/60' : ''} ${selected ? 'ring-1 ring-inset ring-blue-500' : ''}`}
             >
@@ -95,6 +122,11 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                       onClick={(e) => {
                         e.stopPropagation()
                         setDialog({ event: ev })
+                      }}
+                      draggable={!ev.color || calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: ev.allDay }))
+                        e.dataTransfer.effectAllowed = 'move'
                       }}
                       className={`w-full text-left text-[11px] px-1 py-0.5 rounded truncate hover:shadow ${continues ? '' : 'rounded-r-full'}`}
                       style={{ backgroundColor: color + '22', color }}
