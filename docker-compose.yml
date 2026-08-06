@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: calendar-postgres
+    environment:
+      POSTGRES_USER: ${CALENDAR_PG_USER:-calendar}
+      POSTGRES_PASSWORD: ${CALENDAR_PG_PASSWORD:-calendar}
+      POSTGRES_DB: ${CALENDAR_PG_DB:-calendar}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CALENDAR_PG_USER:-calendar} -d ${CALENDAR_PG_DB:-calendar}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: calendar-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
