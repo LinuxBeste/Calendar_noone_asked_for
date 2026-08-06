@@ -100,7 +100,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the process model, IPC surf
 ## Usage
 
 A hands-on guide (creating events, recurrence modes, sharing, import/export,
-shortcuts) lives in [docs/HOWTO.md](docs/HOWTO.md).
+shortcuts) lives in [docs/how-to-use.md](docs/how-to-use.md).
 
 ## Roadmap
 
