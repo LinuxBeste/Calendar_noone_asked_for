@@ -128,18 +128,37 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
     }
     setSaving(true)
     setError(null)
+    const push = useCalendar.getState().pushHistory
+    const priorInput = detail ? {
+      calendarId: detail.calendarId,
+      title: detail.title,
+      description: detail.description,
+      location: detail.location,
+      allDay: detail.allDay,
+      startsAt: detail.startsAt,
+      endsAt: detail.endsAt,
+      startDate: detail.startDate,
+      endDate: detail.endDate,
+      color: detail.color,
+      busy: detail.busy,
+      rrule: detail.rrule
+    } : undefined
     try {
       if (event && isSeriesEdit) {
         const input = buildInput()
         if (editMode === 'this') {
           await window.calendarApi.events.updateOccurrence(token, event.id, occurrence!, input)
+          push({ op: 'occurrence', eventId: event.id, occurrence, before: priorInput, after: input })
         } else if (editMode === 'following') {
-          await window.calendarApi.events.splitSeries(token, event.id, occurrence!, input)
+          const result = (await window.calendarApi.events.splitSeries(token, event.id, occurrence!, input)) as { id: string }
+          push({ op: 'split', eventId: event.id, createdId: result.id, occurrence, before: { rrule: detail?.rrule }, after: input })
         } else {
           await window.calendarApi.events.update(token, event.id, input)
+          push({ op: 'update', eventId: event.id, before: priorInput, after: input })
         }
       } else if (event) {
         await window.calendarApi.events.update(token, event.id, buildInput())
+        push({ op: 'update', eventId: event.id, before: priorInput, after: buildInput() })
         if (reminder > 0) {
           if (existingReminderId) await window.calendarApi.reminders.delete(token, existingReminderId)
           await window.calendarApi.reminders.create(token, event.id, reminder)
@@ -148,6 +167,7 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
         }
       } else {
         const created = (await window.calendarApi.events.create(token, buildInput())) as { id: string }
+        push({ op: 'create', eventId: created.id, after: buildInput() })
         if (reminder > 0) {
           await window.calendarApi.reminders.create(token, created.id, reminder)
         }
@@ -166,12 +186,16 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
   const remove = async (): Promise<void> => {
     if (!token || !event) return
     if (!window.confirm(`Delete "${event.title}"?`)) return
+    const push = useCalendar.getState().pushHistory
     if (isSeriesEdit && editMode === 'this') {
       await window.calendarApi.events.deleteOccurrence(token, event.id, occurrence!)
+      push({ op: 'occurrence', eventId: event.id, occurrence, deletedOccurrence: true, before: detail ? { title: detail.title, startsAt: detail.startsAt, endsAt: detail.endsAt, startDate: detail.startDate, endDate: detail.endDate, allDay: detail.allDay } : undefined })
     } else {
       await window.calendarApi.events.delete(token, event.id)
+      push({ op: 'delete', eventId: event.id, deletedEvent: (detail ?? event) as never })
     }
     onClose()
+    await useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
   }
 
   const inputCls =

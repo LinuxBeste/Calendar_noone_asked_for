@@ -80,17 +80,31 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                   const dur = occ.end && occ.start
                     ? new Date(occ.end).getTime() - new Date(occ.start).getTime()
                     : 0
-                  void window.calendarApi.events.update(token, id, {
-                    startDate: dayKey,
-                    endDate: dur > 0 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey
-                  }).then(() => refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek))))
+                  const after = { startDate: dayKey, endDate: dur > 0 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey }
+                  const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
+                  const finish = (): void => {
+                    useCalendar.getState().pushHistory({ op: 'update', eventId: id, before: { startDate: occ.event.startDate, endDate: occ.event.endDate }, after })
+                    void refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek)))
+                  }
+                  if (ev.rrule) {
+                    void window.calendarApi.events.updateOccurrence(token, id, sourceDay, after).then(finish)
+                  } else {
+                    void window.calendarApi.events.update(token, id, after).then(finish)
+                  }
                 } else {
                   const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
                   const start = new Date(dayKey + 'T' + format(new Date(occ.start), 'HH:mm:ss'))
-                  void window.calendarApi.events.update(token, id, {
-                    startsAt: start.toISOString(),
-                    endsAt: new Date(start.getTime() + dur).toISOString()
-                  }).then(() => refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek))))
+                  const after = { startsAt: start.toISOString(), endsAt: new Date(start.getTime() + dur).toISOString() }
+                  const finish = (): void => {
+                    useCalendar.getState().pushHistory({ op: 'update', eventId: id, before: { startsAt: occ.start, endsAt: occ.end }, after })
+                    void refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek)))
+                  }
+                  if (ev.rrule) {
+                    const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
+                    void window.calendarApi.events.updateOccurrence(token, id, sourceDay, after).then(finish)
+                  } else {
+                    void window.calendarApi.events.update(token, id, after).then(finish)
+                  }
                 }
               }}
               className={`border-b border-r border-gray-200 dark:border-gray-700 p-1 overflow-hidden cursor-pointer

@@ -14,6 +14,10 @@ const VIEWS: { id: ViewType; label: string; key: string }[] = [
 export default function Toolbar(): React.JSX.Element {
   const { view, setView, date, navigate, settings } = useCalendar()
   const { user, logout } = useAuth()
+  const canUndo = useCalendar((s) => s.canUndo())
+  const canRedo = useCalendar((s) => s.canRedo())
+  const undo = useCalendar((s) => s.undo)
+  const redo = useCalendar((s) => s.redo)
 
   return (
     <div className="h-14 flex items-center gap-2 px-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
@@ -23,6 +27,26 @@ export default function Toolbar(): React.JSX.Element {
         </svg>
         Calendar
       </h1>
+
+      <button
+        onClick={() => void undo()}
+        disabled={!canUndo}
+        className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 disabled:opacity-30 disabled:hover:bg-transparent"
+        title="Undo (Ctrl+Z)"
+        aria-label="Undo"
+      >
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" /></svg>
+      </button>
+      <button
+        onClick={() => void redo()}
+        disabled={!canRedo}
+        className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 disabled:opacity-30 disabled:hover:bg-transparent"
+        title="Redo (Ctrl+Shift+Z)"
+        aria-label="Redo"
+      >
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-3.85 0-6.96 2.48-8.1 5.91l2.37.78c.82-2.53 3.06-4.38 5.73-4.38 1.96 0 3.73.72 5.12 1.88L13 15h9V6l-3.6 3.6z" /></svg>
+      </button>
+      <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1" />
 
       <button
         onClick={() => setView(settings.defaultView)}

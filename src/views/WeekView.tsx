@@ -104,14 +104,17 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     const occ = Object.values(events).flat().find((o) => o.event.id === event.id)
     const dur = occ ? new Date(occ.end).getTime() - new Date(occ.start).getTime() : 3600000
     const newEnd = new Date(newStart.getTime() + dur)
+    const push = useCalendar.getState().pushHistory
     if (event.rrule) {
       const dayKey = format(newStart, 'yyyy-MM-dd')
       await window.calendarApi.events.updateOccurrence(token, event.id, dayKey, {
         startsAt: newStart.toISOString(),
         endsAt: newEnd.toISOString()
       })
+      push({ op: 'occurrence', eventId: event.id, occurrence: dayKey, before: { startsAt: occ?.start, endsAt: occ?.end }, after: { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() } })
     } else {
       await window.calendarApi.events.update(token, event.id, { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() })
+      push({ op: 'update', eventId: event.id, before: { startsAt: occ?.start, endsAt: occ?.end }, after: { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() } })
     }
     void refreshEvents(toISO(from), toISO(to))
   }
@@ -119,11 +122,14 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const resizeEvent = async (event: Event, newEnd: Date): Promise<void> => {
     if (!token) return
     const occ = Object.values(events).flat().find((o) => o.event.id === event.id)
+    const push = useCalendar.getState().pushHistory
     if (event.rrule && occ) {
       const dayKey = format(new Date(occ.start), 'yyyy-MM-dd')
       await window.calendarApi.events.updateOccurrence(token, event.id, dayKey, { endsAt: newEnd.toISOString() })
+      push({ op: 'occurrence', eventId: event.id, occurrence: dayKey, before: { endsAt: occ.end }, after: { endsAt: newEnd.toISOString() } })
     } else {
       await window.calendarApi.events.update(token, event.id, { endsAt: newEnd.toISOString() })
+      push({ op: 'update', eventId: event.id, before: { endsAt: occ?.end }, after: { endsAt: newEnd.toISOString() } })
     }
     void refreshEvents(toISO(from), toISO(to))
   }
@@ -231,14 +237,18 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   const dayKey = format(d, 'yyyy-MM-dd')
                   if (allDay) {
                     void (async () => {
+                      const push = useCalendar.getState().pushHistory
                       if (ev.rrule) {
-                        await window.calendarApi.events.updateOccurrence(token!, id, dayKey, { startDate: dayKey, endDate: dayKey, allDay: true })
+                        const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
+                        await window.calendarApi.events.updateOccurrence(token!, id, sourceDay, { startDate: dayKey, endDate: dayKey, allDay: true })
+                        push({ op: 'occurrence', eventId: id, occurrence: sourceDay, before: { allDay: false, startsAt: occ.start, endsAt: occ.end }, after: { allDay: true, startDate: dayKey, endDate: dayKey } })
                       } else {
                         const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
                         await window.calendarApi.events.update(token!, id, {
                           startDate: dayKey,
                           endDate: dur > 86400000 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey
                         })
+                        push({ op: 'update', eventId: id, before: { startsAt: occ.start, endsAt: occ.end }, after: { startDate: dayKey, endDate: dayKey, allDay: true } })
                       }
                       void refreshEvents(toISO(from), toISO(to))
                     })()
@@ -248,7 +258,10 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                     void window.calendarApi.events.updateOccurrence(token!, id, sourceDay, {
                       startsAt: start.toISOString(),
                       endsAt: new Date(start.getTime() + dur).toISOString()
-                    }).then(() => refreshEvents(toISO(from), toISO(to)))
+                    }).then(() => {
+                      useCalendar.getState().pushHistory({ op: 'occurrence', eventId: id, occurrence: sourceDay, before: { startsAt: occ.start, endsAt: occ.end }, after: { startsAt: start.toISOString(), endsAt: new Date(start.getTime() + dur).toISOString() } })
+                      void refreshEvents(toISO(from), toISO(to))
+                    })
                   } else {
                     void moveEvent(ev, start)
                   }
