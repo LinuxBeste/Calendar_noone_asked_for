@@ -79,7 +79,7 @@ interface CalendarState {
   view: ViewType
   date: Date
   calendars: Calendar[]
-  events: Record<string, EventOccurrence[]>
+  events: EventOccurrence[]
   visibleCalendars: Record<string, boolean>
   settings: typeof DEFAULT_SETTINGS
   lastRange: { from: string; to: string } | null
@@ -185,7 +185,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   view: DEFAULT_SETTINGS.defaultView,
   date: new Date(),
   calendars: [],
-  events: {},
+  events: [],
   visibleCalendars: {},
   settings: DEFAULT_SETTINGS,
   lastRange: null,
@@ -224,7 +224,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
       .filter(([, v]) => v)
       .map(([id]) => id)
     const events = (await window.calendarApi.events.listOccurrences(token, from, to, visible.length ? visible : undefined)) as EventOccurrence[]
-    set((s) => ({ events: { ...s.events, [`${from}|${to}`]: events }, lastRange: { from, to } }))
+    set((s) => ({ events: events ?? [], lastRange: { from, to } }))
     return events ?? []
   },
   async refreshVisible() {

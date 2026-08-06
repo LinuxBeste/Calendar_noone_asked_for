@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 import { useAuth, useCalendar } from '../store'
 import { toast } from '../toasts'
 import type { Event, EventDetail, EventInput } from '@shared/types'
+import ConfirmDialog from './ConfirmDialog'
 
 interface EventDialogProps {
   event?: Event
@@ -55,6 +56,7 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
   const [existingReminderId, setExistingReminderId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const baseDur = event?.startsAt && event?.endsAt
     ? new Date(event.endsAt).getTime() - new Date(event.startsAt).getTime()
     : settings.defaultEventDuration * 60000
@@ -208,18 +210,21 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
 
   const remove = async (): Promise<void> => {
     if (!token || !event) return
-    if (!window.confirm(`Delete "${event.title}"?`)) return
     const push = useCalendar.getState().pushHistory
-    if (isSeriesEdit && editMode === 'this') {
-      await window.calendarApi.events.deleteOccurrence(token, event.id, occurrence!)
-      push({ op: 'occurrence', eventId: event.id, occurrence, deletedOccurrence: true, before: detail ? { title: detail.title, startsAt: detail.startsAt, endsAt: detail.endsAt, startDate: detail.startDate, endDate: detail.endDate, allDay: detail.allDay } : undefined })
-    } else {
-      await window.calendarApi.events.delete(token, event.id)
-      push({ op: 'delete', eventId: event.id, deletedEvent: (detail ?? event) as never })
+    try {
+      if (isSeriesEdit && editMode === 'this') {
+        await window.calendarApi.events.deleteOccurrence(token, event.id, occurrence!)
+        push({ op: 'occurrence', eventId: event.id, occurrence, deletedOccurrence: true, before: detail ? { title: detail.title, startsAt: detail.startsAt, endsAt: detail.endsAt, startDate: detail.startDate, endDate: detail.endDate, allDay: detail.allDay } : undefined })
+      } else {
+        await window.calendarApi.events.delete(token, event.id)
+        push({ op: 'delete', eventId: event.id, deletedEvent: (detail ?? event) as never })
+      }
+      onClose()
+      toast(isSeriesEdit && editMode === 'this' ? 'Event occurrence deleted' : 'Event deleted')
+      await useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Delete failed', 'error')
     }
-    onClose()
-    toast(isSeriesEdit && editMode === 'this' ? 'Event occurrence deleted' : 'Event deleted')
-    await useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
   }
 
   const inputCls =
@@ -429,7 +434,7 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
 
           <div className="mt-6 flex items-center gap-2">
             {event && editable && (
-              <button onClick={() => void remove()} className="px-4 py-2 text-sm rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
+              <button onClick={() => setConfirming(true)} className="px-4 py-2 text-sm rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
                 Delete
               </button>
             )}
@@ -445,6 +450,15 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
           </div>
         </div>
       </div>
+      {confirming && event && (
+        <ConfirmDialog
+          title={isSeriesEdit && editMode === 'this' ? 'Delete this occurrence?' : 'Delete event?'}
+          message={`“${event.title}”${isSeriesEdit && editMode === 'this' ? ' will be removed from the series.' : ' will be permanently deleted.'}`}
+          confirmLabel="Delete"
+          onConfirm={remove}
+          onClose={() => setConfirming(false)}
+        />
+      )}
     </div>
   )
 }

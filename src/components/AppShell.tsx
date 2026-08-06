@@ -10,7 +10,7 @@ import AgendaView from '../views/AgendaView'
 const NARROW_QUERY = '(max-width: 1023px)'
 
 export default function AppShell(): React.JSX.Element {
-  const { view, date, refreshCalendars, settings, setSettings } = useCalendar()
+  const { view, date, refreshCalendars, settings, setSettings, calendars } = useCalendar()
   const { token } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches)
@@ -67,6 +67,11 @@ export default function AppShell(): React.JSX.Element {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       <Toolbar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
+      {token && calendars.length === 0 && (
+        <div className="h-0.5 bg-gray-100 dark:bg-gray-700 overflow-hidden shrink-0">
+          <div className="h-full w-1/3 bg-blue-600 animate-[loading-slide_1s_ease-in-out_infinite]" />
+        </div>
+      )}
       <div className="flex-1 flex overflow-hidden">
         <Sidebar open={sidebarOpen} narrow={narrow} onClose={() => setSidebarOpen(false)} />
         <main className="flex-1 flex overflow-hidden">

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useAuth, useCalendar } from '../store'
 import { toast } from '../toasts'
 import MiniCalendar from './MiniCalendar'
+import ContextMenu from './ContextMenu'
+import ConfirmDialog from './ConfirmDialog'
 import type { Calendar } from '@shared/types'
 
 interface SidebarProps {
@@ -18,6 +20,18 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
   const [newColor, setNewColor] = useState('#1a73e8')
   const [sharing, setSharing] = useState<Calendar | null>(null)
   const [transfer, setTransfer] = useState(false)
+  const [menu, setMenu] = useState<{ x: number; y: number; calendar: Calendar } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Calendar | null>(null)
+
+  const deleteCalendar = async (): Promise<void> => {
+    if (!token || !confirmDelete) return
+    await window.calendarApi.calendars.delete(token, confirmDelete.id)
+    const cal = confirmDelete
+    setConfirmDelete(null)
+    await useCalendar.getState().refreshCalendars()
+    await useCalendar.getState().refreshVisible()
+    toast(`Calendar “${cal.name}” deleted`)
+  }
 
   const createCalendar = async (): Promise<void> => {
     if (!newName.trim() || !token) return
@@ -79,12 +93,16 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
               <span className="flex-1 text-sm truncate text-gray-700 dark:text-gray-200">{c.name}</span>
               {c.role === 'owner' && (
                 <button
-                  onClick={() => setSharing(c)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setMenu({ x: e.clientX, y: e.clientY, calendar: c })
+                  }}
                   className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 hover:text-blue-600"
-                  title="Share calendar"
+                  title="Calendar options"
+                  aria-label="Calendar options"
                 >
                   <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
-                    <path d="M12 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 12c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z" />
+                    <path d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm12 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
                   </svg>
                 </button>
               )}
@@ -107,6 +125,30 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
 
       {sharing && <ShareDialog calendar={sharing} onClose={() => setSharing(null)} />}
       {transfer && <TransferDialog onClose={() => setTransfer(false)} />}
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            { label: 'Share…', onClick: () => setSharing(menu.calendar) },
+            {
+              label: 'Delete calendar',
+              danger: true,
+              onClick: () => setConfirmDelete(menu.calendar)
+            }
+          ]}
+        />
+      )}
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete calendar?"
+          message={`“${confirmDelete.name}” and all its events will be permanently deleted. This cannot be undone.`}
+          confirmLabel="Delete calendar"
+          onConfirm={deleteCalendar}
+          onClose={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   )
 

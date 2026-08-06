@@ -40,14 +40,12 @@ export default function MiniCalendar({ weekStartsOn }: MiniCalendarProps): React
 
   const eventDays = useMemo(() => {
     const set = new Set<string>()
-    for (const list of Object.values(events)) {
-      for (const occ of list as EventOccurrence[]) {
-        let d = new Date(occ.start.slice(0, 10) + 'T00:00:00')
-        const end = new Date(occ.end.slice(0, 10) + 'T00:00:00')
-        while (d <= end) {
-          set.add(format(d, 'yyyy-MM-dd'))
-          d = addDays(d, 1)
-        }
+    for (const occ of events) {
+      let d = new Date(occ.start.slice(0, 10) + 'T00:00:00')
+      const end = new Date(occ.end.slice(0, 10) + 'T00:00:00')
+      while (d <= end) {
+        set.add(format(d, 'yyyy-MM-dd'))
+        d = addDays(d, 1)
       }
     }
     return set

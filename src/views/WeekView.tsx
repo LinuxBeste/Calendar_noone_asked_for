@@ -1,10 +1,12 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { format, isSameDay, isToday } from 'date-fns'
+import { format, isSameDay, isToday, differenceInCalendarDays, startOfDay, endOfDay, addDays } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 import ContextMenu from '../components/ContextMenu'
+import ConfirmDialog from '../components/ConfirmDialog'
+import EventQuickView from '../components/EventQuickView'
 import { toast } from '../toasts'
 
 interface WeekViewProps {
@@ -14,6 +16,9 @@ interface WeekViewProps {
 
 interface Positioned {
   event: Event
+  occ: EventOccurrence
+  fromPrev: boolean
+  toNext: boolean
   startMin: number
   endMin: number
   col: number
@@ -28,8 +33,11 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
   const [gridMenu, setGridMenu] = useState<{ x: number; y: number; date: Date } | null>(null)
+  const [confirming, setConfirming] = useState<{ event: Event; occurrence: string; occurrenceOnly: boolean } | null>(null)
+  const [hover, setHover] = useState<{ occ: EventOccurrence; x: number; y: number; canEdit: boolean } | null>(null)
   const [now, setNow] = useState(new Date())
   const scrollRef = useRef<HTMLDivElement>(null)
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const el = scrollRef.current
@@ -48,18 +56,40 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     return () => clearInterval(t)
   }, [])
 
+  useEffect(() => () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+  }, [])
+
   const dayColumns = useMemo(() => [...iterateDays(from, to)], [from, to])
 
   const { byDay, allDayEvents } = useMemo(() => {
-    const byDay = new Map<string, EventOccurrence[]>()
+    const byDay = new Map<string, { occ: EventOccurrence; fromPrev: boolean; toNext: boolean }[]>()
     const allDay: EventOccurrence[] = []
-    for (const occ of Object.values(events).flat()) {
+    const push = (key: string, item: { occ: EventOccurrence; fromPrev: boolean; toNext: boolean }): void => {
+      byDay.set(key, [...(byDay.get(key) ?? []), item])
+    }
+    for (const occ of events) {
       if (occ.allDay) {
         allDay.push(occ)
         continue
       }
-      const dayKey = format(new Date(occ.start), 'yyyy-MM-dd')
-      if (byDay.has(dayKey)) byDay.get(dayKey)!.push(occ)
+      const s = new Date(occ.start)
+      const e = new Date(occ.end)
+      const dayCount = differenceInCalendarDays(e, s)
+      if (dayCount <= 0) {
+        push(format(s, 'yyyy-MM-dd'), { occ, fromPrev: false, toNext: false })
+        continue
+      }
+      const base = startOfDay(s)
+      for (let i = 0; i <= dayCount; i++) {
+        const day = addDays(base, i)
+        const clamped: EventOccurrence = {
+          ...occ,
+          start: (i === 0 ? s : day).toISOString(),
+          end: (i === dayCount ? e : endOfDay(day)).toISOString()
+        }
+        push(format(day, 'yyyy-MM-dd'), { occ: clamped, fromPrev: i > 0, toNext: i < dayCount })
+      }
     }
     return { byDay, allDayEvents: allDay }
   }, [events])
@@ -69,34 +99,37 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const positioned = useMemo(() => {
     const result = new Map<string, Positioned[]>()
     for (const [dayKey, evs] of byDay) {
-      const timed = evs.filter((o) => o.start && o.end)
-      const clusters: EventOccurrence[][] = []
-      for (const occ of timed) {
-        const s = new Date(occ.start).getTime()
-        const e = new Date(occ.end).getTime()
+      const timed = evs.filter((o) => o.occ.start && o.occ.end)
+      const clusters: { occ: EventOccurrence; fromPrev: boolean; toNext: boolean }[][] = []
+      for (const item of timed) {
+        const s = new Date(item.occ.start).getTime()
+        const e = new Date(item.occ.end).getTime()
         let placed = false
         for (const cluster of clusters) {
           const overlaps = cluster.some((other) => {
-            const os = new Date(other.start).getTime()
-            const oe = new Date(other.end).getTime()
+            const os = new Date(other.occ.start).getTime()
+            const oe = new Date(other.occ.end).getTime()
             return s < oe && e > os
           })
           if (!overlaps) {
-            cluster.push(occ)
+            cluster.push(item)
             placed = true
             break
           }
         }
-        if (!placed) clusters.push([occ])
+        if (!placed) clusters.push([item])
       }
       const positioned: Positioned[] = []
       for (const cluster of clusters) {
         const n = cluster.length
-        cluster.forEach((occ, i) => {
+        cluster.forEach((item, i) => {
           positioned.push({
-            event: occ.event,
-            startMin: new Date(occ.start).getHours() * 60 + new Date(occ.start).getMinutes(),
-            endMin: new Date(occ.end).getHours() * 60 + new Date(occ.end).getMinutes(),
+            event: item.occ.event,
+            occ: item.occ,
+            fromPrev: item.fromPrev,
+            toNext: item.toNext,
+            startMin: new Date(item.occ.start).getHours() * 60 + new Date(item.occ.start).getMinutes(),
+            endMin: new Date(item.occ.end).getHours() * 60 + new Date(item.occ.end).getMinutes(),
             col: i,
             cols: n
           })
@@ -109,39 +142,87 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
 
   const nowLine = now.getHours() * 60 + now.getMinutes()
 
+  const showHover = (el: HTMLElement, occ: EventOccurrence): void => {
+    if (!window.matchMedia('(hover: hover)').matches) return
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+    const rect = el.getBoundingClientRect()
+    const panelW = 288
+    const panelH = 240
+    const x = Math.min(rect.left, window.innerWidth - panelW - 8)
+    const y = rect.bottom + 8 + panelH > window.innerHeight ? Math.max(8, rect.top - panelH - 8) : rect.bottom + 8
+    setHover({
+      occ,
+      x,
+      y,
+      canEdit: calendars.find((c) => c.id === occ.event.calendarId)?.role !== 'viewer'
+    })
+  }
+  const hideHoverSoon = (): void => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+    hoverTimer.current = setTimeout(() => setHover(null), 150)
+  }
+
+  const requestDelete = (event: Event, occurrence: string, occurrenceOnly: boolean): void => {
+    setMenu(null)
+    setHover(null)
+    setConfirming({ event, occurrence, occurrenceOnly })
+  }
+
+  const confirmDelete = async (): Promise<void> => {
+    if (!token || !confirming) return
+    const push = useCalendar.getState().pushHistory
+    if (confirming.occurrenceOnly) {
+      await window.calendarApi.events.deleteOccurrence(token, confirming.event.id, confirming.occurrence)
+      push({ op: 'occurrence', eventId: confirming.event.id, occurrence: confirming.occurrence, deletedOccurrence: true })
+    } else {
+      await window.calendarApi.events.delete(token, confirming.event.id)
+      push({ op: 'delete', eventId: confirming.event.id, deletedEvent: confirming.event })
+    }
+    toast(confirming.occurrenceOnly ? 'Event occurrence deleted' : 'Event deleted')
+    void refreshEvents(toISO(from), toISO(to))
+  }
+
   const moveEvent = async (event: Event, newStart: Date): Promise<void> => {
     if (!token) return
-    const occ = Object.values(events).flat().find((o) => o.event.id === event.id)
-    const dur = occ ? new Date(occ.end).getTime() - new Date(occ.start).getTime() : 3600000
-    const newEnd = new Date(newStart.getTime() + dur)
-    const push = useCalendar.getState().pushHistory
-    if (event.rrule) {
-      const dayKey = format(newStart, 'yyyy-MM-dd')
-      await window.calendarApi.events.updateOccurrence(token, event.id, dayKey, {
-        startsAt: newStart.toISOString(),
-        endsAt: newEnd.toISOString()
-      })
-      push({ op: 'occurrence', eventId: event.id, occurrence: dayKey, before: { startsAt: occ?.start, endsAt: occ?.end }, after: { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() } })
-    } else {
-      await window.calendarApi.events.update(token, event.id, { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() })
-      push({ op: 'update', eventId: event.id, before: { startsAt: occ?.start, endsAt: occ?.end }, after: { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() } })
+    try {
+      const occ = events.find((o) => o.event.id === event.id)
+      const dur = occ ? new Date(occ.end).getTime() - new Date(occ.start).getTime() : 3600000
+      const newEnd = new Date(newStart.getTime() + dur)
+      const push = useCalendar.getState().pushHistory
+      if (event.rrule) {
+        const dayKey = format(newStart, 'yyyy-MM-dd')
+        await window.calendarApi.events.updateOccurrence(token, event.id, dayKey, {
+          startsAt: newStart.toISOString(),
+          endsAt: newEnd.toISOString()
+        })
+        push({ op: 'occurrence', eventId: event.id, occurrence: dayKey, before: { startsAt: occ?.start, endsAt: occ?.end }, after: { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() } })
+      } else {
+        await window.calendarApi.events.update(token, event.id, { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() })
+        push({ op: 'update', eventId: event.id, before: { startsAt: occ?.start, endsAt: occ?.end }, after: { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() } })
+      }
+      void refreshEvents(toISO(from), toISO(to))
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Move failed', 'error')
     }
-    void refreshEvents(toISO(from), toISO(to))
   }
 
   const resizeEvent = async (event: Event, newEnd: Date): Promise<void> => {
     if (!token) return
-    const occ = Object.values(events).flat().find((o) => o.event.id === event.id)
-    const push = useCalendar.getState().pushHistory
-    if (event.rrule && occ) {
-      const dayKey = format(new Date(occ.start), 'yyyy-MM-dd')
-      await window.calendarApi.events.updateOccurrence(token, event.id, dayKey, { endsAt: newEnd.toISOString() })
-      push({ op: 'occurrence', eventId: event.id, occurrence: dayKey, before: { endsAt: occ.end }, after: { endsAt: newEnd.toISOString() } })
-    } else {
-      await window.calendarApi.events.update(token, event.id, { endsAt: newEnd.toISOString() })
-      push({ op: 'update', eventId: event.id, before: { endsAt: occ?.end }, after: { endsAt: newEnd.toISOString() } })
+    try {
+      const occ = events.find((o) => o.event.id === event.id)
+      const push = useCalendar.getState().pushHistory
+      if (event.rrule && occ) {
+        const dayKey = format(new Date(occ.start), 'yyyy-MM-dd')
+        await window.calendarApi.events.updateOccurrence(token, event.id, dayKey, { endsAt: newEnd.toISOString() })
+        push({ op: 'occurrence', eventId: event.id, occurrence: dayKey, before: { endsAt: occ.end }, after: { endsAt: newEnd.toISOString() } })
+      } else {
+        await window.calendarApi.events.update(token, event.id, { endsAt: newEnd.toISOString() })
+        push({ op: 'update', eventId: event.id, before: { endsAt: occ?.end }, after: { endsAt: newEnd.toISOString() } })
+      }
+      void refreshEvents(toISO(from), toISO(to))
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Resize failed', 'error')
     }
-    void refreshEvents(toISO(from), toISO(to))
   }
 
   const editableFor = (ev: Event): boolean => calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'
@@ -218,6 +299,15 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
             <div key={h + 'q'} className="absolute left-0 right-0 border-t border-dashed border-gray-100 dark:border-gray-800" style={{ top: h * 60 * PX_PER_MIN + PX_PER_MIN * 30 }} />
           ))}
 
+          <div
+            className="absolute left-0 right-0 pointer-events-none bg-gray-400/[0.06] dark:bg-black/30"
+            style={{ top: 0, height: settings.workingHoursStart * 60 * PX_PER_MIN }}
+          />
+          <div
+            className="absolute left-0 right-0 pointer-events-none bg-gray-400/[0.06] dark:bg-black/30"
+            style={{ top: settings.workingHoursEnd * 60 * PX_PER_MIN, bottom: 0 }}
+          />
+
           {dayColumns.map((d, i) => {
             const key = format(d, 'yyyy-MM-dd')
             const weekend = d.getDay() === 0 || d.getDay() === 6
@@ -250,37 +340,41 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / PX_PER_MIN) / 15) * 15))
                   const start = new Date(d)
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
-                  const occ = Object.values(events).flat().find((x) => x.event.id === id)
+                  const occ = events.find((x) => x.event.id === id)
                   if (!occ) return
                   const ev = occ.event
                   const dayKey = format(d, 'yyyy-MM-dd')
                   if (allDay) {
                     void (async () => {
-                      const push = useCalendar.getState().pushHistory
-                      if (ev.rrule) {
-                        const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
-                        await window.calendarApi.events.updateOccurrence(token!, id, sourceDay, { startDate: dayKey, endDate: dayKey, allDay: true })
-                        push({ op: 'occurrence', eventId: id, occurrence: sourceDay, before: { allDay: false, startsAt: occ.start, endsAt: occ.end }, after: { allDay: true, startDate: dayKey, endDate: dayKey } })
-                      } else {
-                        const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
-                        await window.calendarApi.events.update(token!, id, {
-                          startDate: dayKey,
-                          endDate: dur > 86400000 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey
-                        })
-                        push({ op: 'update', eventId: id, before: { startsAt: occ.start, endsAt: occ.end }, after: { startDate: dayKey, endDate: dayKey, allDay: true } })
+                      try {
+                        const push = useCalendar.getState().pushHistory
+                        if (ev.rrule) {
+                          const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
+                          await window.calendarApi.events.updateOccurrence(token!, id, sourceDay, { startDate: dayKey, endDate: dayKey, allDay: true })
+                          push({ op: 'occurrence', eventId: id, occurrence: sourceDay, before: { allDay: false, startsAt: occ.start, endsAt: occ.end }, after: { allDay: true, startDate: dayKey, endDate: dayKey } })
+                        } else {
+                          const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
+                          await window.calendarApi.events.update(token!, id, {
+                            startDate: dayKey,
+                            endDate: dur > 86400000 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey
+                          })
+                          push({ op: 'update', eventId: id, before: { startsAt: occ.start, endsAt: occ.end }, after: { startDate: dayKey, endDate: dayKey, allDay: true } })
+                        }
+                        void refreshEvents(toISO(from), toISO(to))
+                      } catch (err) {
+                        toast(err instanceof Error ? err.message : 'Move failed', 'error')
                       }
-                      void refreshEvents(toISO(from), toISO(to))
                     })()
                   } else if (ev.rrule) {
                     const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
                     const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
-                    void window.calendarApi.events.updateOccurrence(token!, id, sourceDay, {
+                    window.calendarApi.events.updateOccurrence(token!, id, sourceDay, {
                       startsAt: start.toISOString(),
                       endsAt: new Date(start.getTime() + dur).toISOString()
                     }).then(() => {
                       useCalendar.getState().pushHistory({ op: 'occurrence', eventId: id, occurrence: sourceDay, before: { startsAt: occ.start, endsAt: occ.end }, after: { startsAt: start.toISOString(), endsAt: new Date(start.getTime() + dur).toISOString() } })
                       void refreshEvents(toISO(from), toISO(to))
-                    })
+                    }).catch((err: unknown) => toast(err instanceof Error ? err.message : 'Move failed', 'error'))
                   } else {
                     void moveEvent(ev, start)
                   }
@@ -292,19 +386,22 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   const cal = calendarById.get(p.event.calendarId)
                   const color = p.event.color ?? cal?.color ?? '#1a73e8'
                   const editable = editableFor(p.event)
+                  const free = p.event.busy === false
                   return (
                     <div
                       key={p.event.id}
                       onClick={(e) => {
                         e.stopPropagation()
-                        const occDate = key
-                        setDialog({ event: p.event, occurrence: occDate })
+                        setDialog({ event: p.event, occurrence: key })
                       }}
                       onContextMenu={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
+                        setHover(null)
                         setMenu({ x: e.clientX, y: e.clientY, event: p.event, occurrence: key })
                       }}
+                      onMouseEnter={(e) => showHover(e.currentTarget, p.occ)}
+                      onMouseLeave={hideHoverSoon}
                       draggable={editable}
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: p.event.id, allDay: false }))
@@ -317,13 +414,21 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                         height: Math.max((p.endMin - p.startMin) * PX_PER_MIN - 3, 18),
                         left: `calc(${(p.col / p.cols) * 100}% + 2px)`,
                         width: `calc(${100 / p.cols}% - 4px)`,
-                        backgroundColor: color + 'e6',
+                        backgroundColor: free ? color + '8c' : color + 'e6',
                         color: '#fff',
+                        boxShadow: free ? `inset 0 0 0 1px ${color}` : undefined,
+                        borderStyle: free ? 'dashed' : undefined,
+                        borderWidth: free ? 1 : undefined,
+                        borderColor: 'rgba(255,255,255,0.6)',
                         zIndex: 10
                       }}
                       title={`${p.event.title}\n${format(new Date(p.event.startsAt!), 'HH:mm')} – ${format(new Date(p.event.endsAt!), 'HH:mm')}${p.event.location ? '\n' + p.event.location : ''}${p.event.description ? '\n' + p.event.description : ''}`}
                     >
-                      <div className="px-1.5 py-0.5 truncate font-medium pointer-events-none">{p.event.title}</div>
+                      <div className="px-1.5 py-0.5 truncate font-medium pointer-events-none flex items-center gap-0.5">
+                        {p.fromPrev && <span className="shrink-0">‹</span>}
+                        <span className="flex-1 truncate">{p.event.title}</span>
+                        {p.toNext && <span className="shrink-0">›</span>}
+                      </div>
                       <div className="px-1.5 truncate opacity-90 pointer-events-none">
                         {format(new Date(p.event.startsAt!), 'HH:mm')} – {format(new Date(p.event.endsAt!), 'HH:mm')}
                       </div>
@@ -388,18 +493,38 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
             {
               label: 'Delete',
               danger: true,
-              onClick: () => {
-                const s = useCalendar.getState()
-                if (menu.event.rrule) {
-                  void window.calendarApi.events.deleteOccurrence(token!, menu.event.id, menu.occurrence)
-                } else {
-                  void window.calendarApi.events.delete(token!, menu.event.id)
-                }
-                toast('Event deleted')
-                void refreshEvents(toISO(from), toISO(to))
-              }
+              onClick: () => requestDelete(menu.event, menu.occurrence, !!menu.event.rrule)
             }
           ]}
+        />
+      )}
+      {hover && (
+        <EventQuickView
+          x={hover.x}
+          y={hover.y}
+          occurrence={hover.occ}
+          calendar={calendarById.get(hover.occ.event.calendarId)}
+          timeFormat={settings.timeFormat}
+          canEdit={hover.canEdit}
+          onEdit={() => {
+            setHover(null)
+            setDialog({ event: hover.occ.event, occurrence: format(new Date(hover.occ.start), 'yyyy-MM-dd') })
+          }}
+          onDelete={() => requestDelete(hover.occ.event, format(new Date(hover.occ.start), 'yyyy-MM-dd'), !!hover.occ.event.rrule)}
+          onClose={hideHoverSoon}
+          onMouseEnter={() => {
+            if (hoverTimer.current) clearTimeout(hoverTimer.current)
+          }}
+          onMouseLeave={hideHoverSoon}
+        />
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title={confirming.occurrenceOnly ? 'Delete this occurrence?' : 'Delete event?'}
+          message={`“${confirming.event.title}”${confirming.occurrenceOnly ? ' will be removed from the series.' : ' will be permanently deleted.'}`}
+          confirmLabel="Delete"
+          onConfirm={confirmDelete}
+          onClose={() => setConfirming(null)}
         />
       )}
     </div>

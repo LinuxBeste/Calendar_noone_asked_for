@@ -24,7 +24,7 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
 
   const byDay = useMemo(() => {
     const map = new Map<string, EventOccurrence[]>()
-    for (const occ of Object.values(events).flat()) {
+    for (const occ of events) {
       const first = format(new Date(occ.start), 'yyyy-MM-dd')
       const last = format(new Date(occ.end), 'yyyy-MM-dd')
       let d = new Date(first + 'T00:00:00')

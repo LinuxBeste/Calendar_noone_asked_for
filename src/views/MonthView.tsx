@@ -1,10 +1,12 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { format, isSameDay, isToday, isSameMonth } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 import ContextMenu from '../components/ContextMenu'
+import ConfirmDialog from '../components/ConfirmDialog'
+import EventQuickView from '../components/EventQuickView'
 import { toast } from '../toasts'
 
 interface MonthViewProps {
@@ -24,6 +26,13 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
   const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
   const [moreMenu, setMoreMenu] = useState<MoreMenu | null>(null)
+  const [confirming, setConfirming] = useState<{ event: Event; occurrence: string; occurrenceOnly: boolean } | null>(null)
+  const [hover, setHover] = useState<{ occ: EventOccurrence; x: number; y: number; canEdit: boolean } | null>(null)
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+  }, [])
 
   useEffect(() => {
     const from = rangeStart('month', date, settings.firstDayOfWeek)
@@ -36,7 +45,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
     const to = rangeEnd('month', date, settings.firstDayOfWeek)
     const days = [...iterateDays(from, to)]
     const byDay = new Map<string, EventOccurrence[]>()
-    for (const occ of Object.values(events).flat()) {
+    for (const occ of events) {
       const first = occ.allDay ? occ.start.slice(0, 10) : format(new Date(occ.start), 'yyyy-MM-dd')
       const last = occ.allDay ? occ.end.slice(0, 10) : first
       if (!first) continue
@@ -53,6 +62,47 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
   }, [events, date, settings.firstDayOfWeek])
 
   const calendarById = useMemo(() => new Map(calendars.map((c) => [c.id, c])), [calendars])
+
+  const showHover = (el: HTMLElement, occ: EventOccurrence): void => {
+    if (!window.matchMedia('(hover: hover)').matches) return
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+    const rect = el.getBoundingClientRect()
+    const panelW = 288
+    const panelH = 240
+    const x = Math.min(rect.left, window.innerWidth - panelW - 8)
+    const y = rect.bottom + 8 + panelH > window.innerHeight ? Math.max(8, rect.top - panelH - 8) : rect.bottom + 8
+    setHover({
+      occ,
+      x,
+      y,
+      canEdit: calendars.find((c) => c.id === occ.event.calendarId)?.role !== 'viewer'
+    })
+  }
+  const hideHoverSoon = (): void => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+    hoverTimer.current = setTimeout(() => setHover(null), 150)
+  }
+
+  const requestDelete = (event: Event, occurrence: string, occurrenceOnly: boolean): void => {
+    setMenu(null)
+    setMoreMenu(null)
+    setHover(null)
+    setConfirming({ event, occurrence, occurrenceOnly })
+  }
+
+  const confirmDelete = async (): Promise<void> => {
+    if (!token || !confirming) return
+    const push = useCalendar.getState().pushHistory
+    if (confirming.occurrenceOnly) {
+      await window.calendarApi.events.deleteOccurrence(token, confirming.event.id, confirming.occurrence)
+      push({ op: 'occurrence', eventId: confirming.event.id, occurrence: confirming.occurrence, deletedOccurrence: true })
+    } else {
+      await window.calendarApi.events.delete(token, confirming.event.id)
+      push({ op: 'delete', eventId: confirming.event.id, deletedEvent: confirming.event })
+    }
+    toast(confirming.occurrenceOnly ? 'Event occurrence deleted' : 'Event deleted')
+    void refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z')
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -83,7 +133,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                 const raw = e.dataTransfer.getData('application/x-cal-event')
                 if (!raw || !token) return
                 const { id, allDay } = JSON.parse(raw) as { id: string; allDay?: boolean }
-                const occ = Object.values(events).flat().find((x) => x.event.id === id)
+                const occ = events.find((x) => x.event.id === id)
                 if (!occ) return
                 const ev = occ.event
                 const dayKey = format(d, 'yyyy-MM-dd')
@@ -97,10 +147,11 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                     useCalendar.getState().pushHistory({ op: 'update', eventId: id, before: { startDate: occ.event.startDate, endDate: occ.event.endDate }, after })
                     void refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek)))
                   }
+                  const fail = (err: unknown): void => toast(err instanceof Error ? err.message : 'Move failed', 'error')
                   if (ev.rrule) {
-                    void window.calendarApi.events.updateOccurrence(token, id, sourceDay, after).then(finish)
+                    void window.calendarApi.events.updateOccurrence(token, id, sourceDay, after).then(finish).catch(fail)
                   } else {
-                    void window.calendarApi.events.update(token, id, after).then(finish)
+                    void window.calendarApi.events.update(token, id, after).then(finish).catch(fail)
                   }
                 } else {
                   const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
@@ -110,11 +161,12 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                     useCalendar.getState().pushHistory({ op: 'update', eventId: id, before: { startsAt: occ.start, endsAt: occ.end }, after })
                     void refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek)))
                   }
+                  const fail = (err: unknown): void => toast(err instanceof Error ? err.message : 'Move failed', 'error')
                   if (ev.rrule) {
                     const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
-                    void window.calendarApi.events.updateOccurrence(token, id, sourceDay, after).then(finish)
+                    void window.calendarApi.events.updateOccurrence(token, id, sourceDay, after).then(finish).catch(fail)
                   } else {
-                    void window.calendarApi.events.update(token, id, after).then(finish)
+                    void window.calendarApi.events.update(token, id, after).then(finish).catch(fail)
                   }
                 }
               }}
@@ -153,8 +205,11 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                       onContextMenu={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
+                        setHover(null)
                         setMenu({ x: e.clientX, y: e.clientY, event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
                       }}
+                      onMouseEnter={(e) => showHover(e.currentTarget, occ)}
+                      onMouseLeave={hideHoverSoon}
                       draggable={calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: occ.allDay }))
@@ -251,17 +306,38 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
             {
               label: 'Delete',
               danger: true,
-              onClick: () => {
-                if (menu.event.rrule) {
-                  void window.calendarApi.events.deleteOccurrence(token!, menu.event.id, menu.occurrence)
-                } else {
-                  void window.calendarApi.events.delete(token!, menu.event.id)
-                }
-                toast('Event deleted')
-                void useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
-              }
+              onClick: () => requestDelete(menu.event, menu.occurrence, !!menu.event.rrule)
             }
           ]}
+        />
+      )}
+      {hover && (
+        <EventQuickView
+          x={hover.x}
+          y={hover.y}
+          occurrence={hover.occ}
+          calendar={calendarById.get(hover.occ.event.calendarId)}
+          timeFormat={settings.timeFormat}
+          canEdit={hover.canEdit}
+          onEdit={() => {
+            setHover(null)
+            setDialog({ event: hover.occ.event, occurrence: format(new Date(hover.occ.start), 'yyyy-MM-dd') })
+          }}
+          onDelete={() => requestDelete(hover.occ.event, format(new Date(hover.occ.start), 'yyyy-MM-dd'), !!hover.occ.event.rrule)}
+          onClose={hideHoverSoon}
+          onMouseEnter={() => {
+            if (hoverTimer.current) clearTimeout(hoverTimer.current)
+          }}
+          onMouseLeave={hideHoverSoon}
+        />
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title={confirming.occurrenceOnly ? 'Delete this occurrence?' : 'Delete event?'}
+          message={`“${confirming.event.title}”${confirming.occurrenceOnly ? ' will be removed from the series.' : ' will be permanently deleted.'}`}
+          confirmLabel="Delete"
+          onConfirm={confirmDelete}
+          onClose={() => setConfirming(null)}
         />
       )}
     </div>
