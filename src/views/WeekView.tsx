@@ -195,7 +195,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
         <div className="w-12 shrink-0 relative">
           {Array.from({ length: 24 }, (_, h) => (
             <div key={h} className="absolute right-2 -translate-y-1/2 text-[10px] text-gray-400" style={{ top: h * 60 * PX_PER_MIN }}>
-              {String(h).padStart(2, '0')}:00
+              {format(new Date(2000, 0, 1, h), settings.timeFormat === '12h' ? 'h a' : 'HH:mm')}
             </div>
           ))}
         </div>

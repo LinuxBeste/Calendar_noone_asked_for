@@ -74,7 +74,7 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
                   >
                     <span className="w-1 self-stretch rounded-full" style={{ backgroundColor: color }} />
                     <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0">
-                      {occ.allDay ? 'All day' : `${format(new Date(occ.start), 'HH:mm')} – ${format(new Date(occ.end), 'HH:mm')}`}
+                      {occ.allDay ? 'All day' : `${format(new Date(occ.start), settings.timeFormat === '12h' ? 'h:mm a' : 'HH:mm')} – ${format(new Date(occ.end), settings.timeFormat === '12h' ? 'h:mm a' : 'HH:mm')}`}
                     </span>
                     <span className="flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                       {ev.title}

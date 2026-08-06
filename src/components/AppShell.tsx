@@ -28,7 +28,14 @@ export default function AppShell(): React.JSX.Element {
   }, [token, setSettings])
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', settings.darkMode === 'dark')
+    const apply = (): void => {
+      const dark = settings.darkMode === 'dark' || (settings.darkMode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      document.documentElement.classList.toggle('dark', dark)
+    }
+    apply()
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
   }, [settings.darkMode])
 
   return (
