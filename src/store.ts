@@ -12,7 +12,8 @@ export const DEFAULT_SETTINGS = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   darkMode: 'light' as 'light' | 'dark' | 'auto',
   showWeekNumbers: false,
-  defaultReminderMinutes: 0
+  defaultReminderMinutes: 0,
+  defaultCalendarId: ''
 }
 
 export interface HistoryAction {
@@ -89,6 +90,7 @@ interface CalendarState {
   refreshCalendars(): Promise<void>
   refreshEvents(from: string, to: string): Promise<EventOccurrence[]>
   refreshVisible(): Promise<void>
+  duplicateEvent(event: Event, occurrence?: EventOccurrence): Promise<void>
   toggleCalendar(id: string): void
   setSettings(patch: Partial<typeof DEFAULT_SETTINGS>): void
   history: HistoryAction[]
@@ -231,6 +233,29 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     const range = get().lastRange
     if (!range) return
     await get().refreshEvents(range.from, range.to)
+  },
+  async duplicateEvent(event, occurrence) {
+    const token = useAuth.getState().token
+    if (!token) return
+    const allDay = occurrence?.allDay ?? event.allDay
+    const input: EventInput = {
+      calendarId: event.calendarId,
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      allDay,
+      startsAt: allDay ? undefined : (occurrence?.start ?? event.startsAt),
+      endsAt: allDay ? undefined : (occurrence?.end ?? event.endsAt),
+      startDate: allDay ? (occurrence?.start.slice(0, 10) ?? event.startDate) : undefined,
+      endDate: allDay ? (occurrence?.end.slice(0, 10) ?? event.endDate) : undefined,
+      color: event.color,
+      busy: event.busy,
+      rrule: occurrence ? undefined : event.rrule
+    }
+    const created = (await window.calendarApi.events.create(token, input)) as { id: string }
+    get().pushHistory({ op: 'create', eventId: created.id, after: input })
+    toast('Event duplicated')
+    await get().refreshVisible()
   },
   toggleCalendar(id) {
     set((s) => ({ visibleCalendars: { ...s.visibleCalendars, [id]: !s.visibleCalendars[id] } }))

@@ -87,6 +87,8 @@ describe('validation', () => {
     expectValidationError(() => validateSetting('showWeekNumbers', 'yes'))
     expect(validateSetting('defaultReminderMinutes', 30).value).toBe(30)
     expectValidationError(() => validateSetting('defaultReminderMinutes', 7))
+    expect(validateSetting('defaultCalendarId', 'abc-123').value).toBe('abc-123')
+    expectValidationError(() => validateSetting('defaultCalendarId', 'x'.repeat(100)))
   })
 
   it('enforces range, search, limit and window caps', () => {

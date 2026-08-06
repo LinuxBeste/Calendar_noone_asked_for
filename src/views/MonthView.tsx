@@ -304,6 +304,13 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
           items={[
             { label: 'Edit', onClick: () => setDialog({ event: menu.event, occurrence: menu.occurrence }) },
             {
+              label: 'Duplicate',
+              onClick: () => {
+                const occ = events.find((o) => o.event.id === menu.event.id)
+                void useCalendar.getState().duplicateEvent(menu.event, occ)
+              }
+            },
+            {
               label: 'Delete',
               danger: true,
               onClick: () => requestDelete(menu.event, menu.occurrence, !!menu.event.rrule)
@@ -324,6 +331,11 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
             setDialog({ event: hover.occ.event, occurrence: format(new Date(hover.occ.start), 'yyyy-MM-dd') })
           }}
           onDelete={() => requestDelete(hover.occ.event, format(new Date(hover.occ.start), 'yyyy-MM-dd'), !!hover.occ.event.rrule)}
+          onDuplicate={() => {
+            const ev = hover.occ.event
+            setHover(null)
+            void useCalendar.getState().duplicateEvent(ev, hover.occ)
+          }}
           onClose={hideHoverSoon}
           onMouseEnter={() => {
             if (hoverTimer.current) clearTimeout(hoverTimer.current)

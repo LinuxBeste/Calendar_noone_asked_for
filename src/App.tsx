@@ -3,6 +3,7 @@ import { useAuth, useCalendar } from './store'
 import LoginScreen from './components/LoginScreen'
 import AppShell from './components/AppShell'
 import Toasts from './components/Toasts'
+import ErrorBoundary from './components/ErrorBoundary'
 
 export default function App(): React.JSX.Element {
   const { booting, user, boot } = useAuth()
@@ -67,9 +68,9 @@ export default function App(): React.JSX.Element {
 
   if (!user) return <LoginScreen />
   return (
-    <>
+    <ErrorBoundary>
       <AppShell />
       <Toasts />
-    </>
+    </ErrorBoundary>
   )
 }

@@ -162,7 +162,8 @@ const settingSchemas: Record<string, z.ZodType<unknown>> = {
   timezone: z.string().refine((tz) => Intl.supportedValuesOf('timeZone').includes(tz), 'Invalid timezone'),
   darkMode: z.enum(['light', 'dark', 'auto']),
   showWeekNumbers: z.boolean(),
-  defaultReminderMinutes: z.union([z.literal(0), z.literal(5), z.literal(10), z.literal(30), z.literal(60), z.literal(1440)])
+  defaultReminderMinutes: z.union([z.literal(0), z.literal(5), z.literal(10), z.literal(30), z.literal(60), z.literal(1440)]),
+  defaultCalendarId: z.string().max(64)
 }
 
 // ---- misc ----

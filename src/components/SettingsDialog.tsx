@@ -21,7 +21,7 @@ const inputCls =
 
 export default function SettingsDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { token, user } = useAuth()
-  const { settings, setSettings, refreshEvents } = useCalendar()
+  const { settings, setSettings, refreshEvents, calendars } = useCalendar()
   const [tab, setTab] = useState<Tab>('general')
   const [draft, setDraft] = useState(settings)
   const [info, setInfo] = useState<{ using: string } | null>(null)
@@ -206,6 +206,20 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
                     <option value={30}>30 minutes before</option>
                     <option value={60}>1 hour before</option>
                     <option value={1440}>1 day before</option>
+                  </select>
+                </div>
+                <div className={row}>
+                  <div>
+                    <p className={label}>Default calendar</p>
+                    <p className={hint}>Where new events are created</p>
+                  </div>
+                  <select value={draft.defaultCalendarId} onChange={(e) => setDraft({ ...draft, defaultCalendarId: e.target.value })} className={selectCls + ' w-44'}>
+                    <option value="">First calendar</option>
+                    {calendars.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

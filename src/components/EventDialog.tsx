@@ -20,7 +20,7 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
   const { calendars, settings, refreshEvents, refreshCalendars } = useCalendar()
   const [detail, setDetail] = useState<EventDetail | null>(null)
   const [title, setTitle] = useState(event?.title ?? '')
-  const [calendarId, setCalendarId] = useState(event?.calendarId ?? '')
+  const [calendarId, setCalendarId] = useState(event?.calendarId ?? settings.defaultCalendarId)
   const [allDay, setAllDay] = useState(event?.allDay ?? false)
   const [startDate, setStartDate] = useState(format(event?.startDate ? new Date(event.startDate + 'T00:00:00') : defaultDate ?? new Date(), 'yyyy-MM-dd'))
   const [startTime, setStartTime] = useState(event?.startsAt ? format(new Date(event.startsAt), 'HH:mm') : '09:00')
@@ -62,6 +62,14 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
     : settings.defaultEventDuration * 60000
 
   const isSeriesEdit = !!event?.rrule && !!occurrence
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   /** If the end time still equals start + duration, move it along with the new start. */
   const shiftEndIfUntouched = (newStart: Date): void => {

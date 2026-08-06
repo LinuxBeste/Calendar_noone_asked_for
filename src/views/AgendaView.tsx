@@ -66,11 +66,12 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
                 const ev = occ.event
                 const cal = calendarById.get(ev.calendarId)
                 const color = ev.color ?? cal?.color ?? '#1a73e8'
+                const isPast = new Date(occ.end).getTime() < Date.now()
                 return (
                   <button
                     key={ev.id + key}
                     onClick={() => setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-left ${isPast ? 'opacity-45' : ''}`}
                   >
                     <span className="w-1 self-stretch rounded-full" style={{ backgroundColor: color }} />
                     <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0">

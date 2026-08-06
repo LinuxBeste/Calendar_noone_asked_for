@@ -9,13 +9,14 @@ interface EventQuickViewProps {
   timeFormat: '24h' | '12h'
   canEdit: boolean
   onEdit: () => void
+  onDuplicate: () => void
   onDelete: () => void
   onClose: () => void
   onMouseEnter?: () => void
   onMouseLeave?: () => void
 }
 
-export default function EventQuickView({ x, y, occurrence, calendar, timeFormat, canEdit, onEdit, onDelete, onClose, onMouseEnter, onMouseLeave }: EventQuickViewProps): React.JSX.Element {
+export default function EventQuickView({ x, y, occurrence, calendar, timeFormat, canEdit, onEdit, onDuplicate, onDelete, onClose, onMouseEnter, onMouseLeave }: EventQuickViewProps): React.JSX.Element {
   const ev: Event = occurrence.event
   const color = ev.color ?? calendar?.color ?? '#1a73e8'
   const tf = timeFormat === '12h' ? 'h:mm a' : 'HH:mm'
@@ -62,6 +63,15 @@ export default function EventQuickView({ x, y, occurrence, calendar, timeFormat,
                 className="px-3 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 Edit
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDuplicate()
+                }}
+                className="px-3 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Duplicate
               </button>
               <button
                 onClick={(e) => {
