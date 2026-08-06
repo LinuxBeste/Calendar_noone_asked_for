@@ -26,6 +26,7 @@ export default defineConfig({
     }
   },
   renderer: {
+    root: 'src',
     plugins: [react()],
     resolve: {
       alias: { '@shared': resolve(__dirname, 'shared') }

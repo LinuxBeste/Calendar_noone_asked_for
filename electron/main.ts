@@ -20,7 +20,7 @@ async function createWindow(): Promise<void> {
     minHeight: 600,
     title: 'Calendar',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false
     }
