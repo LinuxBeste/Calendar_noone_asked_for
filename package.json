@@ -15,9 +15,13 @@
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "server": "tsx server/index.ts",
     "server:watch": "tsx watch server/index.ts",
-    "rebuild:node": "npm rebuild better-sqlite3"
+    "rebuild:node": "npm rebuild better-sqlite3",
+    "build:web": "vite build -c vite.web.config.ts",
+    "dev:web": "vite -c vite.web.config.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/static": "^10.1.2",
     "better-sqlite3": "^12.2.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",

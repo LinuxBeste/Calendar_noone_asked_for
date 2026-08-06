@@ -1,7 +1,9 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
+import fastifyStatic from '@fastify/static'
+import fastifyCors from '@fastify/cors'
 import { join } from 'path'
-import { mkdirSync } from 'fs'
+import { existsSync, mkdirSync } from 'fs'
 import { tmpdir } from 'os'
 import type { EventStore, AuthStore, EventCache } from '@shared/storage'
 import { SqliteStore } from '../electron/db/sqlite'
@@ -63,7 +65,22 @@ async function bootstrap(): Promise<void> {
   const ical = new ICalService(store, setup.cache, perms)
 
   const app = Fastify({ logger: true })
+  await app.register(fastifyCors, { origin: true })
   await registerRoutes(app, { auth, calendars, events, ical, store, using: setup.using })
+
+  // Serve the built web client (SPA) when available
+  const webDir = process.env.CALENDAR_WEB_DIR ?? join(process.cwd(), 'web', 'dist')
+  if (existsSync(join(webDir, 'index.html'))) {
+    await app.register(fastifyStatic, { root: webDir, wildcard: false })
+    app.setNotFoundHandler((request, reply) => {
+      const accept = request.headers.accept ?? ''
+      if (request.method === 'GET' && (accept.includes('text/html') || accept === '*/*' || accept === '')) {
+        return reply.type('text/html').sendFile('index.html')
+      }
+      reply.code(404).send({ error: 'Not found' })
+    })
+    console.log(`[server] serving web client from ${webDir}`)
+  }
 
   try {
     await app.listen({ port: PORT, host: HOST })

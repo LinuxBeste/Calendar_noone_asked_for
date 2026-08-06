@@ -3,7 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -13,11 +17,25 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["node", "vitest/globals"],
+    "types": [
+      "node",
+      "vitest/globals"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["shared/*"]
+      "@shared/*": [
+        "shared/*"
+      ]
     }
   },
-  "include": ["electron", "src", "shared", "tests", "server", "electron.vite.config.ts"]
+  "include": [
+    "electron",
+    "src",
+    "shared",
+    "tests",
+    "server",
+    "web",
+    "electron.vite.config.ts",
+    "vite.web.config.ts"
+  ]
 }
