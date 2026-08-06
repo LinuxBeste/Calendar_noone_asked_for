@@ -97,6 +97,11 @@ FEATURES.md        Feature plan & roadmap (gitignored)
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the process model, IPC surface, storage adapters, and plugin readiness.
 
+## Usage
+
+A hands-on guide (creating events, recurrence modes, sharing, import/export,
+shortcuts) lives in [docs/HOWTO.md](docs/HOWTO.md).
+
 ## Roadmap
 
 The plugin system (manifests, hooks, sandboxed execution) is designed in
