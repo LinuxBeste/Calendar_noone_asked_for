@@ -30,6 +30,18 @@ export default function AppShell(): React.JSX.Element {
   }, [token, refreshCalendars])
 
   useEffect(() => {
+    const refresh = (): void => {
+      void useCalendar.getState().refreshVisible()
+    }
+    window.addEventListener('focus', refresh)
+    const t = setInterval(refresh, 60_000)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      clearInterval(t)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!token) return
     void (async () => {
       const loaded: Record<string, unknown> = {}

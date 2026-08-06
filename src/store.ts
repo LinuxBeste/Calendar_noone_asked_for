@@ -82,11 +82,13 @@ interface CalendarState {
   events: Record<string, EventOccurrence[]>
   visibleCalendars: Record<string, boolean>
   settings: typeof DEFAULT_SETTINGS
+  lastRange: { from: string; to: string } | null
   setView(view: ViewType): void
   setDate(date: Date): void
   navigate(delta: number): void
   refreshCalendars(): Promise<void>
   refreshEvents(from: string, to: string): Promise<EventOccurrence[]>
+  refreshVisible(): Promise<void>
   toggleCalendar(id: string): void
   setSettings(patch: Partial<typeof DEFAULT_SETTINGS>): void
   history: HistoryAction[]
@@ -186,6 +188,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   events: {},
   visibleCalendars: {},
   settings: DEFAULT_SETTINGS,
+  lastRange: null,
   setView(view) {
     set({ view })
   },
@@ -221,8 +224,13 @@ export const useCalendar = create<CalendarState>((set, get) => ({
       .filter(([, v]) => v)
       .map(([id]) => id)
     const events = (await window.calendarApi.events.listOccurrences(token, from, to, visible.length ? visible : undefined)) as EventOccurrence[]
-    set((s) => ({ events: { ...s.events, [`${from}|${to}`]: events } }))
+    set((s) => ({ events: { ...s.events, [`${from}|${to}`]: events }, lastRange: { from, to } }))
     return events ?? []
+  },
+  async refreshVisible() {
+    const range = get().lastRange
+    if (!range) return
+    await get().refreshEvents(range.from, range.to)
   },
   toggleCalendar(id) {
     set((s) => ({ visibleCalendars: { ...s.visibleCalendars, [id]: !s.visibleCalendars[id] } }))

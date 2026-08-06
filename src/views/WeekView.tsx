@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { format, isSameDay, isToday } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
@@ -29,6 +29,12 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
   const [gridMenu, setGridMenu] = useState<{ x: number; y: number; date: Date } | null>(null)
   const [now, setNow] = useState(new Date())
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = settings.workingHoursStart * 60 * PX_PER_MIN - 32
+  }, [settings.workingHoursStart])
 
   const from = useMemo(() => rangeStart(days === 7 ? 'week' : 'day', date, settings.firstDayOfWeek), [date, days, settings.firstDayOfWeek])
   const to = useMemo(() => rangeEnd(days === 7 ? 'week' : 'day', date, settings.firstDayOfWeek), [date, days, settings.firstDayOfWeek])
@@ -195,7 +201,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-y-auto relative">
+      <div className="flex-1 flex overflow-y-auto relative" ref={scrollRef}>
         <div className="w-12 shrink-0 relative">
           {Array.from({ length: 24 }, (_, h) => (
             <div key={h} className="absolute right-2 -translate-y-1/2 text-[10px] text-gray-400" style={{ top: h * 60 * PX_PER_MIN }}>

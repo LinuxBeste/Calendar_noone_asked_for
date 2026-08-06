@@ -55,8 +55,22 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
   const [existingReminderId, setExistingReminderId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const baseDur = event?.startsAt && event?.endsAt
+    ? new Date(event.endsAt).getTime() - new Date(event.startsAt).getTime()
+    : settings.defaultEventDuration * 60000
 
   const isSeriesEdit = !!event?.rrule && !!occurrence
+
+  /** If the end time still equals start + duration, move it along with the new start. */
+  const shiftEndIfUntouched = (newStart: Date): void => {
+    if (allDay) return
+    const oldStart = new Date(`${startDate}T${startTime}`)
+    const oldEnd = new Date(`${endDate}T${endTime}`)
+    if (oldEnd.getTime() - oldStart.getTime() !== baseDur) return
+    const end = new Date(newStart.getTime() + baseDur)
+    setEndDate(format(end, 'yyyy-MM-dd'))
+    setEndTime(format(end, 'HH:mm'))
+  }
 
   useEffect(() => {
     if (!event || !token) return
@@ -236,8 +250,28 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
                 All day
               </label>
               <div className="flex gap-2">
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} disabled={!editable || (allDay && !isSeriesEdit)} className={inputCls} />
-                {!allDay && <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} disabled={!editable} className={inputCls} />}
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value)
+                    shiftEndIfUntouched(new Date(`${e.target.value}T${startTime}`))
+                  }}
+                  disabled={!editable || (allDay && !isSeriesEdit)}
+                  className={inputCls}
+                />
+                {!allDay && (
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => {
+                      setStartTime(e.target.value)
+                      shiftEndIfUntouched(new Date(`${startDate}T${e.target.value}`))
+                    }}
+                    disabled={!editable}
+                    className={inputCls}
+                  />
+                )}
               </div>
               <div className="flex gap-2">
                 <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} disabled={!editable || (allDay && !isSeriesEdit)} className={inputCls} />
