@@ -4,7 +4,13 @@ import { toast } from '../toasts'
 import MiniCalendar from './MiniCalendar'
 import type { Calendar } from '@shared/types'
 
-export default function Sidebar(): React.JSX.Element {
+interface SidebarProps {
+  open: boolean
+  narrow: boolean
+  onClose: () => void
+}
+
+export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.JSX.Element | null {
   const { calendars, visibleCalendars, toggleCalendar, settings } = useCalendar()
   const { token, user } = useAuth()
   const [adding, setAdding] = useState(false)
@@ -21,8 +27,10 @@ export default function Sidebar(): React.JSX.Element {
     await useCalendar.getState().refreshCalendars()
   }
 
-  return (
-    <div className="w-60 shrink-0 flex flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
+  if (narrow && !open) return null
+
+  const content = (
+    <div className={`${narrow ? 'w-full' : 'w-60 shrink-0'} flex flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto h-full`}>
       <button
         onClick={() => setAdding(true)}
         className="mx-3 mt-3 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-blue-600 dark:text-blue-400 border border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
@@ -101,6 +109,17 @@ export default function Sidebar(): React.JSX.Element {
       {transfer && <TransferDialog onClose={() => setTransfer(false)} />}
     </div>
   )
+
+  if (narrow) {
+    return (
+      <>
+        <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+        <div className="fixed left-0 top-14 bottom-0 z-50 w-72 max-w-[85vw] shadow-xl">{content}</div>
+      </>
+    )
+  }
+
+  return content
 }
 
 function TransferDialog({ onClose }: { onClose: () => void }): React.JSX.Element {

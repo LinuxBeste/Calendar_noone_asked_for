@@ -11,11 +11,19 @@ interface MonthViewProps {
   date: Date
 }
 
+interface MoreMenu {
+  x: number
+  y: number
+  dayKey: string
+  date: Date
+}
+
 export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
   const { events, calendars, refreshEvents, settings } = useCalendar()
   const { token } = useAuth()
   const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
+  const [moreMenu, setMoreMenu] = useState<MoreMenu | null>(null)
 
   useEffect(() => {
     const from = rangeStart('month', date, settings.firstDayOfWeek)
@@ -162,7 +170,22 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                   )
                 })}
                 {extra > 0 && (
-                  <span className="text-[11px] text-gray-500 dark:text-gray-400 pl-1">+{extra} more</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      const w = 240
+                      setMoreMenu({
+                        x: Math.min(rect.left, window.innerWidth - w - 8),
+                        y: rect.bottom + 4,
+                        dayKey: key,
+                        date: d
+                      })
+                    }}
+                    className="text-[11px] text-gray-500 dark:text-gray-400 pl-1 hover:text-blue-600"
+                  >
+                    +{extra} more
+                  </button>
                 )}
               </div>
             </div>
@@ -176,6 +199,47 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
           occurrence={dialog.occurrence}
           onClose={() => setDialog(null)}
         />
+      )}
+      {moreMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setMoreMenu(null)} />
+          <div
+            className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-1.5 max-h-72 overflow-y-auto"
+            style={{ left: moreMenu.x, top: moreMenu.y, width: 240 }}
+          >
+            <p className="px-2 py-1 text-xs font-medium text-gray-500 dark:text-gray-400">{format(moreMenu.date, 'EEEE, MMMM d')}</p>
+            {(byDay.get(moreMenu.dayKey) ?? []).map((occ) => {
+              const ev = occ.event
+              const cal = calendarById.get(ev.calendarId)
+              const color = ev.color ?? cal?.color ?? '#1a73e8'
+              return (
+                <button
+                  key={ev.id + moreMenu.dayKey}
+                  onClick={() => {
+                    setMoreMenu(null)
+                    setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+                  }}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
+                >
+                  <span className="w-1.5 h-6 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">
+                    {occ.allDay ? 'All day' : format(new Date(occ.start), settings.timeFormat === '12h' ? 'h:mm a' : 'HH:mm')}
+                  </span>
+                  <span className="flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">{ev.title}</span>
+                </button>
+              )
+            })}
+            <button
+              onClick={() => {
+                setMoreMenu(null)
+                setDialog({ date: moreMenu.date })
+              }}
+              className="w-full mt-1 px-2 py-1.5 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-left"
+            >
+              + Add event
+            </button>
+          </div>
+        </>
       )}
       {menu && (
         <ContextMenu

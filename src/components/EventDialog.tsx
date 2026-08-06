@@ -36,21 +36,20 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
   const [location, setLocation] = useState(event?.location ?? '')
   const [color, setColor] = useState(event?.color ?? '')
   const [busy, setBusy] = useState(event?.busy ?? true)
-  const [repeat, setRepeat] = useState<'none' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'>(() =>
-    event?.rrule
-      ? event.rrule.includes('FREQ=DAILY')
-        ? 'DAILY'
-        : event.rrule.includes('FREQ=WEEKLY')
-          ? 'WEEKLY'
-          : event.rrule.includes('FREQ=MONTHLY')
-            ? 'MONTHLY'
-            : event.rrule.includes('FREQ=YEARLY')
-              ? 'YEARLY'
-              : 'none'
-      : 'none'
-  )
-  const [repeatInterval, setRepeatInterval] = useState(1)
-  const [repeatUntil, setRepeatUntil] = useState('')
+  const [repeat, setRepeat] = useState<'none' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'>(() => {
+    const freq = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].find((f) => event?.rrule?.includes(`FREQ=${f}`))
+    return freq ? (freq as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY') : 'none'
+  })
+  const [repeatInterval, setRepeatInterval] = useState(() => {
+    const m = event?.rrule?.match(/INTERVAL=(\d+)/)
+    return m ? Number(m[1]) : 1
+  })
+  const [repeatUntil, setRepeatUntil] = useState(() => {
+    const m = event?.rrule?.match(/UNTIL=(\d{8})/)
+    if (!m) return ''
+    const s = m[1]!
+    return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`
+  })
   const [editMode, setEditMode] = useState<'all' | 'this' | 'following'>('all')
   const [reminder, setReminder] = useState(() => settings.defaultReminderMinutes ?? 0)
   const [existingReminderId, setExistingReminderId] = useState<string | null>(null)
@@ -237,11 +236,11 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
                 All day
               </label>
               <div className="flex gap-2">
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} disabled={!editable || allDay} className={inputCls} />
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} disabled={!editable || (allDay && !isSeriesEdit)} className={inputCls} />
                 {!allDay && <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} disabled={!editable} className={inputCls} />}
               </div>
               <div className="flex gap-2">
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} disabled={!editable || allDay} className={inputCls} />
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} disabled={!editable || (allDay && !isSeriesEdit)} className={inputCls} />
                 {!allDay && <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} disabled={!editable} className={inputCls} />}
               </div>
             </div>

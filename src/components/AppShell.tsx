@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useCalendar, useAuth, DEFAULT_SETTINGS } from '../store'
 import Sidebar from './Sidebar'
 import Toolbar from './Toolbar'
@@ -7,9 +7,23 @@ import WeekView from '../views/WeekView'
 import YearView from '../views/YearView'
 import AgendaView from '../views/AgendaView'
 
+const NARROW_QUERY = '(max-width: 1023px)'
+
 export default function AppShell(): React.JSX.Element {
   const { view, date, refreshCalendars, settings, setSettings } = useCalendar()
   const { token } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches)
+
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW_QUERY)
+    const onChange = (e: MediaQueryListEvent): void => {
+      setNarrow(e.matches)
+      setSidebarOpen(!e.matches)
+    }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   useEffect(() => {
     void refreshCalendars()
@@ -40,9 +54,9 @@ export default function AppShell(): React.JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
-      <Toolbar />
+      <Toolbar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar />
+        <Sidebar open={sidebarOpen} narrow={narrow} onClose={() => setSidebarOpen(false)} />
         <main className="flex-1 flex overflow-hidden">
           {view === 'month' && <MonthView date={date} />}
           {view === 'week' && <WeekView date={date} days={7} />}

@@ -48,6 +48,9 @@ export default function App(): React.JSX.Element {
         case 'a':
           cal.setView('agenda')
           break
+        case 'n':
+          window.dispatchEvent(new CustomEvent('calendar:new-event'))
+          break
       }
     }
     window.addEventListener('keydown', handler)
