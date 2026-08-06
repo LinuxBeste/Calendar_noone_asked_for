@@ -16,7 +16,7 @@ const COLORS = ['#1a73e8', '#d93025', '#f4511e', '#fbbc04', '#188038', '#9334e6'
 
 export default function EventDialog({ event, defaultDate, occurrence, onClose }: EventDialogProps): React.JSX.Element {
   const { token } = useAuth()
-  const { calendars, refreshEvents, refreshCalendars } = useCalendar()
+  const { calendars, settings, refreshEvents, refreshCalendars } = useCalendar()
   const [detail, setDetail] = useState<EventDetail | null>(null)
   const [title, setTitle] = useState(event?.title ?? '')
   const [calendarId, setCalendarId] = useState(event?.calendarId ?? '')
@@ -24,7 +24,14 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
   const [startDate, setStartDate] = useState(format(event?.startDate ? new Date(event.startDate + 'T00:00:00') : defaultDate ?? new Date(), 'yyyy-MM-dd'))
   const [startTime, setStartTime] = useState(event?.startsAt ? format(new Date(event.startsAt), 'HH:mm') : '09:00')
   const [endDate, setEndDate] = useState(format(event?.endDate ? new Date(event.endDate + 'T00:00:00') : event?.startDate ? new Date(event.startDate + 'T00:00:00') : defaultDate ?? new Date(), 'yyyy-MM-dd'))
-  const [endTime, setEndTime] = useState(event?.endsAt ? format(new Date(event.endsAt), 'HH:mm') : '09:30')
+  const [endTime, setEndTime] = useState(() => {
+    if (event?.endsAt) return format(new Date(event.endsAt), 'HH:mm')
+    const dur = settings.defaultEventDuration
+    const d = new Date()
+    d.setHours(9, dur % 60, 0, 0)
+    d.setMinutes(9 * 60 + dur)
+    return format(d, 'HH:mm')
+  })
   const [description, setDescription] = useState(event?.description ?? '')
   const [location, setLocation] = useState(event?.location ?? '')
   const [color, setColor] = useState(event?.color ?? '')
@@ -45,7 +52,7 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
   const [repeatInterval, setRepeatInterval] = useState(1)
   const [repeatUntil, setRepeatUntil] = useState('')
   const [editMode, setEditMode] = useState<'all' | 'this' | 'following'>('all')
-  const [reminder, setReminder] = useState(0)
+  const [reminder, setReminder] = useState(() => settings.defaultReminderMinutes ?? 0)
   const [existingReminderId, setExistingReminderId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)

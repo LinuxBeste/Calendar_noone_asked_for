@@ -11,7 +11,8 @@ export const DEFAULT_SETTINGS = {
   defaultEventDuration: 30,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   darkMode: 'light' as 'light' | 'dark' | 'auto',
-  showWeekNumbers: false
+  showWeekNumbers: false,
+  defaultReminderMinutes: 0
 }
 
 export interface HistoryAction {

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useCalendar, useAuth } from '../store'
+import { useCalendar, useAuth, DEFAULT_SETTINGS } from '../store'
 import Sidebar from './Sidebar'
 import Toolbar from './Toolbar'
 import MonthView from '../views/MonthView'
@@ -18,12 +18,12 @@ export default function AppShell(): React.JSX.Element {
   useEffect(() => {
     if (!token) return
     void (async () => {
-      const firstDay = await window.calendarApi.settings.get(token, 'firstDayOfWeek')
-      if (firstDay !== undefined) setSettings({ firstDayOfWeek: firstDay as 0 | 1 })
-      const timeFormat = await window.calendarApi.settings.get(token, 'timeFormat')
-      if (timeFormat !== undefined) setSettings({ timeFormat: timeFormat as '24h' | '12h' })
-      const darkMode = await window.calendarApi.settings.get(token, 'darkMode')
-      if (darkMode !== undefined) setSettings({ darkMode: darkMode as 'light' | 'dark' | 'auto' })
+      const loaded: Record<string, unknown> = {}
+      for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof typeof DEFAULT_SETTINGS)[]) {
+        const value = await window.calendarApi.settings.get(token, key)
+        if (value !== undefined) loaded[key] = value
+      }
+      if (Object.keys(loaded).length > 0) setSettings(loaded as Partial<typeof DEFAULT_SETTINGS>)
     })()
   }, [token, setSettings])
 
