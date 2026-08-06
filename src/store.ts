@@ -121,7 +121,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
       .map(([id]) => id)
     const events = (await window.calendarApi.events.list(token, from, to, visible.length ? visible : undefined)) as Event[]
     set((s) => ({ events: { ...s.events, [`${from}|${to}`]: events } }))
-    return events
+    return events ?? []
   },
   toggleCalendar(id) {
     set((s) => ({ visibleCalendars: { ...s.visibleCalendars, [id]: !s.visibleCalendars[id] } }))

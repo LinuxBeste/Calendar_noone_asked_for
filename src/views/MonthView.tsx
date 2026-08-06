@@ -3,7 +3,7 @@ import { format, isSameDay, isToday, isSameMonth } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
 import type { Event } from '@shared/types'
-import EventDialog from './EventDialog'
+import EventDialog from '../components/EventDialog'
 
 interface MonthViewProps {
   date: Date

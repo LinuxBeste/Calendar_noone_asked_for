@@ -3,7 +3,7 @@ import { format, isSameDay, isToday, addDays, parseISO } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
 import type { Event } from '@shared/types'
-import EventDialog from './EventDialog'
+import EventDialog from '../components/EventDialog'
 
 interface WeekViewProps {
   date: Date
@@ -195,7 +195,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   const y = e.clientY - rect.top
                   const mins = Math.round((y / PX_PER_MIN) / 15) * 15
                   const hh = Math.floor(mins / 60)
-                  const mm = String(mins % 60).padStart(2, '0')
+                  const mm = mins % 60
                   const start = new Date(d)
                   start.setHours(hh, mm, 0, 0)
                   setDialog({ date: start })
