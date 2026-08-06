@@ -41,6 +41,18 @@ npm run dev
 > install fails on `better-sqlite3`/`electron`, run:
 > `npm install-scripts approve esbuild better-sqlite3 electron` and re-install.
 
+`better-sqlite3` is a native module and is ABI-specific — it must be built for
+the runtime it runs in:
+
+| Runtime | Command |
+|---|---|
+| Electron (the app) | `npm run rebuild:electron` |
+| Node (vitest unit tests) | `npm run rebuild:node` |
+
+After a fresh `npm install` you usually only need `npm run rebuild:electron`
+before `npm run dev` (the binary ships built for Node by default, which keeps
+`npm test` working out of the box).
+
 ### Scripts
 
 | Command | Purpose |
