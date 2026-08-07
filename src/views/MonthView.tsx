@@ -122,7 +122,10 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
             <span key={i}>{d}</span>
           ))}
       </div>
-      <div className="flex-1 grid grid-cols-7 grid-rows-5 overflow-hidden">
+      <div
+        className="flex-1 grid grid-cols-7 overflow-hidden"
+        style={{ gridTemplateRows: `repeat(${Math.max(5, Math.ceil(days.length / 7))}, 1fr)` }}
+      >
         {days.map((d, i) => {
           const key = format(d, 'yyyy-MM-dd')
           const dayEvents = byDay.get(key) ?? []

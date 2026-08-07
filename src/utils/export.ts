@@ -89,7 +89,6 @@ export function printEvents(events: Event[], calendars: Calendar[], title: strin
     <thead><tr><th></th><th>Event</th><th>When</th><th>Calendar</th><th>Location</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
-  <script>window.onload = function () { window.print() }<\/script>
 </body>
 </html>`
   const iframe = document.createElement('iframe')

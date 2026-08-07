@@ -27,6 +27,9 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
 
   useEffect(() => {
     void useCalendar.getState().refreshTrash()
+    const openTrash = (): void => setTrashOpen(true)
+    window.addEventListener('calendar:trash', openTrash)
+    return () => window.removeEventListener('calendar:trash', openTrash)
   }, [])
 
   const deleteCalendar = async (): Promise<void> => {
