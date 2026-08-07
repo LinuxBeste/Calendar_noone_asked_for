@@ -182,11 +182,13 @@ export const useAuth = create<AuthState>((set, get) => ({
   async login(email, password) {
     const result = (await window.calendarApi.auth.login(email, password)) as { token: string; user: User }
     localStorage.setItem('calendar.token', result.token)
+    localStorage.setItem('calendar.setupDone', '1')
     set({ token: result.token, user: result.user })
   },
   async register(email, name, password) {
     const result = (await window.calendarApi.auth.register(email, name, password)) as { token: string; user: User }
     localStorage.setItem('calendar.token', result.token)
+    localStorage.removeItem('calendar.setupDone')
     set({ token: result.token, user: result.user })
   },
   async logout() {
