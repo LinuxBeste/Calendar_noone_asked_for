@@ -87,7 +87,8 @@ const eventFields = {
   location: optionalText(LIMITS.locationMax, 'location'),
   color: colorSchema.or(z.literal('')).optional(),
   busy: z.boolean().optional(),
-  rrule: rruleSchema.or(z.literal('')).optional()
+  rrule: rruleSchema.or(z.literal('')).optional(),
+  icon: z.string().trim().max(24, 'Icon must be at most 24 characters').optional()
 }
 
 const titleRequiredSchema = z
@@ -163,7 +164,11 @@ const settingSchemas: Record<string, z.ZodType<unknown>> = {
   darkMode: z.enum(['light', 'dark', 'auto']),
   showWeekNumbers: z.boolean(),
   defaultReminderMinutes: z.union([z.literal(0), z.literal(5), z.literal(10), z.literal(30), z.literal(60), z.literal(1440)]),
-  defaultCalendarId: z.string().max(64)
+  defaultCalendarId: z.string().max(64),
+  secondaryTimezone: z.string().max(40),
+  hideWeekends: z.boolean(),
+  showHolidays: z.boolean(),
+  holidaysCountry: z.string().max(4)
 }
 
 // ---- misc ----

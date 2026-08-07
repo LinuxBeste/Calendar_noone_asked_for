@@ -1,42 +1,79 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { useAuth, useCalendar } from '../store'
 import { toast } from '../toasts'
+import { formatInTz } from '../utils/date'
+import { saveTemplate } from '../utils/templates'
 import type { Event, EventDetail, EventInput } from '@shared/types'
 import ConfirmDialog from './ConfirmDialog'
 
 interface EventDialogProps {
   event?: Event
   defaultDate?: Date
+  /** ISO timestamp to prefill start time (used by quick actions) */
+  defaultStart?: string
+  /** Duration in minutes for defaultStart (defaults to the user setting) */
+  defaultDuration?: number
+  /** Prefill values from an event template */
+  template?: EventInput
   /** Occurrence date (yyyy-MM-dd) when editing a single occurrence of a series */
   occurrence?: string
   onClose: () => void
 }
 
+export { EventDialog }
+
 const COLORS = ['#1a73e8', '#d93025', '#f4511e', '#fbbc04', '#188038', '#9334e6', '#a142f4', '#00acc1', '#e8710a']
 
-export default function EventDialog({ event, defaultDate, occurrence, onClose }: EventDialogProps): React.JSX.Element {
+export default function EventDialog({ event, defaultDate, defaultStart, defaultDuration, template, occurrence, onClose }: EventDialogProps): React.JSX.Element {
   const { token } = useAuth()
   const { calendars, settings, refreshEvents, refreshCalendars } = useCalendar()
   const [detail, setDetail] = useState<EventDetail | null>(null)
-  const [title, setTitle] = useState(event?.title ?? '')
-  const [calendarId, setCalendarId] = useState(event?.calendarId ?? settings.defaultCalendarId)
-  const [allDay, setAllDay] = useState(event?.allDay ?? false)
-  const [startDate, setStartDate] = useState(format(event?.startDate ? new Date(event.startDate + 'T00:00:00') : defaultDate ?? new Date(), 'yyyy-MM-dd'))
-  const [startTime, setStartTime] = useState(event?.startsAt ? format(new Date(event.startsAt), 'HH:mm') : '09:00')
-  const [endDate, setEndDate] = useState(format(event?.endDate ? new Date(event.endDate + 'T00:00:00') : event?.startDate ? new Date(event.startDate + 'T00:00:00') : defaultDate ?? new Date(), 'yyyy-MM-dd'))
+  const [title, setTitle] = useState(event?.title ?? template?.title ?? '')
+  const [calendarId, setCalendarId] = useState(event?.calendarId ?? template?.calendarId ?? settings.defaultCalendarId)
+  const [allDay, setAllDay] = useState(event?.allDay ?? template?.allDay ?? false)
+  const [startDate, setStartDate] = useState(() => {
+    if (event?.startDate) return event.startDate
+    if (defaultStart) return format(new Date(defaultStart), 'yyyy-MM-dd')
+    const base = template?.allDay ? template.startDate : undefined
+    return format(base ? new Date(base + 'T00:00:00') : defaultDate ?? new Date(), 'yyyy-MM-dd')
+  })
+  const [startTime, setStartTime] = useState(() => {
+    if (event?.startsAt) return format(new Date(event.startsAt), 'HH:mm')
+    if (defaultStart) return format(new Date(defaultStart), 'HH:mm')
+    if (template?.startsAt) return format(new Date(template.startsAt), 'HH:mm')
+    return '09:00'
+  })
+  const [endDate, setEndDate] = useState(() => {
+    if (event?.endDate) return event.endDate
+    if (event?.startDate) return event.startDate
+    if (defaultStart) return format(new Date(defaultStart), 'yyyy-MM-dd')
+    const base = template?.allDay ? template.endDate ?? template.startDate : undefined
+    return format(base ? new Date(base + 'T00:00:00') : defaultDate ?? new Date(), 'yyyy-MM-dd')
+  })
   const [endTime, setEndTime] = useState(() => {
     if (event?.endsAt) return format(new Date(event.endsAt), 'HH:mm')
+    if (defaultStart) {
+      const d = new Date(defaultStart)
+      const dur = defaultDuration ?? settings.defaultEventDuration
+      return format(new Date(d.getTime() + dur * 60000), 'HH:mm')
+    }
+    if (template?.startsAt && template.endsAt) {
+      return format(new Date(template.endsAt), 'HH:mm')
+    }
+    if (template?.startsAt) {
+      return format(new Date(new Date(template.startsAt).getTime() + (defaultDuration ?? settings.defaultEventDuration) * 60000), 'HH:mm')
+    }
     const dur = settings.defaultEventDuration
     const d = new Date()
-    d.setHours(9, dur % 60, 0, 0)
+    d.setHours(9, 0, 0, 0)
     d.setMinutes(9 * 60 + dur)
     return format(d, 'HH:mm')
   })
-  const [description, setDescription] = useState(event?.description ?? '')
-  const [location, setLocation] = useState(event?.location ?? '')
-  const [color, setColor] = useState(event?.color ?? '')
-  const [busy, setBusy] = useState(event?.busy ?? true)
+  const [description, setDescription] = useState(event?.description ?? template?.description ?? '')
+  const [location, setLocation] = useState(event?.location ?? template?.location ?? '')
+  const [color, setColor] = useState(event?.color ?? template?.color ?? '')
+  const [busy, setBusy] = useState(event?.busy ?? template?.busy ?? true)
   const [repeat, setRepeat] = useState<'none' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'>(() => {
     const freq = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].find((f) => event?.rrule?.includes(`FREQ=${f}`))
     return freq ? (freq as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY') : 'none'
@@ -98,6 +135,7 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
       if (d.location !== undefined) setLocation(d.location ?? '')
       if (d.color !== undefined) setColor(d.color ?? '')
       if (d.busy !== undefined) setBusy(d.busy)
+      if (d.icon !== undefined) setIcon(d.icon ?? '')
       if (d.reminders && d.reminders.length > 0) {
         setReminder(d.reminders[0]!.minutes)
         setExistingReminderId(d.reminders[0]!.id)
@@ -110,6 +148,26 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
   }, [calendars, calendarId])
 
   const editable = calendars.find((c) => c.id === calendarId)?.role !== 'viewer'
+
+  const overlaps = useMemo(() => {
+    const all = useCalendar.getState().events
+    if (allDay) return []
+    const start = new Date(`${startDate}T${startTime}`).getTime()
+    const end = new Date(`${endDate}T${endTime}`).getTime()
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return []
+    return all
+      .filter((o) => o.event.id !== event?.id && o.event.busy !== false && !o.allDay)
+      .map((o) => ({
+        title: o.event.title,
+        start: new Date(o.start).getTime(),
+        end: new Date(o.end).getTime()
+      }))
+      .filter((o) => o.start < end && o.end > start)
+      .slice(0, 3)
+  }, [allDay, startDate, startTime, endDate, endTime, event?.id])
+
+  const [icon, setIcon] = useState(event?.icon ?? template?.icon ?? '')
+  const EMOJI_PICKS = ['🏠', '💼', '🏋️', '🍽️', '🎉', '✈️', '🩺', '📚', '💻', '🎓', '🛒', '🧘']
 
   const buildRrule = (): string | undefined => {
     if (repeat === 'none') return undefined
@@ -147,7 +205,8 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
       endsAt: new Date(`${endDate}T${endTime}`).toISOString(),
       color: color || undefined,
       busy,
-      rrule: buildRrule()
+      rrule: buildRrule(),
+      icon: icon || undefined
     }
   }
 
@@ -253,6 +312,12 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
 
           {error && <p className="text-sm text-red-600 dark:text-red-400 mt-2">{error}</p>}
 
+          {overlaps.length > 0 && (
+            <p className="mt-2 text-xs rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 px-3 py-2">
+              ⚠ Overlaps: {overlaps.map((o) => `${o.title} (${format(new Date(o.start), 'HH:mm')}–${format(new Date(o.end), 'HH:mm')})`).join(', ')}
+            </p>
+          )}
+
           <div className="mt-4 flex items-start gap-3">
             <svg viewBox="0 0 24 24" className="w-4 h-4 mt-1 text-gray-400 shrink-0" fill="currentColor">
               <path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10z" />
@@ -292,6 +357,14 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
               </div>
             </div>
           </div>
+
+          {!allDay && settings.secondaryTimezone && (
+            <p className="mt-1 pl-7 text-xs text-gray-400 dark:text-gray-500">
+              Also at{' '}
+              {formatInTz(new Date(`${startDate}T${startTime}`), settings.secondaryTimezone, 'full')}{' '}
+              in {settings.secondaryTimezone}
+            </p>
+          )}
 
           <div className="mt-4 flex items-center gap-3">
             <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-400 shrink-0" fill="currentColor">
@@ -340,6 +413,32 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z" />
             </svg>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add description" disabled={!editable} rows={3} className={inputCls} />
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-400 shrink-0" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" />
+            </svg>
+            <input
+              value={icon}
+              onChange={(e) => setIcon(e.target.value.slice(0, 4))}
+              placeholder="Emoji / icon (optional)"
+              disabled={!editable}
+              className={inputCls + ' w-40 text-center text-lg'}
+            />
+            <div className="flex gap-1 flex-wrap">
+              {EMOJI_PICKS.map((em) => (
+                <button
+                  key={em}
+                  onClick={() => setIcon(em === icon ? '' : em)}
+                  disabled={!editable}
+                  className={`text-lg leading-none w-7 h-7 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 ${icon === em ? 'bg-gray-100 dark:bg-gray-700 ring-1 ring-blue-500' : ''}`}
+                  title={em}
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="mt-4 flex items-center gap-2">
@@ -441,6 +540,22 @@ export default function EventDialog({ event, defaultDate, occurrence, onClose }:
           )}
 
           <div className="mt-6 flex items-center gap-2">
+            {editable && !event && (
+              <button
+                onClick={() => {
+                  if (!title.trim()) {
+                    setError('Give the event a title first')
+                    return
+                  }
+                  const tpl = saveTemplate(buildInput())
+                  toast(`Template “${tpl.name}” saved`)
+                }}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                title="Save these values as a reusable template"
+              >
+                Save as template
+              </button>
+            )}
             {event && editable && (
               <button onClick={() => setConfirming(true)} className="px-4 py-2 text-sm rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
                 Delete

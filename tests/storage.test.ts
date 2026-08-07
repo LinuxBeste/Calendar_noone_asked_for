@@ -205,7 +205,7 @@ describe('SqliteStore', () => {
       await store.markReminderSent(r.id, new Date().toISOString())
     })
 
-    it('deletes reminders when the event is deleted', async () => {
+    it('keeps reminders on soft delete and removes them on purge', async () => {
       const cals = await store.listCalendars()
       const ev = await store.createEvent({
         calendarId: cals[0]!.id,
@@ -215,7 +215,36 @@ describe('SqliteStore', () => {
       })
       const r = await store.createReminder(ev.id, 10)
       await store.deleteEvent(ev.id)
+      expect(await store.getReminder(r.id)).not.toBeNull()
+      await store.purgeEvent(ev.id)
       expect(await store.getReminder(r.id)).toBeNull()
+    })
+  })
+
+  describe('trash', () => {
+    it('soft-deletes, lists, restores and purges events', async () => {
+      const cals = await store.listCalendars()
+      const ev = await store.createEvent({
+        calendarId: cals[0]!.id,
+        title: 'Trashable',
+        startsAt: '2026-08-06T10:00:00.000Z',
+        endsAt: '2026-08-06T11:00:00.000Z'
+      })
+      const range = ['2026-08-01T00:00:00.000Z', '2026-08-31T23:59:59.999Z'] as const
+
+      await store.deleteEvent(ev.id)
+      expect((await store.listEvents(...range)).map((e) => e.id)).not.toContain(ev.id)
+      expect(await store.getEvent(ev.id)).toBeUndefined()
+      expect((await store.listTrashedEvents()).map((e) => e.id)).toContain(ev.id)
+
+      await store.restoreEvent(ev.id)
+      expect((await store.listEvents(...range)).map((e) => e.id)).toContain(ev.id)
+      expect(await store.listTrashedEvents()).toHaveLength(0)
+
+      await store.deleteEvent(ev.id)
+      await store.purgeEvent(ev.id)
+      expect(await store.listTrashedEvents()).toHaveLength(0)
+      expect(await store.getEvent(ev.id)).toBeUndefined()
     })
   })
 })

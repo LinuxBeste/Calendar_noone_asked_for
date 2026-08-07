@@ -86,6 +86,15 @@ class ApiClient {
   async deleteEvent(token: string, id: string): Promise<unknown> {
     return this.call('DELETE', `/events/${id}`, token)
   }
+  async listTrash(token: string): Promise<unknown> {
+    return this.call('GET', '/events/trash', token)
+  }
+  async restoreEvent(token: string, id: string): Promise<unknown> {
+    return this.call('POST', `/events/${id}/restore`, token)
+  }
+  async purgeEvent(token: string, id: string): Promise<unknown> {
+    return this.call('DELETE', `/events/${id}/forever`, token)
+  }
   async searchEvents(token: string, q: string, calendarIds?: string[], limit?: number): Promise<unknown> {
     const params = new URLSearchParams({ q })
     if (calendarIds?.length) params.set('calendarIds', calendarIds.join(','))
@@ -135,6 +144,9 @@ class ApiClient {
     return (await this.call('GET', '/export/json', token)) as string
   }
   async importICal(token: string, calendarId: string, content: string): Promise<number> {
+    return (await this.call('POST', '/import/ical', token, { calendarId, content })) as number
+  }
+  async importICalContent(token: string, calendarId: string, content: string): Promise<number> {
     return (await this.call('POST', '/import/ical', token, { calendarId, content })) as number
   }
   async importJson(token: string, content: string): Promise<number> {

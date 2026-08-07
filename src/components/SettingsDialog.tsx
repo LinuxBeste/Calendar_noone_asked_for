@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth, useCalendar, DEFAULT_SETTINGS } from '../store'
+import { HOLIDAY_COUNTRIES, type HolidayCountry } from '../utils/holidays'
 import type { ViewType } from '@shared/types'
 
 type Tab = 'general' | 'appearance' | 'hours' | 'defaults' | 'data'
@@ -151,6 +152,20 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
                 <p className={`text-xs ${isDark(draft.darkMode) ? 'text-gray-500 dark:text-gray-400' : 'text-gray-400'}`}>
                   Preview: {isDark(draft.darkMode) ? 'dark theme will be applied' : 'light theme will be applied'}
                 </p>
+                <div className={row}>
+                  <div>
+                    <p className={label}>Secondary timezone</p>
+                    <p className={hint}>Shown next to event times (empty = off)</p>
+                  </div>
+                  <select value={draft.secondaryTimezone} onChange={(e) => setDraft({ ...draft, secondaryTimezone: e.target.value })} className={selectCls + ' w-56'}>
+                    <option value="">Off</option>
+                    {TIMEZONES.map((tz) => (
+                      <option key={tz} value={tz}>
+                        {tz}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
 
@@ -167,6 +182,35 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
                     <span className="text-sm text-gray-500">–</span>
                     <input type="number" min={1} max={24} value={draft.workingHoursEnd} onChange={(e) => setDraft({ ...draft, workingHoursEnd: Math.max(1, Math.min(24, Number(e.target.value) || 24)) })} className={inputCls} />
                   </div>
+                </div>
+                <div className={row}>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                    <input type="checkbox" checked={draft.hideWeekends} onChange={(e) => setDraft({ ...draft, hideWeekends: e.target.checked })} className="accent-blue-600" />
+                    Hide weekends
+                    <span className={hint}>Show a 5-day week in Week view</span>
+                  </label>
+                </div>
+                <div className={row}>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                    <input type="checkbox" checked={draft.showHolidays} onChange={(e) => setDraft({ ...draft, showHolidays: e.target.checked })} className="accent-blue-600" />
+                    Show holidays
+                    <span className={hint}>Public holidays in week and month view</span>
+                  </label>
+                </div>
+                <div className={row}>
+                  <label className="flex items-center justify-between gap-2 text-sm text-gray-700 dark:text-gray-200">
+                    Holiday region
+                    <select
+                      value={draft.holidaysCountry}
+                      onChange={(e) => setDraft({ ...draft, holidaysCountry: e.target.value as HolidayCountry })}
+                      className={selectCls + ' w-44'}
+                      disabled={!draft.showHolidays}
+                    >
+                      {HOLIDAY_COUNTRIES.map((c) => (
+                        <option key={c.code} value={c.code}>{c.label}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               </div>
             )}

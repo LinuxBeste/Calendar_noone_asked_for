@@ -69,8 +69,10 @@ export interface Event {
   busy: boolean
   rrule?: string
   rruleTz?: string
+  icon?: string
   createdAt: string
   updatedAt: string
+  deletedAt?: string | null
 }
 
 export interface EventInput {
@@ -88,6 +90,7 @@ export interface EventInput {
   busy?: boolean
   rrule?: string
   rruleTz?: string
+  icon?: string
 }
 
 export interface Attendee {

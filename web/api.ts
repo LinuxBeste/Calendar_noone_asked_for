@@ -67,6 +67,9 @@ export const webApi = {
     create: (token: string, input: EventInput) => call('POST', '/events', token, input),
     update: (token: string, id: string, input: Partial<EventInput>) => call('PUT', `/events/${id}`, token, input),
     delete: (token: string, id: string) => call('DELETE', `/events/${id}`, token),
+    trash: (token: string) => call('GET', '/events/trash', token),
+    restore: (token: string, id: string) => call('POST', `/events/${id}/restore`, token),
+    purge: (token: string, id: string) => call('DELETE', `/events/${id}/forever`, token),
     search: (token: string, query: string, calendarIds?: string[], limit?: number) => {
       const params = new URLSearchParams({ q: query })
       if (calendarIds?.length) params.set('calendarIds', calendarIds.join(','))
@@ -101,6 +104,10 @@ export const webApi = {
     importICal: async (token: string, calendarId: string) => {
       const content = await pickFile('.ics,text/calendar')
       if (content === null) return { canceled: true }
+      const count = (await call('POST', '/import/ical', token, { calendarId, content })) as number
+      return { canceled: false, count }
+    },
+    importContent: async (token: string, calendarId: string, content: string) => {
       const count = (await call('POST', '/import/ical', token, { calendarId, content })) as number
       return { canceled: false, count }
     },

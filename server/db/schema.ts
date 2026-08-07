@@ -37,8 +37,10 @@ export const events = sqliteTable('events', {
   busy: integer('busy').notNull().default(1),
   rrule: text('rrule'),
   rruleTz: text('rrule_tz'),
+  icon: text('icon'),
   createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull()
+  updatedAt: text('updated_at').notNull(),
+  deletedAt: text('deleted_at')
 })
 
 export const eventExceptions = sqliteTable('event_exceptions', {
@@ -136,8 +138,10 @@ export const pgEvents = pgTable('events', {
   busy: boolean('busy').notNull().default(true),
   rrule: pgText('rrule'),
   rruleTz: pgText('rrule_tz'),
+  icon: pgText('icon'),
   createdAt: pgText('created_at').notNull(),
-  updatedAt: pgText('updated_at').notNull()
+  updatedAt: pgText('updated_at').notNull(),
+  deletedAt: pgText('deleted_at')
 })
 
 export const pgEventExceptions = pgTable('event_exceptions', {

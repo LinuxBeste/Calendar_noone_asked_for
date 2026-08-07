@@ -26,6 +26,9 @@ const api = {
     create: (token: string, input: EventInput) => invoke('events:create', { token, input }),
     update: (token: string, id: string, input: Partial<EventInput>) => invoke('events:update', { token, id, input }),
     delete: (token: string, id: string) => invoke('events:delete', { token, id }),
+    trash: (token: string) => invoke('events:trash', { token }),
+    restore: (token: string, id: string) => invoke('events:restore', { token, id }),
+    purge: (token: string, id: string) => invoke('events:purge', { token, id }),
     search: (token: string, query: string, calendarIds?: string[], limit?: number) =>
       invoke('events:search', { token, query, calendarIds, limit }),
     listOccurrences: (token: string, from: string, to: string, calendarIds?: string[]) =>
@@ -46,6 +49,7 @@ const api = {
   ical: {
     exportICal: (token: string, calendarIds?: string[]) => invoke('export:ical', { token, calendarIds }),
     importICal: (token: string, calendarId: string) => invoke('import:ical', { token, calendarId }),
+    importContent: (token: string, calendarId: string, content: string) => invoke('import:ical-content', { token, calendarId, content }),
     exportJson: (token: string) => invoke('export:json', { token }),
     importJson: (token: string) => invoke('import:json', { token })
   },

@@ -1,16 +1,26 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth, useCalendar } from './store'
 import LoginScreen from './components/LoginScreen'
 import AppShell from './components/AppShell'
 import Toasts from './components/Toasts'
 import ErrorBoundary from './components/ErrorBoundary'
+import CommandPalette from './components/CommandPalette'
+import ShortcutsDialog from './components/ShortcutsDialog'
+import SetupDialog from './components/SetupDialog'
 
 export default function App(): React.JSX.Element {
   const { booting, user, boot } = useAuth()
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [setupOpen, setSetupOpen] = useState(false)
 
   useEffect(() => {
     void boot()
   }, [boot])
+
+  useEffect(() => {
+    if (user && localStorage.getItem('calendar.setupDone') !== '1') setSetupOpen(true)
+  }, [user])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
@@ -18,6 +28,11 @@ export default function App(): React.JSX.Element {
       const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)
       const mod = e.ctrlKey || e.metaKey
       const cal = useCalendar.getState()
+      if (mod && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen(true)
+        return
+      }
       if (mod && e.key.toLowerCase() === 'z' && !typing) {
         e.preventDefault()
         if (e.shiftKey) void cal.redo()
@@ -31,6 +46,9 @@ export default function App(): React.JSX.Element {
       }
       if (typing || mod || e.altKey) return
       switch (e.key.toLowerCase()) {
+        case '?':
+          setHelpOpen(true)
+          break
         case 't':
           cal.setDate(new Date())
           break
@@ -52,6 +70,9 @@ export default function App(): React.JSX.Element {
         case 'n':
           window.dispatchEvent(new CustomEvent('calendar:new-event'))
           break
+        case 'q':
+          window.dispatchEvent(new CustomEvent('calendar:quick-add'))
+          break
       }
     }
     window.addEventListener('keydown', handler)
@@ -71,6 +92,9 @@ export default function App(): React.JSX.Element {
     <ErrorBoundary>
       <AppShell />
       <Toasts />
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
+      {helpOpen && <ShortcutsDialog onClose={() => setHelpOpen(false)} />}
+      {setupOpen && <SetupDialog onClose={() => setSetupOpen(false)} />}
     </ErrorBoundary>
   )
 }

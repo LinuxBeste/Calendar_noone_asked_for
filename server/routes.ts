@@ -169,6 +169,8 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
     return withUser(services, req, (uid) =>
       events.listOccurrencesForRange(uid, req.query.from, req.query.to, splitCsv(req.query.calendarIds)))
   })
+  app.get('/events/trash', async (req: FastifyRequest) =>
+    withUser(services, req, (uid) => events.listTrash(uid)))
   app.get('/events/:id', async (req: Params<{ id: string }>) =>
     withUser(services, req, (uid) => events.getEvent(uid, req.params.id)))
   app.post('/events', async (req: Body<unknown>) =>
@@ -177,6 +179,10 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
     withUser(services, req, (uid) => events.updateEvent(uid, req.params.id, validateEventPatch(req.body))))
   app.delete('/events/:id', async (req: Params<{ id: string }>) =>
     withUser(services, req, (uid) => events.deleteEvent(uid, req.params.id)))
+  app.post('/events/:id/restore', async (req: Params<{ id: string }>) =>
+    withUser(services, req, (uid) => events.restoreEvent(uid, req.params.id)))
+  app.delete('/events/:id/forever', async (req: Params<{ id: string }>) =>
+    withUser(services, req, (uid) => events.purgeEvent(uid, req.params.id)))
   app.get('/events/:id/occurrences', async (req: Req<{ Params: { id: string }; Querystring: { from: string; to: string } }>) => {
     validateRange(req.query.from, req.query.to)
     return withUser(services, req, (uid) => events.listOccurrences(uid, req.params.id, req.query.from, req.query.to))

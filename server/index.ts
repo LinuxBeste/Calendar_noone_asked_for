@@ -62,7 +62,8 @@ async function bootstrap(): Promise<void> {
   const calendars = new CalendarService(store, setup.cache)
   const perms = {
     assertCanRead: (userId: string, calendarId: string) => calendars.assertCanRead(userId, calendarId),
-    assertCanWrite: (userId: string, calendarId: string) => calendars.assertCanWrite(userId, calendarId)
+    assertCanWrite: (userId: string, calendarId: string) => calendars.assertCanWrite(userId, calendarId),
+    listCalendarsForUser: (userId: string) => calendars.listCalendarsForUser(userId)
   }
   const events = new EventService(store, setup.cache, perms)
   const ical = new ICalService(store, setup.cache, perms)

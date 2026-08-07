@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { format, isSameDay, isToday, isSameMonth } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
+import { holidaysBetween } from '../utils/holidays'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 import ContextMenu from '../components/ContextMenu'
@@ -60,6 +61,13 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
     for (const list of byDay.values()) list.sort((a, b) => (a.allDay ? -1 : 1))
     return { days, byDay }
   }, [events, date, settings.firstDayOfWeek])
+
+  const holidays = useMemo(() => {
+    if (!settings.showHolidays) return new Map<string, string>()
+    const from = rangeStart('month', date, settings.firstDayOfWeek)
+    const to = rangeEnd('month', date, settings.firstDayOfWeek)
+    return holidaysBetween(from, to, settings.holidaysCountry)
+  }, [date, settings.firstDayOfWeek, settings.showHolidays, settings.holidaysCountry])
 
   const calendarById = useMemo(() => new Map(calendars.map((c) => [c.id, c])), [calendars])
 
@@ -122,6 +130,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
           const extra = dayEvents.length - visible.length
           const weekend = d.getDay() === 0 || d.getDay() === 6
           const selected = isSameDay(d, date)
+          const holiday = holidays.get(key)
           return (
             <div
               key={i}
@@ -171,9 +180,9 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                 }
               }}
               className={`border-b border-r border-gray-200 dark:border-gray-700 p-1 overflow-hidden cursor-pointer
-                ${weekend ? 'bg-gray-50 dark:bg-gray-800/60' : ''} ${selected ? 'ring-1 ring-inset ring-blue-500' : ''}`}
+                ${weekend || holiday ? 'bg-gray-50 dark:bg-gray-800/60' : ''} ${selected ? 'ring-1 ring-inset ring-blue-500' : ''}`}
             >
-              <div className="flex items-center justify-between px-0.5 mb-0.5">
+              <div className="flex items-start justify-between px-0.5 mb-0.5">
                 <span
                   className={`text-xs h-6 w-6 flex items-center justify-center rounded-full ${
                     isToday(d)
@@ -185,10 +194,22 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                 >
                   {d.getDate()}
                 </span>
-                {settings.showWeekNumbers && i % 7 === 0 && (
-                  <span className="text-[10px] text-gray-400">{weekNumber(d)}</span>
-                )}
+                <div className="flex flex-col items-end gap-0.5">
+                  {dayEvents.length > 0 && (
+                    <span className="text-[9px] leading-none px-1 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                      {dayEvents.length}
+                    </span>
+                  )}
+                  {settings.showWeekNumbers && i % 7 === 0 && (
+                    <span className="text-[10px] text-gray-400">{weekNumber(d)}</span>
+                  )}
+                </div>
               </div>
+              {holiday && (
+                <div className="text-[9px] leading-tight text-red-500 dark:text-red-400 truncate px-0.5 mb-0.5" title={holiday}>
+                  {holiday}
+                </div>
+              )}
               <div className="space-y-0.5">
                 {visible.map((occ) => {
                   const ev = occ.event
@@ -220,7 +241,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                       title={`${ev.title}${ev.location ? '\n' + ev.location : ''}`}
                     >
                       {occ.allDay ? '' : format(new Date(occ.start), 'H:mm') + ' '}
-                      {ev.title}
+                      {ev.icon ? ev.icon + ' ' : ''}{ev.title}
                     </button>
                   )
                 })}
@@ -280,7 +301,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                   <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">
                     {occ.allDay ? 'All day' : format(new Date(occ.start), settings.timeFormat === '12h' ? 'h:mm a' : 'HH:mm')}
                   </span>
-                  <span className="flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">{ev.title}</span>
+                  <span className="flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">{ev.icon ? ev.icon + ' ' : ''}{ev.title}</span>
                 </button>
               )
             })}

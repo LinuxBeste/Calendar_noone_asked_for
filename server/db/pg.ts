@@ -49,8 +49,10 @@ const rowToEvent = (r: typeof pgEvents.$inferSelect): Event => ({
   busy: r.busy,
   rrule: opt(r.rrule),
   rruleTz: opt(r.rruleTz),
+  icon: opt(r.icon),
   createdAt: r.createdAt,
-  updatedAt: r.updatedAt
+  updatedAt: r.updatedAt,
+  deletedAt: opt(r.deletedAt)
 })
 
 export class PgStore implements EventStore, AuthStore {
@@ -91,9 +93,12 @@ export class PgStore implements EventStore, AuthStore {
         busy BOOLEAN NOT NULL DEFAULT TRUE,
         rrule TEXT,
         rrule_tz TEXT,
+        icon TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TEXT;
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS icon TEXT;
       CREATE INDEX IF NOT EXISTS idx_events_time ON events (starts_at, ends_at);
       CREATE INDEX IF NOT EXISTS idx_events_calendar ON events (calendar_id);
       CREATE TABLE IF NOT EXISTS event_exceptions (
@@ -224,7 +229,7 @@ export class PgStore implements EventStore, AuthStore {
       lte(pgEvents.startDate, to),
       gte(sql`COALESCE(${pgEvents.endDate}, ${pgEvents.startDate})`, from)
     )
-    let where = or(timed, allDay)
+    let where = and(isNull(pgEvents.deletedAt), or(timed, allDay))
     if (calendarIds && calendarIds.length > 0) {
       where = and(where, sql`${pgEvents.calendarId} IN (${sql.join(calendarIds, sql`, `)})`)
     }
@@ -233,7 +238,7 @@ export class PgStore implements EventStore, AuthStore {
   }
 
   async getEvent(id: string): Promise<EventDetail | undefined> {
-    const rows = await this.db.select().from(pgEvents).where(eq(pgEvents.id, id)).limit(1)
+    const rows = await this.db.select().from(pgEvents).where(and(eq(pgEvents.id, id), isNull(pgEvents.deletedAt))).limit(1)
     if (!rows[0]) return undefined
     const event = rowToEvent(rows[0])
     const [attRows, remRows, excRows] = await Promise.all([
@@ -284,6 +289,7 @@ export class PgStore implements EventStore, AuthStore {
         busy: input.busy ?? true,
         rrule: input.rrule,
         rruleTz: input.rruleTz,
+        icon: input.icon,
         createdAt: now,
         updatedAt: now
       })
@@ -307,6 +313,7 @@ export class PgStore implements EventStore, AuthStore {
     if (input.busy !== undefined) patch.busy = input.busy
     if (input.rrule !== undefined) patch.rrule = input.rrule
     if (input.rruleTz !== undefined) patch.rruleTz = input.rruleTz
+    if (input.icon !== undefined) patch.icon = input.icon
     if (Object.keys(patch).length === 0) return (await this.getEvent(id))!
     patch.updatedAt = new Date().toISOString()
     const rows = await this.db.update(pgEvents).set(patch).where(eq(pgEvents.id, id)).returning()
@@ -314,8 +321,25 @@ export class PgStore implements EventStore, AuthStore {
   }
 
   async deleteEvent(id: string): Promise<void> {
+    await this.db.update(pgEvents).set({ deletedAt: new Date().toISOString() }).where(eq(pgEvents.id, id))
+  }
+
+  async restoreEvent(id: string): Promise<void> {
+    await this.db.update(pgEvents).set({ deletedAt: null }).where(eq(pgEvents.id, id))
+  }
+
+  async purgeEvent(id: string): Promise<void> {
     await this.db.delete(pgReminders).where(eq(pgReminders.eventId, id))
     await this.db.delete(pgEvents).where(eq(pgEvents.id, id))
+  }
+
+  async listTrashedEvents(): Promise<Event[]> {
+    const rows = await this.db
+      .select()
+      .from(pgEvents)
+      .where(isNotNull(pgEvents.deletedAt))
+      .orderBy(desc(pgEvents.deletedAt))
+    return rows.map(rowToEvent)
   }
 
   async listExceptions(eventId: string): Promise<EventException[]> {
@@ -449,7 +473,7 @@ export class PgStore implements EventStore, AuthStore {
       .from(pgReminders)
       .innerJoin(pgEvents, eq(pgReminders.eventId, pgEvents.id))
       .innerJoin(pgCalendars, eq(pgEvents.calendarId, pgCalendars.id))
-      .where(isNull(pgReminders.sentAt))
+      .where(and(isNull(pgReminders.sentAt), isNull(pgEvents.deletedAt)))
     return this.collectDue(rows, now, lookAheadMinutes)
   }
 
@@ -467,7 +491,7 @@ export class PgStore implements EventStore, AuthStore {
       .innerJoin(pgEvents, eq(pgReminders.eventId, pgEvents.id))
       .innerJoin(pgCalendars, eq(pgEvents.calendarId, pgCalendars.id))
       .leftJoin(pgCalendarShares, and(eq(pgCalendarShares.calendarId, pgEvents.calendarId), eq(pgCalendarShares.userId, userId)))
-      .where(and(isNull(pgReminders.sentAt), or(eq(pgCalendars.ownerId, userId), isNotNull(pgCalendarShares.userId))))
+      .where(and(isNull(pgReminders.sentAt), isNull(pgEvents.deletedAt), or(eq(pgCalendars.ownerId, userId), isNotNull(pgCalendarShares.userId))))
     return this.collectDue(rows, now, lookAheadMinutes)
   }
 
@@ -477,10 +501,13 @@ export class PgStore implements EventStore, AuthStore {
 
   async searchEvents(query: string, opts?: { limit?: number; calendarIds?: string[] }): Promise<Event[]> {
     const pattern = `%${query}%`
-    let where = or(
-      ilike(pgEvents.title, pattern),
-      ilike(pgEvents.description, pattern),
-      ilike(pgEvents.location, pattern)
+    let where = and(
+      isNull(pgEvents.deletedAt),
+      or(
+        ilike(pgEvents.title, pattern),
+        ilike(pgEvents.description, pattern),
+        ilike(pgEvents.location, pattern)
+      )
     )
     if (opts?.calendarIds && opts.calendarIds.length > 0) {
       where = and(where, sql`${pgEvents.calendarId} IN (${sql.join(opts.calendarIds, sql`, `)})`)

@@ -13,7 +13,11 @@ export const DEFAULT_SETTINGS = {
   darkMode: 'light' as 'light' | 'dark' | 'auto',
   showWeekNumbers: false,
   defaultReminderMinutes: 0,
-  defaultCalendarId: ''
+  defaultCalendarId: '',
+  secondaryTimezone: '',
+  hideWeekends: false,
+  showHolidays: false,
+  holidaysCountry: 'de' as 'de' | 'at' | 'ch' | 'us' | 'gb' | 'fr' | 'es' | 'it' | 'nl' | 'pl' | 'se' | 'jp'
 }
 
 export interface HistoryAction {
@@ -81,6 +85,7 @@ interface CalendarState {
   date: Date
   calendars: Calendar[]
   events: EventOccurrence[]
+  trash: Event[]
   visibleCalendars: Record<string, boolean>
   settings: typeof DEFAULT_SETTINGS
   lastRange: { from: string; to: string } | null
@@ -91,6 +96,9 @@ interface CalendarState {
   refreshEvents(from: string, to: string): Promise<EventOccurrence[]>
   refreshVisible(): Promise<void>
   duplicateEvent(event: Event, occurrence?: EventOccurrence): Promise<void>
+  refreshTrash(): Promise<void>
+  restoreTrashed(id: string): Promise<void>
+  purgeTrashed(id: string): Promise<void>
   toggleCalendar(id: string): void
   setSettings(patch: Partial<typeof DEFAULT_SETTINGS>): void
   history: HistoryAction[]
@@ -188,6 +196,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   date: new Date(),
   calendars: [],
   events: [],
+  trash: [],
   visibleCalendars: {},
   settings: DEFAULT_SETTINGS,
   lastRange: null,
@@ -256,6 +265,30 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     get().pushHistory({ op: 'create', eventId: created.id, after: input })
     toast('Event duplicated')
     await get().refreshVisible()
+  },
+  async refreshTrash() {
+    const token = useAuth.getState().token
+    if (!token) return
+    try {
+      const trash = (await window.calendarApi.events.trash(token)) as Event[]
+      set({ trash: trash ?? [] })
+    } catch {
+      set({ trash: [] })
+    }
+  },
+  async restoreTrashed(id) {
+    const token = useAuth.getState().token
+    if (!token) return
+    await window.calendarApi.events.restore(token, id)
+    toast('Event restored')
+    await Promise.all([get().refreshTrash(), get().refreshVisible()])
+  },
+  async purgeTrashed(id) {
+    const token = useAuth.getState().token
+    if (!token) return
+    await window.calendarApi.events.purge(token, id)
+    toast('Event deleted permanently')
+    await get().refreshTrash()
   },
   toggleCalendar(id) {
     set((s) => ({ visibleCalendars: { ...s.visibleCalendars, [id]: !s.visibleCalendars[id] } }))

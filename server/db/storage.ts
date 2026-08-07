@@ -21,6 +21,9 @@ export interface EventStore {
   createEvent(input: EventInput): Promise<Event>
   updateEvent(id: string, input: Partial<EventInput>): Promise<Event>
   deleteEvent(id: string): Promise<void>
+  restoreEvent(id: string): Promise<void>
+  purgeEvent(id: string): Promise<void>
+  listTrashedEvents(): Promise<Event[]>
 
   // ---- reminders ----
   createReminder(eventId: string, minutes: number): Promise<{ id: string; eventId: string; minutes: number }>

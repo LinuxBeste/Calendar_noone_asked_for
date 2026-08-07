@@ -1,0 +1,12 @@
+node_modules
+out
+release
+dist
+.DS_Store
+.git
+.gitignore
+.github
+android
+web/ios
+*.log
+package-lock.json

@@ -111,4 +111,32 @@ export function* iterateDays(from: Date, to: Date): Generator<Date> {
   }
 }
 
+/** Formats a Date in an arbitrary IANA timezone (e.g. for a secondary timezone display). */
+export function formatInTz(d: Date, tz: string, pattern = 'HH:mm'): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour12: false
+    }).formatToParts(d)
+    const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? ''
+    if (pattern === 'HH:mm') return `${get('hour')}:${get('minute')}`
+    return `${get('day')}.${get('month')}.${get('year')}, ${get('hour')}:${get('minute')}`
+  } catch {
+    return ''
+  }
+}
+
+export function isoWeekNumber(d: Date): number {
+  const date = new Date(d)
+  date.setHours(0, 0, 0, 0)
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7))
+  const week1 = new Date(date.getFullYear(), 0, 4)
+  return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7)
+}
+
 export { format, isSameDay, isSameMonth, isToday, isSameWeek, isSameYear, startOfDay, endOfDay, getDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth }

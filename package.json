@@ -1,7 +1,11 @@
 {
   "name": "calendar-noone-asked-for",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Offline desktop Google Calendar clone",
+  "author": {
+    "name": "LinuxBeste",
+    "email": "linuxbeste@users.noreply.github.com"
+  },
   "main": "out/main/index.js",
   "type": "module",
   "private": true,
@@ -19,7 +23,46 @@
     "build:web": "vite build -c vite.web.config.ts",
     "dev:web": "vite -c vite.web.config.ts",
     "build:android": "npm run build:web && npx cap sync android",
-    "android:run": "npm run build:android && npx cap open android"
+    "android:run": "npm run build:android && npx cap open android",
+    "dist": "electron-vite build && electron-builder",
+    "dist:win": "electron-vite build && electron-builder --win",
+    "dist:mac": "electron-vite build && electron-builder --mac",
+    "dist:linux": "electron-vite build && electron-builder --linux"
+  },
+  "build": {
+    "appId": "dev.linuxbeste.calendar-noone-asked-for",
+    "productName": "Calendar No One Asked For",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "${productName}-${version}-windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity",
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "tar.gz"
+      ],
+      "category": "Utility",
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+    }
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
@@ -51,6 +94,7 @@
     "@vitejs/plugin-react": "^4.6.0",
     "autoprefixer": "^10.4.21",
     "electron": "^37.2.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^4.0.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",

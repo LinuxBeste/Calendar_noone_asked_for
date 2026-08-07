@@ -1,8 +1,8 @@
 import type { EventStore, AuthStore, EventCache } from '../db/storage'
 import type { Event, EventInput, EventDetail, EventOccurrence } from '@shared/types'
 import { expandEvent, withDtstart } from './recurrence'
-import rrule from 'rrule'
-const { RRule, datetime } = rrule as unknown as typeof import('rrule')
+import { createRequire } from 'module'
+const { RRule, datetime } = createRequire(import.meta.url)('rrule') as typeof import('rrule')
 
 export class EventService {
   constructor(
@@ -11,6 +11,7 @@ export class EventService {
     private permissions: {
       assertCanRead(userId: string, calendarId: string): Promise<void>
       assertCanWrite(userId: string, calendarId: string): Promise<void>
+      listCalendarsForUser(userId: string): Promise<{ id: string }[]>
     }
   ) {}
 
@@ -57,6 +58,31 @@ export class EventService {
     await this.store.deleteEvent(id)
     await this.invalidateForCalendar(existing.calendarId)
     await this.cache.publish('events.changed', { type: 'deleted', eventId: id })
+  }
+
+  async restoreEvent(userId: string, id: string): Promise<void> {
+    const event = (await this.store.listTrashedEvents()).find((e) => e.id === id)
+    if (!event) throw new Error('Event not found')
+    await this.permissions.assertCanWrite(userId, event.calendarId)
+    await this.store.restoreEvent(id)
+    await this.invalidateForCalendar(event.calendarId)
+    await this.cache.publish('events.changed', { type: 'updated', eventId: id })
+  }
+
+  async purgeEvent(userId: string, id: string): Promise<void> {
+    const event = (await this.store.listTrashedEvents()).find((e) => e.id === id)
+    if (!event) throw new Error('Event not found')
+    await this.permissions.assertCanWrite(userId, event.calendarId)
+    await this.store.purgeEvent(id)
+    await this.invalidateForCalendar(event.calendarId)
+    await this.cache.publish('events.changed', { type: 'deleted', eventId: id })
+  }
+
+  async listTrash(userId: string): Promise<Event[]> {
+    const trash = await this.store.listTrashedEvents()
+    const cals = await this.permissions.listCalendarsForUser(userId)
+    const ids = new Set(cals.map((c) => c.id))
+    return trash.filter((e) => ids.has(e.calendarId))
   }
 
   async getEvent(userId: string, id: string): Promise<EventDetail> {

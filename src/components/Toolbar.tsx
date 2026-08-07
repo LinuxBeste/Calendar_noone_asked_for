@@ -1,10 +1,18 @@
 import { useAuth, useCalendar } from '../store'
 import { headerTitle } from '../utils/date'
+import { parseQuickAdd } from '../utils/quickadd'
+import { listTemplates, removeTemplate, type EventTemplate } from '../utils/templates'
+import { exportEventsCsv, printEvents } from '../utils/export'
 import type { ViewType } from '@shared/types'
 import SearchBox from './SearchBox'
 import SettingsDialog from './SettingsDialog'
 import EventDialog from './EventDialog'
-import { useEffect, useState } from 'react'
+import FindFreeTimeDialog from './FindFreeTimeDialog'
+import ShortcutsDialog from './ShortcutsDialog'
+import StatsDialog from './StatsDialog'
+import { useEffect, useRef, useState } from 'react'
+import { format } from 'date-fns'
+import { toast } from '../toasts'
 
 const VIEWS: { id: ViewType; label: string; key: string }[] = [
   { id: 'day', label: 'Day', key: 'd' },
@@ -19,20 +27,89 @@ interface ToolbarProps {
 }
 
 export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.Element {
-  const { view, setView, date, navigate, settings } = useCalendar()
-  const { user, logout } = useAuth()
+  const { view, setView, date, setDate, navigate, settings } = useCalendar()
+  const { user, logout, token } = useAuth()
   const canUndo = useCalendar((s) => s.canUndo())
   const canRedo = useCalendar((s) => s.canRedo())
   const undo = useCalendar((s) => s.undo)
   const redo = useCalendar((s) => s.redo)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [newEventOpen, setNewEventOpen] = useState(false)
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [quickAddText, setQuickAddText] = useState('')
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [findFreeOpen, setFindFreeOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
+  const [templates, setTemplates] = useState<EventTemplate[]>([])
+  const [templateEvent, setTemplateEvent] = useState<EventTemplate | null>(null)
+  const [quickAddError, setQuickAddError] = useState<string | null>(null)
+  const quickAddRef = useRef<HTMLInputElement>(null)
+  const moreRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handler = (): void => setNewEventOpen(true)
     window.addEventListener('calendar:new-event', handler)
-    return () => window.removeEventListener('calendar:new-event', handler)
+    const qa = (): void => {
+      setQuickAddOpen(true)
+      setTimeout(() => quickAddRef.current?.focus(), 0)
+    }
+    window.addEventListener('calendar:quick-add', qa)
+    const ff = (): void => setFindFreeOpen(true)
+    window.addEventListener('calendar:find-free', ff)
+    const st = (): void => setSettingsOpen(true)
+    window.addEventListener('calendar:settings', st)
+    return () => {
+      window.removeEventListener('calendar:new-event', handler)
+      window.removeEventListener('calendar:quick-add', qa)
+      window.removeEventListener('calendar:find-free', ff)
+      window.removeEventListener('calendar:settings', st)
+    }
   }, [])
+
+  useEffect(() => {
+    const outside = (e: MouseEvent): void => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false)
+    }
+    window.addEventListener('mousedown', outside)
+    return () => window.removeEventListener('mousedown', outside)
+  }, [])
+
+  useEffect(() => {
+    setTemplates(listTemplates())
+  }, [newEventOpen, quickAddOpen])
+
+  const runQuickAdd = async (): Promise<void> => {
+    const text = quickAddText.trim()
+    if (!text || !token) return
+    const parsed = parseQuickAdd(text, new Date(), settings.defaultEventDuration)
+    if (!parsed) {
+      setQuickAddError('Could not understand that — try “Lunch tomorrow 12:30 for 1h”')
+      return
+    }
+    try {
+      const { calendars: cals } = useCalendar.getState()
+      const created = (await window.calendarApi.events.create(token, {
+        calendarId: settings.defaultCalendarId || cals[0]?.id || '',
+        title: parsed.title,
+        description: undefined,
+        location: undefined,
+        allDay: parsed.allDay,
+        startsAt: parsed.startsAt,
+        endsAt: parsed.endsAt,
+        startDate: parsed.startDate,
+        endDate: parsed.endDate
+      })) as { id: string }
+      useCalendar.getState().pushHistory({ op: 'create', eventId: created.id, after: parsed as never })
+      toast(`Created “${parsed.title}”`)
+      setQuickAddText('')
+      setQuickAddOpen(false)
+      setQuickAddError(null)
+      await useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
+    } catch (err) {
+      setQuickAddError(err instanceof Error ? err.message : 'Could not create event')
+    }
+  }
 
   return (
     <div className="h-14 flex items-center gap-1 sm:gap-2 px-2 sm:px-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
@@ -94,6 +171,15 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
         Today
       </button>
 
+      <input
+        type="date"
+        value={format(date, 'yyyy-MM-dd')}
+        onChange={(e) => e.target.value && setDate(new Date(e.target.value + 'T00:00:00'))}
+        title="Go to date"
+        aria-label="Go to date"
+        className="hidden md:block px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+
       <div className="flex items-center gap-1">
         <button
           onClick={() => navigate(-1)}
@@ -137,6 +223,139 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
       </div>
 
       <div className="flex items-center gap-2">
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus-within:ring-2 focus-within:ring-blue-500 w-56">
+          <span className="text-sm leading-none">⚡</span>
+          <input
+            ref={quickAddRef}
+            value={quickAddText}
+            onChange={(e) => {
+              setQuickAddText(e.target.value)
+              setQuickAddError(null)
+            }}
+            onFocus={() => setQuickAddOpen(true)}
+            onBlur={() => setTimeout(() => setQuickAddOpen(false), 200)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void runQuickAdd()
+              if (e.key === 'Escape') setQuickAddOpen(false)
+            }}
+            placeholder="Quick add… ( q )"
+            className="flex-1 bg-transparent outline-none text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400"
+            aria-label="Quick add event"
+          />
+          {quickAddError && (
+            <span className="text-[10px] text-red-500 whitespace-nowrap" title={quickAddError}>⚠</span>
+          )}
+        </div>
+        {quickAddOpen && quickAddText && (
+          <p className="absolute top-14 right-40 hidden lg:block text-xs bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 px-3 py-1.5 rounded-lg shadow-lg">
+            {quickAddError ?? 'Press Enter to create the event'}
+          </p>
+        )}
+
+        <div className="relative" ref={moreRef}>
+          <button
+            onClick={() => setMoreOpen((o) => !o)}
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+            title="More (⋯)"
+            aria-label="More actions"
+          >
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
+              <path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+            </svg>
+          </button>
+          {moreOpen && (
+            <div className="absolute right-0 top-10 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl py-1 w-56">
+              <button
+                onClick={() => {
+                  setMoreOpen(false)
+                  setFindFreeOpen(true)
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Find free time
+              </button>
+              <div className="px-2 pt-1">
+                <p className="px-2 pb-1 text-[10px] uppercase tracking-wider text-gray-400">Templates</p>
+                {templates.length === 0 && <p className="px-2 pb-1 text-xs text-gray-400">None yet — save one from the event dialog</p>}
+                {templates.map((t) => (
+                  <div key={t.name} className="flex items-center">
+                    <button
+                      onClick={() => {
+                        setMoreOpen(false)
+                        setTemplateEvent(t)
+                      }}
+                      className="flex-1 text-left px-2 py-1.5 text-sm rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 truncate"
+                      title={t.name}
+                    >
+                      {t.name}
+                    </button>
+                    <button
+                      onClick={() => {
+                        removeTemplate(t.name)
+                        setTemplates(listTemplates())
+                        toast('Template removed')
+                      }}
+                      className="p-1 text-xs text-gray-400 hover:text-red-500"
+                      aria-label={`Remove template ${t.name}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
+              <button
+                onClick={() => {
+                  setMoreOpen(false)
+                  const { events, calendars } = useCalendar.getState()
+                  if (events.length === 0) {
+                    toast('Nothing to export yet', 'info')
+                    return
+                  }
+                  const from = events[0]!.start.slice(0, 10)
+                  const to = events[events.length - 1]!.start.slice(0, 10)
+                  exportEventsCsv(events.map((o) => o.event), calendars, `${from}_${to}`)
+                  toast('CSV exported')
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Export CSV
+              </button>
+              <button
+                onClick={() => {
+                  setMoreOpen(false)
+                  const { events, calendars } = useCalendar.getState()
+                  if (events.length === 0) {
+                    toast('Nothing to print yet', 'info')
+                    return
+                  }
+                  printEvents(events.map((o) => o.event), calendars, headerTitle(view, date, settings.firstDayOfWeek))
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Print / PDF…
+              </button>
+              <button
+                onClick={() => {
+                  setMoreOpen(false)
+                  setStatsOpen(true)
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Stats
+              </button>
+              <button
+                onClick={() => {
+                  setMoreOpen(false)
+                  setShortcutsOpen(true)
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Keyboard shortcuts
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={() => setSettingsOpen(true)}
           className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
@@ -162,6 +381,16 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       {newEventOpen && <EventDialog defaultDate={new Date()} onClose={() => setNewEventOpen(false)} />}
+      {findFreeOpen && <FindFreeTimeDialog onClose={() => setFindFreeOpen(false)} />}
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+      {statsOpen && <StatsDialog onClose={() => setStatsOpen(false)} />}
+      {templateEvent && (
+        <EventDialog
+          template={templateEvent.input}
+          defaultDate={new Date()}
+          onClose={() => setTemplateEvent(null)}
+        />
+      )}
     </div>
   )
 }

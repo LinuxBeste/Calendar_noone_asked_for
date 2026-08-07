@@ -1,4 +1,5 @@
 import { format } from 'date-fns'
+import { formatInTz } from '../utils/date'
 import type { Calendar, Event, EventOccurrence } from '@shared/types'
 
 interface EventQuickViewProps {
@@ -7,6 +8,7 @@ interface EventQuickViewProps {
   occurrence: EventOccurrence
   calendar?: Calendar
   timeFormat: '24h' | '12h'
+  secondaryTimezone?: string
   canEdit: boolean
   onEdit: () => void
   onDuplicate: () => void
@@ -16,7 +18,7 @@ interface EventQuickViewProps {
   onMouseLeave?: () => void
 }
 
-export default function EventQuickView({ x, y, occurrence, calendar, timeFormat, canEdit, onEdit, onDuplicate, onDelete, onClose, onMouseEnter, onMouseLeave }: EventQuickViewProps): React.JSX.Element {
+export default function EventQuickView({ x, y, occurrence, calendar, timeFormat, secondaryTimezone, canEdit, onEdit, onDuplicate, onDelete, onClose, onMouseEnter, onMouseLeave }: EventQuickViewProps): React.JSX.Element {
   const ev: Event = occurrence.event
   const color = ev.color ?? calendar?.color ?? '#1a73e8'
   const tf = timeFormat === '12h' ? 'h:mm a' : 'HH:mm'
@@ -35,7 +37,7 @@ export default function EventQuickView({ x, y, occurrence, calendar, timeFormat,
     >
       <div className="h-1.5" style={{ backgroundColor: color }} />
       <div className="p-4">
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1 truncate">{ev.title}</p>
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1 truncate">{ev.icon ? ev.icon + ' ' : ''}{ev.title}</p>
         <p className="text-xs text-gray-500 dark:text-gray-400">{time}</p>
         {ev.location && (
           <p className="mt-1.5 text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1 truncate">

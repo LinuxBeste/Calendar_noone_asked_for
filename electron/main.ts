@@ -87,6 +87,12 @@ function registerIpc(): void {
     api.updateEvent(payload.token, payload.id, payload.input as never))
   ipcMain.handle('events:delete', (_e, payload: { token: string; id: string }) =>
     api.deleteEvent(payload.token, payload.id))
+  ipcMain.handle('events:trash', (_e, payload: { token: string }) =>
+    api.listTrash(payload.token))
+  ipcMain.handle('events:restore', (_e, payload: { token: string; id: string }) =>
+    api.restoreEvent(payload.token, payload.id))
+  ipcMain.handle('events:purge', (_e, payload: { token: string; id: string }) =>
+    api.purgeEvent(payload.token, payload.id))
   ipcMain.handle('events:search', (_e, payload: { token: string; query: string; calendarIds?: string[]; limit?: number }) =>
     api.searchEvents(payload.token, payload.query, payload.calendarIds, payload.limit))
   ipcMain.handle('events:listOccurrences', (_e, payload: { token: string; from: string; to: string; calendarIds?: string[] }) =>
@@ -119,6 +125,10 @@ function registerIpc(): void {
     if (res.canceled || res.filePaths.length === 0) return { canceled: true }
     const content = await readFile(res.filePaths[0]!, 'utf8')
     const count = await api.importICal(payload.token, payload.calendarId, content)
+    return { canceled: false, count }
+  })
+  ipcMain.handle('import:ical-content', async (_e, payload: { token: string; calendarId: string; content: string }) => {
+    const count = await api.importICalContent(payload.token, payload.calendarId, payload.content)
     return { canceled: false, count }
   })
   ipcMain.handle('export:json', async (_e, payload: { token: string }) => {

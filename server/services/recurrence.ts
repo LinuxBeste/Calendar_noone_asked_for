@@ -1,5 +1,5 @@
-import rrule from 'rrule'
-const { RRule, datetime } = rrule as unknown as typeof import('rrule')
+import { createRequire } from 'module'
+const { RRule, datetime } = createRequire(import.meta.url)('rrule') as typeof import('rrule')
 import type { Event, EventDetail, EventException } from '@shared/types'
 
 export interface Occurrence {

@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { format, isSameDay, isToday, differenceInCalendarDays, startOfDay, endOfDay, addDays } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
-import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
+import { rangeStart, rangeEnd, toISO, iterateDays, isoWeekNumber } from '../utils/date'
+import { holidaysBetween } from '../utils/holidays'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 import ContextMenu from '../components/ContextMenu'
@@ -60,7 +61,12 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     if (hoverTimer.current) clearTimeout(hoverTimer.current)
   }, [])
 
-  const dayColumns = useMemo(() => [...iterateDays(from, to)], [from, to])
+  const dayColumns = useMemo(() => {
+    const cols = [...iterateDays(from, to)]
+    return settings.hideWeekends && days === 7 ? cols.filter((d) => d.getDay() !== 0 && d.getDay() !== 6) : cols
+  }, [from, to, settings.hideWeekends, days])
+
+  const holidays = useMemo(() => (settings.showHolidays ? holidaysBetween(from, to, settings.holidaysCountry) : new Map<string, string>()), [from, to, settings.showHolidays, settings.holidaysCountry])
 
   const { byDay, allDayEvents } = useMemo(() => {
     const byDay = new Map<string, { occ: EventOccurrence; fromPrev: boolean; toNext: boolean }[]>()
@@ -235,13 +241,17 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
           {dayColumns.map((d, i) => {
             const key = format(d, 'yyyy-MM-dd')
             const weekend = d.getDay() === 0 || d.getDay() === 6
+            const holiday = holidays.get(key)
             return (
               <div
                 key={i}
-                className={`border-l border-gray-200 dark:border-gray-700 py-1 text-center ${weekend ? 'bg-gray-50 dark:bg-gray-800/60' : ''}`}
+                className={`border-l border-gray-200 dark:border-gray-700 py-1 text-center ${weekend || holiday ? 'bg-gray-50 dark:bg-gray-800/60' : ''}`}
               >
                 <div className={`text-sm ${isToday(d) ? 'text-blue-600 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
                   {format(d, 'EEE')}
+                  {settings.showWeekNumbers && days === 7 && (
+                    <span className="ml-1 text-[9px] text-gray-400 dark:text-gray-500">W{isoWeekNumber(d)}</span>
+                  )}
                 </div>
                 <div
                   className={`mx-auto h-7 w-7 flex items-center justify-center rounded-full text-sm ${
@@ -250,6 +260,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                 >
                   {d.getDate()}
                 </div>
+                {holiday && <div className="text-[9px] leading-tight text-red-500 dark:text-red-400 truncate px-0.5" title={holiday}>{holiday}</div>}
                 <div className="mt-0.5 space-y-0.5">
                   {allDayEvents
                     .filter((occ) => occDaySpan(occ, d))
@@ -311,9 +322,11 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
           {dayColumns.map((d, i) => {
             const key = format(d, 'yyyy-MM-dd')
             const weekend = d.getDay() === 0 || d.getDay() === 6
+            const holiday = holidays.get(key)
             return (
               <div
                 key={i}
+                className={`relative border-l border-gray-200 dark:border-gray-700 cursor-pointer ${weekend || holiday ? 'bg-gray-100/50 dark:bg-gray-900/40' : ''}`}
                 onClick={(e) => {
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                   const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / PX_PER_MIN) / 15) * 15))
@@ -379,7 +392,6 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                     void moveEvent(ev, start)
                   }
                 }}
-                className={`relative border-l border-gray-200 dark:border-gray-700 ${weekend ? 'bg-gray-50 dark:bg-gray-800/60' : ''} cursor-pointer`}
                 data-daycol={key}
               >
                 {positioned.get(key)?.map((p) => {
@@ -426,7 +438,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                     >
                       <div className="px-1.5 py-0.5 truncate font-medium pointer-events-none flex items-center gap-0.5">
                         {p.fromPrev && <span className="shrink-0">‹</span>}
-                        <span className="flex-1 truncate">{p.event.title}</span>
+                        <span className="flex-1 truncate">{p.event.icon ? p.event.icon + ' ' : ''}{p.event.title}</span>
                         {p.toNext && <span className="shrink-0">›</span>}
                       </div>
                       <div className="px-1.5 truncate opacity-90 pointer-events-none">

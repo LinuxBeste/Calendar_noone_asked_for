@@ -4,6 +4,7 @@ import { toast } from '../toasts'
 import MiniCalendar from './MiniCalendar'
 import ContextMenu from './ContextMenu'
 import ConfirmDialog from './ConfirmDialog'
+import TrashDialog from './TrashDialog'
 import type { Calendar } from '@shared/types'
 
 interface SidebarProps {
@@ -13,15 +14,20 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.JSX.Element | null {
-  const { calendars, visibleCalendars, toggleCalendar, settings } = useCalendar()
+  const { calendars, visibleCalendars, toggleCalendar, settings, trash } = useCalendar()
   const { token, user } = useAuth()
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState('#1a73e8')
   const [sharing, setSharing] = useState<Calendar | null>(null)
   const [transfer, setTransfer] = useState(false)
+  const [trashOpen, setTrashOpen] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number; calendar: Calendar } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Calendar | null>(null)
+
+  useEffect(() => {
+    void useCalendar.getState().refreshTrash()
+  }, [])
 
   const deleteCalendar = async (): Promise<void> => {
     if (!token || !confirmDelete) return
@@ -121,10 +127,21 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
           </svg>
           Import / Export
         </button>
+        <button
+          onClick={() => setTrashOpen(true)}
+          className="mt-1 flex items-center gap-2 px-2 py-1.5 w-full text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+        >
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+            <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+          </svg>
+          Trash
+          {trash.length > 0 && <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400">{trash.length}</span>}
+        </button>
       </div>
 
       {sharing && <ShareDialog calendar={sharing} onClose={() => setSharing(null)} />}
       {transfer && <TransferDialog onClose={() => setTransfer(false)} />}
+      {trashOpen && <TrashDialog onClose={() => setTrashOpen(false)} />}
       {menu && (
         <ContextMenu
           x={menu.x}

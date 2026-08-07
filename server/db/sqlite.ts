@@ -40,8 +40,10 @@ const rowToEvent = (r: typeof events.$inferSelect): Event => ({
   busy: bool(r.busy),
   rrule: opt(r.rrule),
   rruleTz: opt(r.rruleTz),
+  icon: opt(r.icon),
   createdAt: r.createdAt,
-  updatedAt: r.updatedAt
+  updatedAt: r.updatedAt,
+  deletedAt: opt(r.deletedAt)
 })
 
 const DEFAULTS = {
@@ -88,8 +90,10 @@ export class SqliteStore implements EventStore, AuthStore {
         busy INTEGER NOT NULL DEFAULT 1,
         rrule TEXT,
         rrule_tz TEXT,
+        icon TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT
       )`,
       `CREATE INDEX IF NOT EXISTS idx_events_time ON events (starts_at, ends_at)`,
       `CREATE INDEX IF NOT EXISTS idx_events_calendar ON events (calendar_id)`,
@@ -161,6 +165,13 @@ export class SqliteStore implements EventStore, AuthStore {
     const cols = this.db.all(sql`PRAGMA table_info(calendars)`) as { name: string }[]
     if (!cols.some((c) => c.name === 'owner_id')) {
       this.db.run(sql.raw(`ALTER TABLE calendars ADD COLUMN owner_id TEXT`))
+    }
+    const evCols = this.db.all(sql`PRAGMA table_info(events)`) as { name: string }[]
+    if (!evCols.some((c) => c.name === 'deleted_at')) {
+      this.db.run(sql.raw(`ALTER TABLE events ADD COLUMN deleted_at TEXT`))
+    }
+    if (!evCols.some((c) => c.name === 'icon')) {
+      this.db.run(sql.raw(`ALTER TABLE events ADD COLUMN icon TEXT`))
     }
 
     const count = this.db.select({ n: sql<number>`count(*)` }).from(calendars).get()
@@ -237,7 +248,7 @@ export class SqliteStore implements EventStore, AuthStore {
       lte(events.startDate, to),
       gte(sql`COALESCE(${events.endDate}, ${events.startDate})`, from)
     )
-    let where = or(timed, allDay)
+    let where = and(isNull(events.deletedAt), or(timed, allDay))
     if (calendarIds && calendarIds.length > 0) {
       where = and(where, sql`${events.calendarId} IN (${sql.join(calendarIds, sql`, `)})`)
     }
@@ -246,7 +257,7 @@ export class SqliteStore implements EventStore, AuthStore {
   }
 
   async getEvent(id: string): Promise<EventDetail | undefined> {
-    const row = this.db.select().from(events).where(eq(events.id, id)).get()
+    const row = this.db.select().from(events).where(and(eq(events.id, id), isNull(events.deletedAt))).get()
     if (!row) return undefined
     const event = rowToEvent(row)
     const [attRows, remRows, excRows] = [
@@ -303,6 +314,7 @@ export class SqliteStore implements EventStore, AuthStore {
         busy: input.busy ?? true ? 1 : 0,
         rrule: input.rrule,
         rruleTz: input.rruleTz,
+        icon: input.icon,
         createdAt: now,
         updatedAt: now
       })
@@ -327,6 +339,7 @@ export class SqliteStore implements EventStore, AuthStore {
     if (input.busy !== undefined) patch.busy = input.busy ? 1 : 0
     if (input.rrule !== undefined) patch.rrule = input.rrule
     if (input.rruleTz !== undefined) patch.rruleTz = input.rruleTz
+    if (input.icon !== undefined) patch.icon = input.icon
     if (Object.keys(patch).length === 0) return (await this.getEvent(id))!
     patch.updatedAt = new Date().toISOString()
     const row = this.db.update(events).set(patch).where(eq(events.id, id)).returning().get()
@@ -334,8 +347,26 @@ export class SqliteStore implements EventStore, AuthStore {
   }
 
   async deleteEvent(id: string): Promise<void> {
+    this.db.update(events).set({ deletedAt: new Date().toISOString() }).where(eq(events.id, id)).run()
+  }
+
+  async restoreEvent(id: string): Promise<void> {
+    this.db.update(events).set({ deletedAt: null }).where(eq(events.id, id)).run()
+  }
+
+  async purgeEvent(id: string): Promise<void> {
     this.db.delete(reminders).where(eq(reminders.eventId, id)).run()
     this.db.delete(events).where(eq(events.id, id)).run()
+  }
+
+  async listTrashedEvents(): Promise<Event[]> {
+    const rows = this.db
+      .select()
+      .from(events)
+      .where(isNotNull(events.deletedAt))
+      .orderBy(desc(events.deletedAt))
+      .all()
+    return rows.map(rowToEvent)
   }
 
   async listExceptions(eventId: string): Promise<EventException[]> {
@@ -448,7 +479,7 @@ export class SqliteStore implements EventStore, AuthStore {
       .from(reminders)
       .innerJoin(events, eq(reminders.eventId, events.id))
       .innerJoin(calendars, eq(events.calendarId, calendars.id))
-      .where(isNull(reminders.sentAt))
+      .where(and(isNull(reminders.sentAt), isNull(events.deletedAt)))
       .all()
     return this.collectDue(rows, now, lookAheadMinutes)
   }
@@ -467,7 +498,7 @@ export class SqliteStore implements EventStore, AuthStore {
       .innerJoin(events, eq(reminders.eventId, events.id))
       .innerJoin(calendars, eq(events.calendarId, calendars.id))
       .leftJoin(calendarShares, and(eq(calendarShares.calendarId, events.calendarId), eq(calendarShares.userId, userId)))
-      .where(and(isNull(reminders.sentAt), or(eq(calendars.ownerId, userId), isNotNull(calendarShares.userId))))
+      .where(and(isNull(reminders.sentAt), isNull(events.deletedAt), or(eq(calendars.ownerId, userId), isNotNull(calendarShares.userId))))
       .all()
     return this.collectDue(rows, now, lookAheadMinutes)
   }
@@ -478,10 +509,13 @@ export class SqliteStore implements EventStore, AuthStore {
 
   async searchEvents(query: string, opts?: { limit?: number; calendarIds?: string[] }): Promise<Event[]> {
     const like = `%${query}%`
-    let where = or(
-      sql`${events.title} LIKE ${like}`,
-      sql`${events.description} LIKE ${like}`,
-      sql`${events.location} LIKE ${like}`
+    let where = and(
+      isNull(events.deletedAt),
+      or(
+        sql`${events.title} LIKE ${like}`,
+        sql`${events.description} LIKE ${like}`,
+        sql`${events.location} LIKE ${like}`
+      )
     )
     if (opts?.calendarIds && opts.calendarIds.length > 0) {
       where = and(where, sql`${events.calendarId} IN (${sql.join(opts.calendarIds, sql`, `)})`)
