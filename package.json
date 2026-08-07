@@ -2,6 +2,7 @@
   "name": "calendar-noone-asked-for",
   "version": "0.2.0",
   "description": "Offline desktop Google Calendar clone",
+  "desktopName": "calendar-noone-asked-for",
   "author": {
     "name": "LinuxBeste",
     "email": "linuxbeste@users.noreply.github.com"
@@ -24,10 +25,10 @@
     "dev:web": "vite -c vite.web.config.ts",
     "build:android": "npm run build:web && npx cap sync android",
     "android:run": "npm run build:android && npx cap open android",
-    "dist": "electron-vite build && electron-builder",
-    "dist:win": "electron-vite build && electron-builder --win",
-    "dist:mac": "electron-vite build && electron-builder --mac",
-    "dist:linux": "electron-vite build && electron-builder --linux"
+    "dist": "electron-vite build && electron-builder -p never",
+    "dist:win": "electron-vite build && electron-builder --win -p never",
+    "dist:mac": "electron-vite build && electron-builder --mac -p never",
+    "dist:linux": "electron-vite build && electron-builder --linux -p never"
   },
   "build": {
     "appId": "dev.linuxbeste.calendar-noone-asked-for",
@@ -56,12 +57,16 @@
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb",
-        "tar.gz"
+        "AppImage"
       ],
       "category": "Utility",
-      "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
+      "syncDesktopName": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "LinuxBeste",
+      "repo": "Calendar_noone_asked_for"
     }
   },
   "dependencies": {
@@ -71,6 +76,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "electron-updater": "^6.8.9",
     "fastify": "^5.11.2",
     "ioredis": "^5.6.1",
     "pg": "^8.16.3",

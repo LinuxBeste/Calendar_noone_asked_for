@@ -3,8 +3,52 @@ import { app, BrowserWindow, ipcMain, Notification, dialog } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { api } from './api-client'
+import { autoUpdater } from 'electron-updater'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
+
+let updaterPrompted = false
+
+function setupAutoUpdater(): void {
+  if (!app.isPackaged) return
+  autoUpdater.autoDownload = false
+  autoUpdater.on('update-available', () => {
+    if (updaterPrompted) return
+    updaterPrompted = true
+    void dialog
+      .showMessageBox({
+        type: 'info',
+        title: 'Update available',
+        message: `A new version of ${app.getName()} is available.`,
+        detail: 'Download and install it now?',
+        buttons: ['Later', 'Update now'],
+        defaultId: 1,
+        cancelId: 0
+      })
+      .then(({ response }) => {
+        if (response === 1) autoUpdater.downloadUpdate().catch((err: unknown) => console.error('[updater] download failed:', err))
+      })
+  })
+  autoUpdater.on('update-downloaded', () => {
+    void dialog
+      .showMessageBox({
+        type: 'info',
+        title: 'Update ready',
+        message: 'The update has been downloaded.',
+        detail: 'Restart now to finish installing it?',
+        buttons: ['Restart now', 'Later'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      .then(({ response }) => {
+        if (response === 0) autoUpdater.quitAndInstall()
+      })
+  })
+  autoUpdater.on('error', (err: Error) => console.error('[updater]', err.message))
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((err: Error) => console.error('[updater] check failed:', err.message))
+  }, 10_000)
+}
 
 async function createWindow(): Promise<void> {
   const win = new BrowserWindow({
@@ -158,6 +202,7 @@ app.whenReady().then(async () => {
   registerIpc()
   await createWindow()
   startReminderEngine()
+  setupAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow()

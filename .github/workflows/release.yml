@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - uses: android-actions/setup-android@v3
       - uses: actions/setup-java@v4
         with:
@@ -80,8 +80,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/LinuxBeste/Calendar_noone_asked_for:latest
-            ghcr.io/LinuxBeste/Calendar_noone_asked_for:${{ github.ref_name }}
+            ghcr.io/linuxbeste/calendar_noone_asked_for:latest
+            ghcr.io/linuxbeste/calendar_noone_asked_for:${{ github.ref_name }}
 
   deploy-web:
     name: Live web (GitHub Pages)
