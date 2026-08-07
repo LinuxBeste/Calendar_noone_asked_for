@@ -19,17 +19,22 @@ jobs:
         include:
           - os: windows-latest
             script: dist:win
-            upload: release/*.exe
+            upload: |
+              release/*.exe
+              release/*.zip
             updateFile: release/latest*.yml
           - os: macos-latest
             script: dist:mac
-            upload: release/*.dmg
+            upload: |
+              release/*.dmg
+              release/*.zip
             updateFile: release/latest*.yml
           - os: ubuntu-latest
             script: dist:linux
-            upload: release/*.AppImage
-            updateFile: release/latest*.yml
-    runs-on: ${{ matrix.os }}
+            upload: |
+              release/*.AppImage
+              release/*.tar.gz
+            updateFile: release/latest*.yml    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -132,5 +137,29 @@ jobs:
             release/*.exe
             release/*.dmg
             release/*.apk
+            release/*.zip
+            release/*.tar.gz
             release/latest*.yml
+          body: |
+            ## Calendar No One Asked For ${{ github.ref_name }}
+
+            ### Live version (web)
+            Try it in the browser: https://linuxbeste.github.io/Calendar_noone_asked_for/
+
+            ### Docker image
+            ```
+            docker pull ghcr.io/linuxbeste/calendar_noone_asked_for:latest
+            docker run -p 3001:3001 -v calendar-data:/data -e CALENDAR_API_KEY=your-secret ghcr.io/linuxbeste/calendar_noone_asked_for:latest
+            ```
+            - Web client + API at http://localhost:3001
+            - Data is stored in the `calendar-data` volume
+            - Point the web app at a different server via Settings → API URL
+
+            ### Installers
+            - Windows: `.exe` (NSIS installer) or `.zip` (portable, no install)
+            - macOS: `.dmg` or `.zip` (portable)
+            - Linux: `.AppImage` or `.tar.gz` (portable)
+
+            ### Mobile
+            - Android: `.apk` (debug build)
           generate_release_notes: true

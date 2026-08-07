@@ -43,7 +43,10 @@
       "**/*.node"
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        "nsis",
+        "zip"
+      ],
       "artifactName": "${productName}-${version}-windows-${arch}.${ext}"
     },
     "nsis": {
@@ -51,13 +54,17 @@
       "allowToChangeInstallationDirectory": true
     },
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.productivity",
       "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
     },
     "linux": {
       "target": [
-        "AppImage"
+        "AppImage",
+        "tar.gz"
       ],
       "category": "Utility",
       "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
