@@ -22,3 +22,4 @@ release/
 *.apk
 builder-debug.yml
 latest*.yml
+web/dist-demo/
