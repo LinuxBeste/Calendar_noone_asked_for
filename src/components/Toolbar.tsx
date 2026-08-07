@@ -117,11 +117,10 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
   }
 
   return (
-    <div className="h-14 shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-x-auto">
-      <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 h-full w-max min-w-full">
+    <div className="min-h-14 shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-wrap items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5">
       <button
         onClick={onToggleSidebar}
-        className="lg:hidden p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+        className="lg:hidden p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 shrink-0"
         title="Toggle sidebar"
         aria-label="Toggle sidebar"
       >
@@ -139,7 +138,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
 
       <button
         onClick={() => setNewEventOpen(true)}
-        className="flex items-center gap-1 px-2 md:px-3 py-1.5 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-full"
+        className="flex items-center gap-1 px-2 md:px-3 py-1.5 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-full shrink-0"
         title="New event"
         aria-label="New event"
       >
@@ -147,7 +146,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
         <span className="hidden md:inline">New</span>
       </button>
 
-      <div className="hidden sm:flex items-center">
+      <div className="hidden lg:flex items-center shrink-0">
         <button
           onClick={() => void undo()}
           disabled={!canUndo}
@@ -171,7 +170,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
 
       <button
         onClick={() => setView(settings.defaultView)}
-        className="px-2 sm:px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+        className="px-2 sm:px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 shrink-0"
         title="Today (t)"
       >
         Today
@@ -183,10 +182,10 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
         onChange={(e) => e.target.value && setDate(new Date(e.target.value + 'T00:00:00'))}
         title="Go to date"
         aria-label="Go to date"
-        className="hidden md:block px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-accent"
+        className="hidden xl:block px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-accent shrink-0"
       />
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <button
           onClick={() => navigate(-1)}
           className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
@@ -203,15 +202,13 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
         </button>
       </div>
 
-      <h2 className="text-base sm:text-lg font-normal text-gray-800 dark:text-gray-100 truncate">{headerTitle(view, date, settings.firstDayOfWeek)}</h2>
+      <h2 className="flex-1 min-w-0 text-base sm:text-lg font-normal text-gray-800 dark:text-gray-100 truncate">{headerTitle(view, date, settings.firstDayOfWeek)}</h2>
 
-      <div className="flex-1" />
-
-      <div className="hidden md:block">
+      <div className="hidden md:flex min-w-0">
         <SearchBox />
       </div>
 
-      <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+      <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 shrink-0">
         {VIEWS.map((v) => (
           <button
             key={v.id}
@@ -383,7 +380,6 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
             </button>
           </div>
         </div>
-      </div>
       </div>
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
