@@ -53,12 +53,19 @@ const DEFAULTS = {
 
 export class SqliteStore implements EventStore, AuthStore {
   private db: Db
+  private raw: Database.Database
 
   constructor(dbPath: string) {
     const db = new Database(dbPath)
     db.pragma('journal_mode = WAL')
     db.pragma('foreign_keys = ON')
+    this.raw = db
     this.db = drizzle(db)
+  }
+
+  /** Creates a consistent snapshot of the database file (SQLite online backup). */
+  async backupTo(dest: string): Promise<void> {
+    await this.raw.backup(dest)
   }
 
   async migrate(): Promise<void> {

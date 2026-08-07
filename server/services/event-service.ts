@@ -31,7 +31,7 @@ export class EventService {
     await this.permissions.assertCanWrite(userId, input.calendarId)
     const event = await this.store.createEvent(input)
     await this.invalidateForCalendar(input.calendarId)
-    await this.cache.publish('events.changed', { type: 'created', eventId: event.id })
+    await this.cache.publish('events.changed', { type: 'created', eventId: event.id, userId, calendarId: input.calendarId })
     return event
   }
 
@@ -46,8 +46,9 @@ export class EventService {
     await this.invalidateForCalendar(existing.calendarId)
     if (input.calendarId && input.calendarId !== existing.calendarId) {
       await this.invalidateForCalendar(input.calendarId)
+      await this.cache.publish('events.changed', { type: 'updated', eventId: event.id, userId, calendarId: input.calendarId })
     }
-    await this.cache.publish('events.changed', { type: 'updated', eventId: event.id })
+    await this.cache.publish('events.changed', { type: 'updated', eventId: event.id, userId, calendarId: existing.calendarId })
     return event
   }
 
@@ -57,7 +58,7 @@ export class EventService {
     await this.permissions.assertCanWrite(userId, existing.calendarId)
     await this.store.deleteEvent(id)
     await this.invalidateForCalendar(existing.calendarId)
-    await this.cache.publish('events.changed', { type: 'deleted', eventId: id })
+    await this.cache.publish('events.changed', { type: 'deleted', eventId: id, userId, calendarId: existing.calendarId })
   }
 
   async restoreEvent(userId: string, id: string): Promise<void> {
@@ -66,7 +67,7 @@ export class EventService {
     await this.permissions.assertCanWrite(userId, event.calendarId)
     await this.store.restoreEvent(id)
     await this.invalidateForCalendar(event.calendarId)
-    await this.cache.publish('events.changed', { type: 'updated', eventId: id })
+    await this.cache.publish('events.changed', { type: 'updated', eventId: id, userId, calendarId: event.calendarId })
   }
 
   async purgeEvent(userId: string, id: string): Promise<void> {
@@ -75,7 +76,7 @@ export class EventService {
     await this.permissions.assertCanWrite(userId, event.calendarId)
     await this.store.purgeEvent(id)
     await this.invalidateForCalendar(event.calendarId)
-    await this.cache.publish('events.changed', { type: 'deleted', eventId: id })
+    await this.cache.publish('events.changed', { type: 'deleted', eventId: id, userId, calendarId: event.calendarId })
   }
 
   async listTrash(userId: string): Promise<Event[]> {
@@ -83,6 +84,19 @@ export class EventService {
     const cals = await this.permissions.listCalendarsForUser(userId)
     const ids = new Set(cals.map((c) => c.id))
     return trash.filter((e) => ids.has(e.calendarId))
+  }
+
+  async purgeExpiredTrash(keepDays: number): Promise<number> {
+    const cutoff = Date.now() - keepDays * 86400000
+    let purged = 0
+    for (const ev of await this.store.listTrashedEvents()) {
+      if (ev.deletedAt && new Date(ev.deletedAt).getTime() < cutoff) {
+        await this.store.purgeEvent(ev.id)
+        purged++
+      }
+    }
+    if (purged > 0) await this.cache.invalidateAll()
+    return purged
   }
 
   async getEvent(userId: string, id: string): Promise<EventDetail> {
@@ -185,7 +199,7 @@ export class EventService {
       deleted: false
     })
     await this.invalidateForCalendar(detail.calendarId)
-    await this.cache.publish('events.changed', { type: 'updated', eventId })
+    await this.cache.publish('events.changed', { type: 'updated', eventId, userId, calendarId: detail.calendarId })
   }
 
   /** Deletes a single occurrence of a series (exception marked deleted). */
@@ -198,7 +212,7 @@ export class EventService {
     await this.permissions.assertCanWrite(userId, detail.calendarId)
     await this.store.upsertException(eventId, { occurrence, deleted: true })
     await this.invalidateForCalendar(detail.calendarId)
-    await this.cache.publish('events.changed', { type: 'updated', eventId })
+    await this.cache.publish('events.changed', { type: 'updated', eventId, userId, calendarId: detail.calendarId })
   }
 
   /** Splits the series at an occurrence: old series ends before it, a new series starts there. */
@@ -258,7 +272,7 @@ export class EventService {
       rrule: withDtstart(newRule, occDate)
     })
     await this.invalidateForCalendar(detail.calendarId)
-    await this.cache.publish('events.changed', { type: 'created', eventId: created.id })
+    await this.cache.publish('events.changed', { type: 'created', eventId: created.id, userId, calendarId: detail.calendarId })
     return created
   }
 

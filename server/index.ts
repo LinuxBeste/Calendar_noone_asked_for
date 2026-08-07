@@ -5,6 +5,7 @@ import fastifyCors from '@fastify/cors'
 import fastifyWebsocket from '@fastify/websocket'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
+import { readdir, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import type { EventStore, AuthStore, EventCache } from './db/storage'
 import { SqliteStore } from './db/sqlite'
@@ -24,13 +25,13 @@ export const API_KEY = process.env.CALENDAR_API_KEY?.trim() || undefined
 
 const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://localhost']
 
-async function setupDatabase(): Promise<{ store: EventStore & AuthStore; cache: EventCache; using: string }> {
+async function setupDatabase(): Promise<{ store: EventStore & AuthStore; cache: EventCache; using: string; dataDir: string }> {
   const pgUrl = process.env.CALENDAR_PG_URL
   if (pgUrl) {
     try {
       const store = new PgStore(pgUrl)
       await store.migrate()
-      return { store, cache: await setupCache(), using: 'postgresql' }
+      return { store, cache: await setupCache(), using: 'postgresql', dataDir: '' }
     } catch (err) {
       console.error('[db] PostgreSQL unavailable, falling back to SQLite:', err)
     }
@@ -39,7 +40,7 @@ async function setupDatabase(): Promise<{ store: EventStore & AuthStore; cache: 
   mkdirSync(dataDir, { recursive: true })
   const store = new SqliteStore(join(dataDir, 'calendar.db'))
   await store.migrate()
-  return { store, cache: await setupCache(), using: 'sqlite' }
+  return { store, cache: await setupCache(), using: 'sqlite', dataDir }
 }
 
 async function setupCache(): Promise<EventCache> {
@@ -85,7 +86,13 @@ async function bootstrap(): Promise<void> {
   await registerRoutes(app, { auth, calendars, events, ical, store, using: setup.using, apiKey: API_KEY })
 
   // ---- live updates (WebSocket) ----
-  const hub = new WsHub()
+  const hub = new WsHub(async (calendarId) => {
+    const readers = new Set<string>()
+    const cal = await store.getCalendar(calendarId)
+    if (cal?.ownerId) readers.add(cal.ownerId)
+    for (const share of await store.listShares(calendarId)) readers.add(share.userId)
+    return [...readers]
+  })
   await app.register(fastifyWebsocket)
   app.get('/ws', { websocket: true }, (connection, req) => {
     const token = String((req.query as { token?: string }).token ?? '')
@@ -96,13 +103,49 @@ async function bootstrap(): Promise<void> {
           connection.close(4001, 'unauthorized')
           return
         }
-        hub.add(connection)
+        hub.add(connection, user.id)
       })
       .catch(() => connection.close(4001, 'unauthorized'))
   })
-  await setup.cache.subscribe('events.changed', () => hub.broadcast({ type: 'events' }))
-  await setup.cache.subscribe('calendars.changed', () => hub.broadcast({ type: 'calendars' }))
+  await setup.cache.subscribe('events.changed', (payload) => void hub.broadcast(payload as { type: string; userId?: string; calendarId?: string }))
+  await setup.cache.subscribe('calendars.changed', (payload) => void hub.broadcast(payload as { type: string; userId?: string; calendarId?: string }))
   console.log('[server] live updates enabled (ws://' + HOST + ':' + PORT + '/ws)')
+
+  // ---- maintenance: trash purge + database backups ----
+  const trashKeepDays = Math.max(1, Number(process.env.CALENDAR_TRASH_DAYS ?? 30))
+  const trashSweep = setInterval(() => {
+    events.purgeExpiredTrash(trashKeepDays).then((n) => {
+      if (n > 0) console.log(`[maintenance] purged ${n} trashed event(s) older than ${trashKeepDays} day(s)`)
+    }).catch((err) => console.error('[maintenance] trash purge failed:', err))
+  }, 6 * 3600000)
+  trashSweep.unref()
+
+  let backupInterval: NodeJS.Timeout | null = null
+  if (setup.using === 'sqlite' && store instanceof SqliteStore) {
+    const backupDir = process.env.CALENDAR_BACKUPS_DIR ?? join(setup.dataDir, 'backups')
+    mkdirSync(backupDir, { recursive: true })
+    const backupKeep = Math.max(1, Number(process.env.CALENDAR_BACKUP_KEEP ?? 14))
+    const stamp = (d: Date): string => {
+      const p = (n: number): string => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`
+    }
+    const runBackup = async (): Promise<void> => {
+      try {
+        const dest = join(backupDir, `calendar-${stamp(new Date())}.db`)
+        await store.backupTo(dest)
+        const files = (await readdir(backupDir)).filter((f) => f.endsWith('.db')).sort()
+        for (const f of files.slice(0, -backupKeep)) {
+          await unlink(join(backupDir, f)).catch(() => undefined)
+        }
+        console.log(`[maintenance] database backup written to ${dest} (keeping last ${backupKeep})`)
+      } catch (err) {
+        console.error('[maintenance] backup failed:', err)
+      }
+    }
+    backupInterval = setInterval(() => void runBackup(), 86400000)
+    backupInterval.unref()
+    void runBackup()
+  }
 
   if (!API_KEY) {
     app.log.warn('CALENDAR_API_KEY not set — reminder endpoints require an authenticated user session (dev mode)')
