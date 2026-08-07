@@ -26,11 +26,15 @@ interface Positioned {
   cols: number
 }
 
-const PX_PER_MIN = 0.5
+const BASE_PX_PER_MIN = 0.5
+const MIN_ZOOM = 0.2
+const MAX_ZOOM = 4
 
 export default function WeekView({ date, days }: WeekViewProps): React.JSX.Element {
   const { events, calendars, refreshEvents, settings } = useCalendar()
   const { token } = useAuth()
+  const [zoom, setZoom] = useState(1)
+  const zoomRef = useRef(1)
   const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
   const [gridMenu, setGridMenu] = useState<{ x: number; y: number; date: Date } | null>(null)
@@ -40,10 +44,57 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const scrollRef = useRef<HTMLDivElement>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const pxPerMin = BASE_PX_PER_MIN * zoom
+
+  const setZoomClamped = (next: number): void => {
+    const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next))
+    zoomRef.current = z
+    setZoom(z)
+  }
+
   useEffect(() => {
     const el = scrollRef.current
-    if (el) el.scrollTop = settings.workingHoursStart * 60 * PX_PER_MIN - 32
+    if (!el) return
+    const fit = el.clientHeight / (1440 * BASE_PX_PER_MIN)
+    if (fit < zoomRef.current) setZoomClamped(fit)
+    el.scrollTop = settings.workingHoursStart * 60 * BASE_PX_PER_MIN * zoomRef.current - 32
   }, [settings.workingHoursStart])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent): void => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      e.preventDefault()
+      const p0 = BASE_PX_PER_MIN * zoomRef.current
+      const rect = el.getBoundingClientRect()
+      const minutes = (e.clientY - rect.top + el.scrollTop) / p0
+      const factor = Math.exp(-e.deltaY * 0.0015)
+      const z1 = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomRef.current * factor))
+      zoomRef.current = z1
+      setZoom(z1)
+      const p1 = BASE_PX_PER_MIN * z1
+      el.scrollTop = minutes * p1 - (e.clientY - rect.top)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  const zoomBy = (factor: number): void => {
+    const el = scrollRef.current
+    if (!el) return
+    const minutes = (el.scrollTop + el.clientHeight / 2) / (BASE_PX_PER_MIN * zoom)
+    const z1 = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * factor))
+    setZoomClamped(z1)
+    el.scrollTop = minutes * (BASE_PX_PER_MIN * z1) - el.clientHeight / 2
+  }
+
+  const zoomFit = (): void => {
+    const el = scrollRef.current
+    if (!el) return
+    setZoomClamped(el.clientHeight / (1440 * BASE_PX_PER_MIN))
+    el.scrollTop = 0
+  }
 
   const from = useMemo(() => rangeStart(days === 7 ? 'week' : 'day', date, settings.firstDayOfWeek), [date, days, settings.firstDayOfWeek])
   const to = useMemo(() => rangeEnd(days === 7 ? 'week' : 'day', date, settings.firstDayOfWeek), [date, days, settings.firstDayOfWeek])
@@ -234,7 +285,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const editableFor = (ev: Event): boolean => calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden relative">
       <div className="flex-1 flex flex-col min-h-0 overflow-x-auto">
       <div className="flex shrink-0 border-b border-gray-200 dark:border-gray-700">
         <div className="w-12 shrink-0" />
@@ -297,7 +348,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       <div className="flex-1 flex overflow-y-auto relative" ref={scrollRef}>
         <div className="w-12 shrink-0 relative">
           {Array.from({ length: 24 }, (_, h) => (
-            <div key={h} className="absolute right-2 -translate-y-1/2 text-[10px] text-gray-400" style={{ top: h * 60 * PX_PER_MIN }}>
+            <div key={h} className="absolute right-2 -translate-y-1/2 text-[10px] text-gray-400" style={{ top: h * 60 * pxPerMin }}>
               {format(new Date(2000, 0, 1, h), settings.timeFormat === '12h' ? 'h a' : 'HH:mm')}
             </div>
           ))}
@@ -305,19 +356,19 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
 
         <div className="flex-1 relative" style={{ display: 'grid', gridTemplateColumns: `repeat(${dayColumns.length}, minmax(120px, 1fr))` }}>
           {Array.from({ length: 24 }, (_, h) => (
-            <div key={h} className="absolute left-0 right-0 border-t border-gray-200 dark:border-gray-700" style={{ top: h * 60 * PX_PER_MIN }} />
+            <div key={h} className="absolute left-0 right-0 border-t border-gray-200 dark:border-gray-700" style={{ top: h * 60 * pxPerMin }} />
           ))}
           {Array.from({ length: 24 }, (_, h) => (
-            <div key={h + 'q'} className="absolute left-0 right-0 border-t border-dashed border-gray-100 dark:border-gray-800" style={{ top: h * 60 * PX_PER_MIN + PX_PER_MIN * 30 }} />
+            <div key={h + 'q'} className="absolute left-0 right-0 border-t border-dashed border-gray-100 dark:border-gray-800" style={{ top: h * 60 * pxPerMin + pxPerMin * 30 }} />
           ))}
 
           <div
             className="absolute left-0 right-0 pointer-events-none bg-gray-400/[0.06] dark:bg-black/30"
-            style={{ top: 0, height: settings.workingHoursStart * 60 * PX_PER_MIN }}
+            style={{ top: 0, height: settings.workingHoursStart * 60 * pxPerMin }}
           />
           <div
             className="absolute left-0 right-0 pointer-events-none bg-gray-400/[0.06] dark:bg-black/30"
-            style={{ top: settings.workingHoursEnd * 60 * PX_PER_MIN, bottom: 0 }}
+            style={{ top: settings.workingHoursEnd * 60 * pxPerMin, bottom: 0 }}
           />
 
           {dayColumns.map((d, i) => {
@@ -330,7 +381,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                 className={`relative border-l border-gray-200 dark:border-gray-700 cursor-pointer ${weekend || holiday ? 'bg-gray-100/50 dark:bg-gray-900/40' : ''}`}
                 onClick={(e) => {
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / PX_PER_MIN) / 15) * 15))
+                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / 15) * 15))
                   const start = new Date(d)
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
                   setDialog({ date: start })
@@ -338,7 +389,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                 onContextMenu={(e) => {
                   e.preventDefault()
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / PX_PER_MIN) / 15) * 15))
+                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / 15) * 15))
                   const start = new Date(d)
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
                   setMenu(null)
@@ -351,7 +402,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   if (!raw) return
                   const { id, allDay } = JSON.parse(raw) as { id: string; allDay?: boolean }
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / PX_PER_MIN) / 15) * 15))
+                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / 15) * 15))
                   const start = new Date(d)
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
                   const occ = events.find((x) => x.event.id === id)
@@ -423,8 +474,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       onDragEnd={() => void refreshEvents(toISO(from), toISO(to))}
                       className="absolute rounded-md overflow-hidden text-[11px] cursor-pointer hover:shadow-md transition-shadow group"
                       style={{
-                        top: p.startMin * PX_PER_MIN + 2,
-                        height: Math.max((p.endMin - p.startMin) * PX_PER_MIN - 3, 18),
+                        top: p.startMin * pxPerMin + 2,
+                        height: Math.max((p.endMin - p.startMin) * pxPerMin - 3, 18),
                         left: `calc(${(p.col / p.cols) * 100}% + 2px)`,
                         width: `calc(${100 / p.cols}% - 4px)`,
                         backgroundColor: free ? color + '8c' : color + 'e6',
@@ -445,7 +496,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       <div className="px-1.5 truncate opacity-90 pointer-events-none">
                         {format(new Date(p.event.startsAt!), 'HH:mm')} – {format(new Date(p.event.endsAt!), 'HH:mm')}
                       </div>
-                      {editable && (p.endMin - p.startMin) * PX_PER_MIN > 28 && (
+                      {editable && (p.endMin - p.startMin) * pxPerMin > 28 && (
                         <div
                           className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 bg-black/20"
                           onMouseDown={(e) => {
@@ -456,7 +507,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                             const origEnd = new Date(p.event.endsAt!).getTime()
                             const onMove = (ev: MouseEvent): void => {
                               const dy = ev.clientY - startY
-                              const newEnd = new Date(origEnd + dy / PX_PER_MIN * 60000)
+                              const newEnd = new Date(origEnd + dy / pxPerMin * 60000)
                               newEnd.setMinutes(Math.round(newEnd.getMinutes() / 15) * 15)
                               if (newEnd <= new Date(p.event.startsAt!)) return
                               void resizeEvent(p.event, newEnd)
@@ -478,7 +529,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
           })}
 
           {dayColumns.some((d) => isSameDay(d, now)) && (
-            <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: nowLine * PX_PER_MIN }}>
+            <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: nowLine * pxPerMin }}>
               <div className="h-0.5 bg-red-500 relative">
                 <span className="absolute -left-1 -top-[3px] h-2 w-2 rounded-full bg-red-500" />
               </div>
@@ -486,6 +537,36 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
           )}
         </div>
       </div>
+      </div>
+
+      <div className="absolute bottom-3 right-3 z-30 flex items-center gap-0.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-800/95 shadow-md px-1 py-0.5 select-none">
+        <button
+          onClick={() => zoomBy(0.8)}
+          title="Zoom out (Ctrl+wheel)"
+          className="h-6 w-6 flex items-center justify-center rounded text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm leading-none"
+        >
+          −
+        </button>
+        <span className="w-11 text-center text-[11px] tabular-nums text-gray-500 dark:text-gray-400">{Math.round(zoom * 100)}%</span>
+        <button
+          onClick={() => zoomBy(1.25)}
+          title="Zoom in (Ctrl+wheel)"
+          className="h-6 w-6 flex items-center justify-center rounded text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm leading-none"
+        >
+          +
+        </button>
+        <button
+          onClick={zoomFit}
+          title="Fit to screen"
+          className="h-6 w-6 flex items-center justify-center rounded text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+            <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+            <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+          </svg>
+        </button>
       </div>
 
       {dialog && <EventDialog event={dialog.event} defaultDate={dialog.date} occurrence={dialog.occurrence} onClose={() => setDialog(null)} />}
