@@ -4,6 +4,7 @@ import { resolve } from 'path'
 
 export default defineConfig({
   root: 'web',
+  base: './',
   plugins: [react()],
   resolve: {
     alias: { '@shared': resolve(__dirname, 'shared') }
