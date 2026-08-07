@@ -3,7 +3,8 @@ import { app, BrowserWindow, ipcMain, Notification, dialog } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { api } from './api-client'
-import { autoUpdater } from 'electron-updater'
+import updaterPkg from 'electron-updater'
+const { autoUpdater } = updaterPkg
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
