@@ -129,9 +129,9 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       byDay.set(key, [...(byDay.get(key) ?? []), item])
     }
     for (const occ of events) {
-      if (occ.allDay) {
+      if (occ.allDay || differenceInCalendarDays(new Date(occ.end), new Date(occ.start)) >= 2) {
         allDay.push(occ)
-        continue
+        if (occ.allDay) continue
       }
       const s = new Date(occ.start)
       const e = new Date(occ.end)
@@ -328,6 +328,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       const cal = calendarById.get(ev.calendarId)
                       const color = ev.color ?? cal?.color ?? '#1a73e8'
                       const continues = new Date(occ.end) > new Date(d.getTime() + 86400000 - 1)
+                      const barAlpha = Math.round((settings.eventOpacity / 100) * 34).toString(16).padStart(2, '0')
                       return (
                         <button
                           key={ev.id + d.toISOString()}
@@ -338,7 +339,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                             e.dataTransfer.effectAllowed = 'move'
                           }}
                           className={`w-full text-left text-[11px] px-1 py-0.5 truncate rounded hover:shadow ${continues ? '' : 'rounded-r-full'}`}
-                          style={{ backgroundColor: color + '22', color }}
+                          style={{ backgroundColor: color + barAlpha, color }}
                           title={settings.showEventTooltips ? ev.title : undefined}
                         >
                           {ev.title}
@@ -499,6 +500,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   const color = p.event.color ?? cal?.color ?? '#1a73e8'
                   const editable = editableFor(p.event)
                   const free = p.event.busy === false
+                  const alphaHex = Math.round((settings.eventOpacity / 100) * 230).toString(16).padStart(2, '0')
+                  const freeAlphaHex = Math.round((settings.eventOpacity / 100) * 140).toString(16).padStart(2, '0')
                   return (
                     <div
                       key={p.event.id}
@@ -526,7 +529,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                         height: Math.max((p.endMin - p.startMin) * pxPerMin - 3, 18),
                         left: `calc(${(p.col / p.cols) * 100}% + 2px)`,
                         width: `calc(${100 / p.cols}% - 4px)`,
-                        backgroundColor: free ? color + '8c' : color + 'e6',
+                        backgroundColor: free ? color + freeAlphaHex : color + alphaHex,
                         color: '#fff',
                         boxShadow: free ? `inset 0 0 0 1px ${color}` : undefined,
                         borderStyle: free ? 'dashed' : undefined,

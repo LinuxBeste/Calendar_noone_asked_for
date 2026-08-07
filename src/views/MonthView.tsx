@@ -278,7 +278,11 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                         e.dataTransfer.effectAllowed = 'move'
                       }}
                       className={`w-full text-left px-1 py-0.5 rounded truncate hover:shadow ${continues ? '' : 'rounded-r-full'} ${settings.monthEventStyle === 'compact' ? 'text-[10px]' : 'text-[11px]'}`}
-                      style={{ backgroundColor: settings.monthEventStyle === 'compact' ? 'transparent' : color + '22', color }}
+                      style={{
+                        backgroundColor: settings.monthEventStyle === 'compact' ? 'transparent' : color + Math.round((settings.eventOpacity / 100) * 34).toString(16).padStart(2, '0'),
+                        color,
+                        opacity: settings.monthEventStyle === 'compact' ? settings.eventOpacity / 100 : 1
+                      }}
                       title={settings.showEventTooltips ? `${ev.title}${ev.location ? '\n' + ev.location : ''}` : undefined}
                     >
                       {settings.monthShowEventTime && !occ.allDay ? format(new Date(occ.start), 'H:mm') + ' ' : ''}
