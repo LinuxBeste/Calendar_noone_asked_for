@@ -1,4 +1,4 @@
-import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder } from '@shared/types'
+import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder, ICalFeed, CalendarLink } from '@shared/types'
 
 /**
  * Storage abstraction. Implemented by SqliteStore (embedded fallback)
@@ -18,7 +18,7 @@ export interface EventStore {
   // ---- events ----
   listEvents(from: string, to: string, calendarIds?: string[]): Promise<Event[]>
   getEvent(id: string): Promise<EventDetail | undefined>
-  createEvent(input: EventInput): Promise<Event>
+  createEvent(input: EventInput & { feedId?: string }): Promise<Event>
   updateEvent(id: string, input: Partial<EventInput>): Promise<Event>
   deleteEvent(id: string): Promise<void>
   restoreEvent(id: string): Promise<void>
@@ -58,8 +58,23 @@ export interface AuthStore {
   removeShare(calendarId: string, userId: string): Promise<void>
   getSetting<T>(key: string): Promise<T | undefined>
   setSetting<T>(key: string, value: T): Promise<void>
+  listUsers(): Promise<User[]>
   /** Assigns any ownerless calendars (e.g. the seeded default) to the given user. */
   claimOwnerlessCalendars(userId: string): Promise<void>
+
+  // ---- ICS feed subscriptions ----
+  createFeed(input: { id: string; calendarId: string; url: string; ownerId: string }): Promise<void>
+  listFeeds(ownerId: string): Promise<ICalFeed[]>
+  getFeed(id: string): Promise<ICalFeed | undefined>
+  deleteFeed(id: string): Promise<void>
+  updateFeedState(id: string, state: { lastFetchedAt: string; lastError?: string | null }): Promise<void>
+  findEventByFeedId(feedId: string): Promise<Event | undefined>
+
+  // ---- public share links ----
+  createLink(link: { token: string; calendarId: string; createdBy: string }): Promise<void>
+  listLinks(calendarId: string): Promise<CalendarLink[]>
+  getLinkByToken(token: string): Promise<CalendarLink | undefined>
+  deleteLink(token: string): Promise<void>
 }
 
 /**

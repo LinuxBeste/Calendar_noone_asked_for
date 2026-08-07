@@ -36,6 +36,33 @@ export interface ShareInput {
   role: 'viewer' | 'editor'
 }
 
+export interface ICalFeed {
+  id: string
+  calendarId: string
+  url: string
+  ownerId: string
+  lastFetchedAt?: string | null
+  lastError?: string | null
+  createdAt: string
+}
+
+export interface FeedInput {
+  calendarId: string
+  url: string
+}
+
+export interface CalendarLink {
+  token: string
+  calendarId: string
+  createdBy: string
+  createdAt: string
+}
+
+export interface PublicCalendarView {
+  calendar: { id: string; name: string; color: string; description?: string }
+  events: Event[]
+}
+
 export interface EventException {
   id: string
   eventId: string
@@ -70,6 +97,7 @@ export interface Event {
   rrule?: string
   rruleTz?: string
   icon?: string
+  feedId?: string
   createdAt: string
   updatedAt: string
   deletedAt?: string | null

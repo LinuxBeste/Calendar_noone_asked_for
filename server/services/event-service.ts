@@ -15,6 +15,12 @@ export class EventService {
     }
   ) {}
 
+  /** Feed-sourced events are read-only. */
+  private async assertNotFeedEvent(id: string): Promise<void> {
+    const detail = await this.store.getEvent(id)
+    if (detail?.feedId) throw new Error('Events from external feeds are read-only')
+  }
+
   async listEvents(userId: string, from: string, to: string, calendarIds?: string[]): Promise<Event[]> {
     if (calendarIds && calendarIds.length > 0) {
       await Promise.all(calendarIds.map((id) => this.permissions.assertCanRead(userId, id)))
@@ -38,6 +44,7 @@ export class EventService {
   async updateEvent(userId: string, id: string, input: Partial<EventInput>): Promise<Event> {
     const existing = await this.store.getEvent(id)
     if (!existing) throw new Error('Event not found')
+    await this.assertNotFeedEvent(id)
     await this.permissions.assertCanWrite(userId, existing.calendarId)
     if (input.calendarId && input.calendarId !== existing.calendarId) {
       await this.permissions.assertCanWrite(userId, input.calendarId)
@@ -55,6 +62,7 @@ export class EventService {
   async deleteEvent(userId: string, id: string): Promise<void> {
     const existing = await this.store.getEvent(id)
     if (!existing) throw new Error('Event not found')
+    await this.assertNotFeedEvent(id)
     await this.permissions.assertCanWrite(userId, existing.calendarId)
     await this.store.deleteEvent(id)
     await this.invalidateForCalendar(existing.calendarId)
@@ -73,6 +81,7 @@ export class EventService {
   async purgeEvent(userId: string, id: string): Promise<void> {
     const event = (await this.store.listTrashedEvents()).find((e) => e.id === id)
     if (!event) throw new Error('Event not found')
+    if (event.feedId) throw new Error('Events from external feeds are read-only')
     await this.permissions.assertCanWrite(userId, event.calendarId)
     await this.store.purgeEvent(id)
     await this.invalidateForCalendar(event.calendarId)
@@ -179,6 +188,7 @@ export class EventService {
   /** Edits a single occurrence of a series by creating/updating an exception. */
   async updateOccurrence(userId: string, eventId: string, occurrence: string, input: Partial<EventInput>): Promise<void> {
     const detail = await this.getEvent(userId, eventId)
+    if (detail.feedId) throw new Error('Events from external feeds are read-only')
     if (!detail.rrule) {
       await this.updateEvent(userId, eventId, input)
       return
@@ -205,6 +215,7 @@ export class EventService {
   /** Deletes a single occurrence of a series (exception marked deleted). */
   async deleteOccurrence(userId: string, eventId: string, occurrence: string): Promise<void> {
     const detail = await this.getEvent(userId, eventId)
+    if (detail.feedId) throw new Error('Events from external feeds are read-only')
     if (!detail.rrule) {
       await this.deleteEvent(userId, eventId)
       return
@@ -218,6 +229,7 @@ export class EventService {
   /** Splits the series at an occurrence: old series ends before it, a new series starts there. */
   async splitSeries(userId: string, eventId: string, occurrence: string, input: Partial<EventInput>): Promise<Event> {
     const detail = await this.getEvent(userId, eventId)
+    if (detail.feedId) throw new Error('Events from external feeds are read-only')
     if (!detail.rrule) {
       await this.updateEvent(userId, eventId, input)
       return (await this.getEvent(userId, eventId))!

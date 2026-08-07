@@ -1,9 +1,9 @@
 import { Pool } from 'pg'
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres'
-import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, ilike, sql } from 'drizzle-orm'
+import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, ilike, like, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import type { EventStore, AuthStore } from './storage'
-import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder } from '@shared/types'
+import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder, ICalFeed, CalendarLink } from '@shared/types'
 import {
   pgCalendars,
   pgEvents,
@@ -13,7 +13,9 @@ import {
   pgUsers,
   pgSessions,
   pgCalendarShares,
-  pgSettings
+  pgSettings,
+  pgIcalFeeds,
+  pgCalendarLinks
 } from './schema'
 
 type Db = NodePgDatabase
@@ -50,6 +52,7 @@ const rowToEvent = (r: typeof pgEvents.$inferSelect): Event => ({
   rrule: opt(r.rrule),
   rruleTz: opt(r.rruleTz),
   icon: opt(r.icon),
+  feedId: opt(r.feedId),
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
   deletedAt: opt(r.deletedAt)
@@ -99,6 +102,7 @@ export class PgStore implements EventStore, AuthStore {
       );
       ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TEXT;
       ALTER TABLE events ADD COLUMN IF NOT EXISTS icon TEXT;
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS feed_id TEXT;
       CREATE INDEX IF NOT EXISTS idx_events_time ON events (starts_at, ends_at);
       CREATE INDEX IF NOT EXISTS idx_events_calendar ON events (calendar_id);
       CREATE TABLE IF NOT EXISTS event_exceptions (
@@ -163,6 +167,22 @@ export class PgStore implements EventStore, AuthStore {
         role TEXT NOT NULL DEFAULT 'viewer',
         PRIMARY KEY (calendar_id, user_id)
       );
+      CREATE TABLE IF NOT EXISTS ical_feeds (
+        id UUID PRIMARY KEY,
+        calendar_id UUID NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+        url TEXT NOT NULL,
+        owner_id UUID NOT NULL,
+        last_fetched_at TEXT,
+        last_error TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS calendar_links (
+        token TEXT PRIMARY KEY,
+        calendar_id UUID NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+        created_by UUID NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_events_feed ON events (feed_id);
     `)
 
     const count = await this.db.select({ n: sql<number>`count(*)` }).from(pgCalendars)
@@ -269,7 +289,7 @@ export class PgStore implements EventStore, AuthStore {
     }
   }
 
-  async createEvent(input: EventInput): Promise<Event> {
+  async createEvent(input: EventInput & { feedId?: string }): Promise<Event> {
     const now = new Date().toISOString()
     const rows = await this.db
       .insert(pgEvents)
@@ -290,6 +310,7 @@ export class PgStore implements EventStore, AuthStore {
         rrule: input.rrule,
         rruleTz: input.rruleTz,
         icon: input.icon,
+        feedId: input.feedId,
         createdAt: now,
         updatedAt: now
       })
@@ -314,6 +335,7 @@ export class PgStore implements EventStore, AuthStore {
     if (input.rrule !== undefined) patch.rrule = input.rrule
     if (input.rruleTz !== undefined) patch.rruleTz = input.rruleTz
     if (input.icon !== undefined) patch.icon = input.icon
+    if ((input as { feedId?: string }).feedId !== undefined) patch.feedId = (input as { feedId?: string }).feedId
     if (Object.keys(patch).length === 0) return (await this.getEvent(id))!
     patch.updatedAt = new Date().toISOString()
     const rows = await this.db.update(pgEvents).set(patch).where(eq(pgEvents.id, id)).returning()
@@ -608,5 +630,90 @@ export class PgStore implements EventStore, AuthStore {
 
   async claimOwnerlessCalendars(userId: string): Promise<void> {
     await this.db.update(pgCalendars).set({ ownerId: userId }).where(isNull(pgCalendars.ownerId))
+  }
+
+  async listUsers(): Promise<User[]> {
+    return await this.db.select({ id: pgUsers.id, email: pgUsers.email, name: pgUsers.name, createdAt: pgUsers.createdAt }).from(pgUsers)
+  }
+
+  // ---- ICS feed subscriptions ----
+
+  async createFeed(input: { id: string; calendarId: string; url: string; ownerId: string }): Promise<void> {
+    await this.db.insert(pgIcalFeeds).values({
+      id: input.id,
+      calendarId: input.calendarId,
+      url: input.url,
+      ownerId: input.ownerId,
+      createdAt: new Date().toISOString()
+    })
+  }
+
+  async listFeeds(ownerId: string): Promise<ICalFeed[]> {
+    const rows = await this.db.select().from(pgIcalFeeds).where(eq(pgIcalFeeds.ownerId, ownerId))
+    return rows.map((r) => ({
+      id: r.id,
+      calendarId: r.calendarId,
+      url: r.url,
+      ownerId: r.ownerId,
+      lastFetchedAt: opt(r.lastFetchedAt),
+      lastError: opt(r.lastError),
+      createdAt: r.createdAt
+    }))
+  }
+
+  async getFeed(id: string): Promise<ICalFeed | undefined> {
+    const rows = await this.db.select().from(pgIcalFeeds).where(eq(pgIcalFeeds.id, id))
+    const r = rows[0]
+    if (!r) return undefined
+    return {
+      id: r.id,
+      calendarId: r.calendarId,
+      url: r.url,
+      ownerId: r.ownerId,
+      lastFetchedAt: opt(r.lastFetchedAt),
+      lastError: opt(r.lastError),
+      createdAt: r.createdAt
+    }
+  }
+
+  async deleteFeed(id: string): Promise<void> {
+    await this.db.delete(pgIcalFeeds).where(eq(pgIcalFeeds.id, id))
+    await this.db.update(pgEvents).set({ feedId: null }).where(like(pgEvents.feedId, id + '|%'))
+  }
+
+  async updateFeedState(id: string, state: { lastFetchedAt: string; lastError?: string | null }): Promise<void> {
+    await this.db.update(pgIcalFeeds).set({ lastFetchedAt: state.lastFetchedAt, lastError: state.lastError ?? null }).where(eq(pgIcalFeeds.id, id))
+  }
+
+  async findEventByFeedId(feedId: string): Promise<Event | undefined> {
+    const rows = await this.db.select().from(pgEvents).where(eq(pgEvents.feedId, feedId))
+    return rows[0] ? rowToEvent(rows[0]) : undefined
+  }
+
+  // ---- public share links ----
+
+  async createLink(link: { token: string; calendarId: string; createdBy: string }): Promise<void> {
+    await this.db.insert(pgCalendarLinks).values({
+      token: link.token,
+      calendarId: link.calendarId,
+      createdBy: link.createdBy,
+      createdAt: new Date().toISOString()
+    })
+  }
+
+  async listLinks(calendarId: string): Promise<CalendarLink[]> {
+    const rows = await this.db.select().from(pgCalendarLinks).where(eq(pgCalendarLinks.calendarId, calendarId))
+    return rows.map((r) => ({ token: r.token, calendarId: r.calendarId, createdBy: r.createdBy, createdAt: r.createdAt }))
+  }
+
+  async getLinkByToken(token: string): Promise<CalendarLink | undefined> {
+    const rows = await this.db.select().from(pgCalendarLinks).where(eq(pgCalendarLinks.token, token))
+    const r = rows[0]
+    if (!r) return undefined
+    return { token: r.token, calendarId: r.calendarId, createdBy: r.createdBy, createdAt: r.createdAt }
+  }
+
+  async deleteLink(token: string): Promise<void> {
+    await this.db.delete(pgCalendarLinks).where(eq(pgCalendarLinks.token, token))
   }
 }

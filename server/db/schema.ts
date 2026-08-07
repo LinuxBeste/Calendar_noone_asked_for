@@ -38,6 +38,7 @@ export const events = sqliteTable('events', {
   rrule: text('rrule'),
   rruleTz: text('rrule_tz'),
   icon: text('icon'),
+  feedId: text('feed_id'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at')
@@ -107,6 +108,23 @@ export const calendarShares = sqliteTable('calendar_shares', {
   role: text('role').notNull().default('viewer')
 })
 
+export const icalFeeds = sqliteTable('ical_feeds', {
+  id: text('id').primaryKey(),
+  calendarId: text('calendar_id').notNull().references(() => calendars.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  ownerId: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  lastFetchedAt: text('last_fetched_at'),
+  lastError: text('last_error'),
+  createdAt: text('created_at').notNull()
+})
+
+export const calendarLinks = sqliteTable('calendar_links', {
+  token: text('token').primaryKey(),
+  calendarId: text('calendar_id').notNull().references(() => calendars.id, { onDelete: 'cascade' }),
+  createdBy: text('created_by').notNull(),
+  createdAt: text('created_at').notNull()
+})
+
 // ---------- PostgreSQL mirror ----------
 
 export const pgCalendars = pgTable('calendars', {
@@ -139,6 +157,7 @@ export const pgEvents = pgTable('events', {
   rrule: pgText('rrule'),
   rruleTz: pgText('rrule_tz'),
   icon: pgText('icon'),
+  feedId: pgText('feed_id'),
   createdAt: pgText('created_at').notNull(),
   updatedAt: pgText('updated_at').notNull(),
   deletedAt: pgText('deleted_at')
@@ -207,3 +226,21 @@ export const pgCalendarShares = pgTable('calendar_shares', {
   userId: uuid('user_id').notNull().references(() => pgUsers.id, { onDelete: 'cascade' }),
   role: pgText('role').notNull().default('viewer')
 })
+
+export const pgIcalFeeds = pgTable('ical_feeds', {
+  id: uuid('id').primaryKey(),
+  calendarId: uuid('calendar_id').notNull().references(() => pgCalendars.id, { onDelete: 'cascade' }),
+  url: pgText('url').notNull(),
+  ownerId: uuid('owner_id').notNull().references(() => pgUsers.id, { onDelete: 'cascade' }),
+  lastFetchedAt: pgText('last_fetched_at'),
+  lastError: pgText('last_error'),
+  createdAt: pgText('created_at').notNull()
+})
+
+export const pgCalendarLinks = pgTable('calendar_links', {
+  token: pgText('token').primaryKey(),
+  calendarId: uuid('calendar_id').notNull().references(() => pgCalendars.id, { onDelete: 'cascade' }),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: pgText('created_at').notNull()
+})
+

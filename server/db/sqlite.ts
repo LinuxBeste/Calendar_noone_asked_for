@@ -1,10 +1,10 @@
 import Database from 'better-sqlite3'
 import { drizzle, BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, sql } from 'drizzle-orm'
+import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, sql, like } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import type { EventStore, AuthStore } from './storage'
-import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder } from '@shared/types'
-import { calendars, events, eventExceptions, attendees, reminders, settings, users, sessions, calendarShares } from './schema'
+import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder, ICalFeed, CalendarLink } from '@shared/types'
+import { calendars, events, eventExceptions, attendees, reminders, settings, users, sessions, calendarShares, icalFeeds, calendarLinks } from './schema'
 
 type Db = BetterSQLite3Database
 
@@ -41,6 +41,7 @@ const rowToEvent = (r: typeof events.$inferSelect): Event => ({
   rrule: opt(r.rrule),
   rruleTz: opt(r.rruleTz),
   icon: opt(r.icon),
+  feedId: opt(r.feedId),
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
   deletedAt: opt(r.deletedAt)
@@ -98,6 +99,7 @@ export class SqliteStore implements EventStore, AuthStore {
         rrule TEXT,
         rrule_tz TEXT,
         icon TEXT,
+        feed_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         deleted_at TEXT
@@ -164,6 +166,21 @@ export class SqliteStore implements EventStore, AuthStore {
         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         role TEXT NOT NULL DEFAULT 'viewer',
         PRIMARY KEY (calendar_id, user_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS ical_feeds (
+        id TEXT PRIMARY KEY,
+        calendar_id TEXT NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+        url TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        last_fetched_at TEXT,
+        last_error TEXT,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS calendar_links (
+        token TEXT PRIMARY KEY,
+        calendar_id TEXT NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL
       )`
     ]
     for (const stmt of ddl) {
@@ -177,6 +194,10 @@ export class SqliteStore implements EventStore, AuthStore {
     if (!evCols.some((c) => c.name === 'deleted_at')) {
       this.db.run(sql.raw(`ALTER TABLE events ADD COLUMN deleted_at TEXT`))
     }
+    if (!evCols.some((c) => c.name === 'feed_id')) {
+      this.db.run(sql.raw(`ALTER TABLE events ADD COLUMN feed_id TEXT`))
+    }
+    this.db.run(sql.raw(`CREATE INDEX IF NOT EXISTS idx_events_feed ON events (feed_id)`))
     if (!evCols.some((c) => c.name === 'icon')) {
       this.db.run(sql.raw(`ALTER TABLE events ADD COLUMN icon TEXT`))
     }
@@ -301,7 +322,7 @@ export class SqliteStore implements EventStore, AuthStore {
     }
   }
 
-  async createEvent(input: EventInput): Promise<Event> {
+  async createEvent(input: EventInput & { feedId?: string }): Promise<Event> {
     const now = new Date().toISOString()
     const row = this.db
       .insert(events)
@@ -322,6 +343,7 @@ export class SqliteStore implements EventStore, AuthStore {
         rrule: input.rrule,
         rruleTz: input.rruleTz,
         icon: input.icon,
+        feedId: input.feedId,
         createdAt: now,
         updatedAt: now
       })
@@ -347,6 +369,7 @@ export class SqliteStore implements EventStore, AuthStore {
     if (input.rrule !== undefined) patch.rrule = input.rrule
     if (input.rruleTz !== undefined) patch.rruleTz = input.rruleTz
     if (input.icon !== undefined) patch.icon = input.icon
+    if ((input as { feedId?: string }).feedId !== undefined) patch.feedId = (input as { feedId?: string }).feedId
     if (Object.keys(patch).length === 0) return (await this.getEvent(id))!
     patch.updatedAt = new Date().toISOString()
     const row = this.db.update(events).set(patch).where(eq(events.id, id)).returning().get()
@@ -621,5 +644,89 @@ export class SqliteStore implements EventStore, AuthStore {
 
   async claimOwnerlessCalendars(userId: string): Promise<void> {
     this.db.update(calendars).set({ ownerId: userId }).where(isNull(calendars.ownerId)).run()
+  }
+
+  async listUsers(): Promise<User[]> {
+    return this.db.select({ id: users.id, email: users.email, name: users.name, createdAt: users.createdAt }).from(users).all()
+  }
+
+  // ---- ICS feed subscriptions ----
+
+  async createFeed(input: { id: string; calendarId: string; url: string; ownerId: string }): Promise<void> {
+    this.db.insert(icalFeeds).values({
+      id: input.id,
+      calendarId: input.calendarId,
+      url: input.url,
+      ownerId: input.ownerId,
+      createdAt: new Date().toISOString()
+    }).run()
+  }
+
+  async listFeeds(ownerId: string): Promise<ICalFeed[]> {
+    const rows = this.db.select().from(icalFeeds).where(eq(icalFeeds.ownerId, ownerId)).all()
+    return rows.map((r) => ({
+      id: r.id,
+      calendarId: r.calendarId,
+      url: r.url,
+      ownerId: r.ownerId,
+      lastFetchedAt: opt(r.lastFetchedAt),
+      lastError: opt(r.lastError),
+      createdAt: r.createdAt
+    }))
+  }
+
+  async getFeed(id: string): Promise<ICalFeed | undefined> {
+    const r = this.db.select().from(icalFeeds).where(eq(icalFeeds.id, id)).get()
+    if (!r) return undefined
+    return {
+      id: r.id,
+      calendarId: r.calendarId,
+      url: r.url,
+      ownerId: r.ownerId,
+      lastFetchedAt: opt(r.lastFetchedAt),
+      lastError: opt(r.lastError),
+      createdAt: r.createdAt
+    }
+  }
+
+  async deleteFeed(id: string): Promise<void> {
+    this.db.delete(icalFeeds).where(eq(icalFeeds.id, id)).run()
+    this.db.update(events).set({ feedId: null }).where(like(events.feedId, id + '|%')).run()
+  }
+
+  async updateFeedState(id: string, state: { lastFetchedAt: string; lastError?: string | null }): Promise<void> {
+    this.db.update(icalFeeds).set({ lastFetchedAt: state.lastFetchedAt, lastError: state.lastError ?? null }).where(eq(icalFeeds.id, id)).run()
+  }
+
+  async findEventByFeedId(feedId: string): Promise<Event | undefined> {
+    const r = this.db.select().from(events).where(eq(events.feedId, feedId)).get()
+    if (!r) return undefined
+    return rowToEvent(r)
+  }
+
+  // ---- public share links ----
+
+  async createLink(link: { token: string; calendarId: string; createdBy: string }): Promise<void> {
+    this.db.insert(calendarLinks).values({
+      token: link.token,
+      calendarId: link.calendarId,
+      createdBy: link.createdBy,
+      createdAt: new Date().toISOString()
+    }).run()
+  }
+
+  async listLinks(calendarId: string): Promise<CalendarLink[]> {
+    const rows = this.db.select().from(calendarLinks).where(eq(calendarLinks.calendarId, calendarId)).all()
+    return rows.map((r) => ({ token: r.token, calendarId: r.calendarId, createdBy: r.createdBy, createdAt: r.createdAt }))
+  }
+
+  async getLinkByToken(token: string): Promise<CalendarLink | undefined> {
+    const r = this.db.select().from(calendarLinks).where(eq(calendarLinks.token, token)).get()
+    if (!r) return undefined
+    return { token: r.token, calendarId: r.calendarId, createdBy: r.createdBy, createdAt: r.createdAt }
+  }
+
+  async deleteLink(token: string): Promise<void> {
+    this.db.delete(calendarLinks).where(eq(calendarLinks.token, token)).run()
   }
 }

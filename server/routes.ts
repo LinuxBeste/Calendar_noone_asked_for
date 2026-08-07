@@ -6,6 +6,8 @@ import { AuthError } from './services/auth'
 import type { CalendarService } from './services/calendar-service'
 import type { EventService } from './services/event-service'
 import type { ICalService } from './services/ical-service'
+import type { FeedService } from './services/feed-service'
+import type { LinkService } from './services/link-service'
 import {
   ValidationError,
   validateCalendarInput,
@@ -33,6 +35,8 @@ export interface Services {
   calendars: CalendarService
   events: EventService
   ical: ICalService
+  feeds: FeedService
+  links: LinkService
   store: EventStore & AuthStore
   using: string
   /** System API key for the reminder endpoints (set via CALENDAR_API_KEY). */
@@ -98,7 +102,7 @@ async function reminderAccess(
 }
 
 export async function registerRoutes(app: FastifyInstance, services: Services): Promise<void> {
-  const { auth, calendars, events, ical, store } = services
+  const { auth, calendars, events, ical, feeds, links, store } = services
 
   const ensureDefaultCalendar = async (userId: string): Promise<void> => {
     const existing = await calendars.listCalendarsForUser(userId)
@@ -166,6 +170,35 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
     asOwner(services, req, req.params.id, () => auth.unshareCalendar(req.params.id, req.params.userId)))
   app.get('/calendars/:id/shares', async (req: Params<{ id: string }>) =>
     asOwner(services, req, req.params.id, () => auth.listShares(req.params.id)))
+
+  // ---- public share links ----
+  app.post('/calendars/:id/link', async (req: Params<{ id: string }>) =>
+    asOwner(services, req, req.params.id, (uid) => links.createLink(uid, req.params.id)))
+  app.get('/calendars/:id/links', async (req: Params<{ id: string }>) =>
+    withUser(services, req, (uid) => links.listLinks(uid, req.params.id)))
+  app.delete('/calendars/:id/link/:token', async (req: Params<{ id: string; token: string }>) =>
+    withUser(services, req, (uid) => links.deleteLink(uid, req.params.token)))
+
+  // ---- public (no auth) ----
+  app.get('/public/:token', async (req: Params<{ token: string }>) => links.getPublic(req.params.token))
+  app.get('/public/:token/events', async (req: Req<{ Params: { token: string }; Querystring: { from: string; to: string } }>) => {
+    validateRange(req.query.from, req.query.to)
+    return links.getPublicOccurrences(req.params.token, req.query.from, req.query.to)
+  })
+  app.get('/public/:token/ical', async (req: Params<{ token: string }>) => links.exportPublicICal(req.params.token))
+
+  // ---- ICS feed subscriptions ----
+  app.post('/feeds', async (req: Body<{ calendarId: string; url: string }>) =>
+    withUser(services, req, (uid) => feeds.createFeed(uid, { calendarId: req.body.calendarId, url: req.body.url })))
+  app.get('/feeds', async (req: FastifyRequest) => withUser(services, req, (uid) => feeds.listFeeds(uid)))
+  app.delete('/feeds/:id', async (req: Params<{ id: string }>) =>
+    withUser(services, req, (uid) => feeds.deleteFeed(uid, req.params.id)))
+  app.post('/feeds/:id/sync', async (req: Params<{ id: string }>) =>
+    withUser(services, req, async (uid) => {
+      const feed = await store.getFeed(req.params.id)
+      if (!feed || feed.ownerId !== uid) throw new AuthError('Feed not found')
+      return feeds.syncFeed(req.params.id)
+    }))
 
   // ---- events ----
   app.get('/events', async (req: Query<{ from: string; to: string; calendarIds?: string }>) => {

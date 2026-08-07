@@ -16,6 +16,8 @@ import { AuthService } from './services/auth'
 import { CalendarService } from './services/calendar-service'
 import { EventService } from './services/event-service'
 import { ICalService } from './services/ical-service'
+import { FeedService } from './services/feed-service'
+import { LinkService } from './services/link-service'
 import { WsHub } from './services/ws-hub'
 import { registerRoutes } from './routes'
 
@@ -70,6 +72,8 @@ async function bootstrap(): Promise<void> {
   }
   const events = new EventService(store, setup.cache, perms)
   const ical = new ICalService(store, setup.cache, perms)
+  const feeds = new FeedService(store, setup.cache, { assertCanWrite: perms.assertCanWrite })
+  const links = new LinkService(store, setup.cache, { assertCanRead: perms.assertCanRead })
 
   const app = Fastify({ logger: true })
 
@@ -83,7 +87,7 @@ async function bootstrap(): Promise<void> {
       else cb(new Error('Origin not allowed'), false)
     }
   })
-  await registerRoutes(app, { auth, calendars, events, ical, store, using: setup.using, apiKey: API_KEY })
+  await registerRoutes(app, { auth, calendars, events, ical, feeds, links, store, using: setup.using, apiKey: API_KEY })
 
   // ---- live updates (WebSocket) ----
   const hub = new WsHub(async (calendarId) => {
@@ -110,7 +114,6 @@ async function bootstrap(): Promise<void> {
   await setup.cache.subscribe('events.changed', (payload) => void hub.broadcast(payload as { type: string; userId?: string; calendarId?: string }))
   await setup.cache.subscribe('calendars.changed', (payload) => void hub.broadcast(payload as { type: string; userId?: string; calendarId?: string }))
   console.log('[server] live updates enabled (ws://' + HOST + ':' + PORT + '/ws)')
-
   // ---- maintenance: trash purge + database backups ----
   const trashKeepDays = Math.max(1, Number(process.env.CALENDAR_TRASH_DAYS ?? 30))
   const trashSweep = setInterval(() => {
@@ -119,6 +122,15 @@ async function bootstrap(): Promise<void> {
     }).catch((err) => console.error('[maintenance] trash purge failed:', err))
   }, 6 * 3600000)
   trashSweep.unref()
+
+  // ---- ICS feed sync scheduler ----
+  const feedIntervalMin = Math.max(5, Number(process.env.CALENDAR_FEED_INTERVAL_MIN ?? 15))
+  const feedSync = setInterval(() => {
+    feeds.syncAll().then(({ ok, failed }) => {
+      console.log(`[feeds] synced ${ok} feed(s)${failed > 0 ? `, ${failed} failed` : ''}`)
+    }).catch((err) => console.error('[feeds] sync run failed:', err))
+  }, feedIntervalMin * 60000)
+  feedSync.unref()
 
   let backupInterval: NodeJS.Timeout | null = null
   if (setup.using === 'sqlite' && store instanceof SqliteStore) {
