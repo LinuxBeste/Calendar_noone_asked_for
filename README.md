@@ -5,16 +5,20 @@ An offline-first desktop Google Calendar clone built with Electron, React, and T
 ## Features
 
 - **Views**: Day, Week, Month, Year, Agenda
-- **Events**: create/edit/delete, drag & drop, resize, all-day & multi-day, overlap layout, per-event colors
+- **Events**: create/edit/delete, drag & drop, resize, all-day & multi-day, overlap layout, per-event colors, drag-to-create (drag on the grid to draft an event), event templates
 - **Recurrence**: daily/weekly/monthly/yearly rules (RRULE), intervals, end dates, "this event / this and following / all events" edit modes, single-occurrence exceptions, series split
 - **Calendars**: unlimited calendars, colors, show/hide, share with other users (viewer/editor roles)
+- **Live sync**: WebSocket push so all clients update instantly, filtered per user/calendar
+- **Settings**: 124 settings across 10 categories (views, appearance, agenda, month, events, notifications, privacy, …) with a shared server-validated catalog
 - **Multi-user**: local accounts with scrypt password hashing, session tokens
+- **ICS feeds**: subscribe to external .ics URLs; events sync automatically and are read-only
+- **Share by link**: public read-only links per calendar (view page + .ics URL, no account needed); subscribe to other people's links from the sidebar
 - **Search**: global event search (`/` or `Ctrl+K`)
-- **Reminders**: 5/10/30/60 min or 1 day before, delivered as OS notifications by the main process
+- **Reminders**: 5/10/30/60 min or 1 day before, delivered as OS notifications — the desktop app keeps running in the tray when the window is closed, so reminders still fire
 - **Import/Export**: .ics import & export, full JSON backup/restore via native file dialogs
 - **Undo/Redo**: global command history (`Ctrl+Z`, `Ctrl+Shift+Z`/`Ctrl+Y`), toolbar buttons
-- **Settings**: week start, time format, default view, working hours, dark/auto mode (persisted per user)
-- **Shortcuts**: `t` today, `d/w/m/y/a` views, context menus on events
+- **Maintenance**: server-side trash auto-purge and daily SQLite backups with rotation
+- **Shortcuts**: `t` today, `d/w/m/y/a` views, `j/k` navigate, `n`/`q` quick add, `?` help, context menus on events
 
 ## Tech stack
 
@@ -76,6 +80,10 @@ Env vars are read from the shell or from a `.env` file in the project root
 | `CALENDAR_API_KEY` | API key for system calls (reminder poller sends `X-Api-Key`). Without it, `/reminders/due` and `/reminders/:id/sent` only work with a user token. |
 | `CALENDAR_CORS_ORIGINS` | Comma-separated CORS allowlist for the web client (default: `http://localhost:5173, http://127.0.0.1:5173, https://localhost`). |
 | `CALENDAR_PORT` / `CALENDAR_HOST` | Backend listen port (default `3001`) and host (default `0.0.0.0`). |
+| `CALENDAR_TRASH_DAYS` | Purge trashed events older than this many days (default `30`). |
+| `CALENDAR_BACKUPS_DIR` | Where daily SQLite backups are written (default `<data dir>/backups`). |
+| `CALENDAR_BACKUP_KEEP` | Number of backups to keep (default `14`). |
+| `CALENDAR_FEED_INTERVAL_MIN` | How often ICS feeds are re-fetched (default `15`). |
 
 SQLite data lives in Electron's `userData` directory (`calendar.db`). A default calendar is created automatically on first run and assigned to the first account that registers or logs in.
 
@@ -117,7 +125,7 @@ computer's LAN IP from a device). Cleartext HTTP is enabled for local backends.
 ## Testing
 
 ```bash
-npm test          # 41 unit tests across 5 suites
+npm test          # 51 unit tests across 6 suites
 npm run typecheck
 npm run build
 ```
@@ -126,18 +134,20 @@ npm run build
 - `tests/auth.test.ts` — registration, login, sessions, sharing
 - `tests/recurrence.test.ts` — RRULE expansion, exceptions
 - `tests/ical.test.ts` — iCal round-trips (folding, escaping, all-day, recurrence)
+- `tests/validation.test.ts` — settings/input validation
+- `tests/client-utils.test.ts` — quick-add parser, event templates
 
 ## Project layout
 
 ```
 electron/          Main process (Node)
-  main.ts          Bootstrap, IPC handlers, reminder engine
+  main.ts          Bootstrap, IPC handlers, tray, reminder engine
   preload.ts       contextBridge API (window.calendarApi)
   api-client.ts    HTTP client for the backend
+server/            Standalone Fastify backend
   db/              SqliteStore, PgStore, InMemoryCache, RedisCache
-  services/        AuthService, CalendarService, EventService, ICalService, recurrence
-server/            Standalone Fastify backend (reuses electron/db + services)
-shared/            Types + storage interfaces shared with the renderer
+  services/        Auth, Calendar, Event, ICal, Feed, Link services, ws-hub, recurrence
+shared/            Types + settings catalog shared with the renderer
 src/               Renderer (React)
   components/      AppShell, Toolbar, Sidebar, EventDialog, SearchBox, dialogs
   views/           Month/Week/Year/Agenda views
@@ -162,4 +172,4 @@ shortcuts) lives in [docs/how-to-use.md](docs/how-to-use.md).
 
 The plugin system (manifests, hooks, sandboxed execution) is designed in
 [FEATURES.md](FEATURES.md) section 4. Planned follow-ups: attendees/RSVP,
-custom-range agenda, event templates, calendar groups, and collaboration/sync.
+calendar groups, offline caching, and collaboration/sync for the web client.

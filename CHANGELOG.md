@@ -1,0 +1,69 @@
+# Changelog
+
+All notable changes to this project are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/); the project keeps a rolling
+`unreleased` section for current work.
+
+## [Unreleased]
+
+### Added
+
+- **ICS feed subscriptions** — subscribe to external `.ics` URLs; events are
+  synced automatically (configurable interval, default 15 min), stored
+  read-only, and editable API calls on feed events are rejected
+  (`POST /feeds`, `GET /feeds`, `DELETE /feeds/:id`, `POST /feeds/:id/sync`)
+- **Share by link** — public read-only share links per calendar with a public
+  view page, occurrences endpoint and `.ics` feed; subscribe to other people's
+  links from the sidebar (no account needed) (`POST /calendars/:id/link`,
+  `GET /public/:token[/events|/ical]`)
+- **Tray mode (desktop)** — closing the window hides the app to the system
+  tray instead of quitting, so reminder notifications keep firing while the
+  app is "closed"; tray menu with Open/Quit
+- **Server hardening** — per-user WebSocket fan-out (users only get pushes for
+  calendars they can read), trash auto-purge (`CALENDAR_TRASH_DAYS`, default
+  30), daily SQLite backups with rotation (`CALENDAR_BACKUPS_DIR`,
+  `CALENDAR_BACKUP_KEEP`), auth rate limiting (10 attempts / 5 min)
+- **Client unit tests** — quick-add parser and event-template suites (Vitest)
+
+### Fixed
+
+- `purgeEvent` referenced an undefined variable (`existing.calendarId`),
+  which would have crashed on purge (caught by `tsc`)
+
+## [0.2.0] - 2026-08-07
+
+### Added
+
+- **Settings catalog** — 124 settings across 10 categories defined once in
+  `shared/settings.ts`; the server derives validation from the catalog and
+  the SettingsDialog is fully data-driven
+- **Week/day view** — zoom (Ctrl+wheel + controls), fit-to-screen, scroll
+  preservation, time gutter width options, quarter-hour lines, now-line
+- **Live updates** — WebSocket push for event/calendar changes across all
+  connected clients (per-user filtering added later)
+- **Drag & drop** — drag-to-create (drag on the grid to draft an event),
+  toast with undo hint after moving events
+- **Keyboard shortcuts** — `j`/`k` navigate, plus settings-gated `n`, `q`,
+  `?`, view keys
+- **Agenda view rewrite** — sorting, past-collapse, grouping by week,
+  per-day limits with "+n more", holidays, 12/24h formats, past opacity
+- **Month view settings** — holidays, trailing days, week numbers, event
+  styles (bar/dot/compact), weekend shading, drag & drop gate, hover preview,
+  event times, today ring
+- **Multi-day events** — timed events spanning ≥ 3 dates now also appear as
+  bars in the all-day band
+- **Event opacity** — global setting applied to week/month rendering
+
+### Changed
+
+- Event editability is an explicit allow-list (owner/editor), so unknown or
+  read-only calendars can never be edited
+- Default calendar is created on first register/login
+
+## [0.1.0] - 2026-07-01
+
+Initial release: Electron + React calendar with day/week/month/year/agenda
+views, recurring events (RRULE) with exceptions and series split, multi-user
+accounts, calendar sharing, reminders with OS notifications, iCal
+import/export, JSON backup, undo/redo, search, dark mode, and a standalone
+Fastify backend with SQLite/PostgreSQL + Redis, plus a web/Android client.
