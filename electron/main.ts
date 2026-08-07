@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { app, BrowserWindow, ipcMain, Notification, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, dialog, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { api } from './api-client'
@@ -89,6 +89,13 @@ async function createWindow(): Promise<void> {
     }
   })
 
+  win.on('close', (e) => {
+    if (!quitting) {
+      e.preventDefault()
+      win.hide()
+    }
+  })
+
   if (isDev) {
     await win.loadURL(process.env.ELECTRON_RENDERER_URL!)
   } else {
@@ -97,6 +104,38 @@ async function createWindow(): Promise<void> {
 }
 
 let reminderTimer: ReturnType<typeof setInterval> | null = null
+
+/** 32x32 calendar glyph embedded as data URL (no asset pipeline needed). */
+const TRAY_ICON_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAV0lEQVR42u3YsQkAIAxE0czhmi7tFlFiERDLgCf8Kw5J9QjYxOyHtD7cfGW/nlYyMjGTq9v+ROrYH74qn+b/wIcPHz58+PDhw4cPHz583Ddq7xua+9PNBOJoyWgpRS9iAAAAAElFTkSuQmCC'
+
+let tray: Tray | null = null
+let quitting = false
+
+/** Closing the window hides the app to the tray; reminders keep running. */
+function createTray(): void {
+  const icon = nativeImage.createFromDataURL(TRAY_ICON_DATA_URL)
+  tray = new Tray(icon.resize({ width: 16, height: 16 }))
+  tray.setToolTip('Calendar')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open Calendar', click: showWindow },
+      { type: 'separator' },
+      { label: 'Quit', click: () => { quitting = true; app.quit() } }
+    ])
+  )
+  tray.on('click', showWindow)
+}
+
+function showWindow(): void {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win) {
+    win.show()
+    win.focus()
+    return
+  }
+  void createWindow()
+}
 
 function startReminderEngine(): void {
   if (reminderTimer) return
@@ -259,10 +298,13 @@ app.whenReady().then(async () => {
   await createWindow()
   startReminderEngine()
   setupAutoUpdater()
+  createTray()
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow()
-  })
+  app.on('activate', showWindow)
+})
+
+app.on('before-quit', () => {
+  quitting = true
 })
 
 app.on('window-all-closed', () => {
