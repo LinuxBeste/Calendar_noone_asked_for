@@ -35,7 +35,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const { token } = useAuth()
   const [zoom, setZoom] = useState(settings.defaultZoomPct / 100)
   const zoomRef = useRef(settings.defaultZoomPct / 100)
-  const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
+  const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string; defaultStart?: string; defaultDuration?: number } | null>(null)
+  const [dragCreate, setDragCreate] = useState<{ key: string; startMins: number; curMins: number } | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
   const [gridMenu, setGridMenu] = useState<{ x: number; y: number; date: Date } | null>(null)
   const [confirming, setConfirming] = useState<{ event: Event; occurrence: string; occurrenceOnly: boolean } | null>(null)
@@ -202,6 +203,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const nowLine = now.getHours() * 60 + now.getMinutes()
 
   const showHover = (el: HTMLElement, occ: EventOccurrence): void => {
+    if (!settings.showHoverPreview) return
     if (!window.matchMedia('(hover: hover)').matches) return
     if (hoverTimer.current) clearTimeout(hoverTimer.current)
     const rect = el.getBoundingClientRect()
@@ -260,6 +262,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
         push({ op: 'update', eventId: event.id, before: { startsAt: occ?.start, endsAt: occ?.end }, after: { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() } })
       }
       void refreshEvents(toISO(from), toISO(to))
+      toast('Event moved — Ctrl+Z to undo', 'info')
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Move failed', 'error')
     }
@@ -403,6 +406,35 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   setGridMenu({ x: e.clientX, y: e.clientY, date: start })
                 }}
                 onDragOver={(e) => e.preventDefault()}
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return
+                  const t = e.target as HTMLElement
+                  if (t.closest('[draggable]') || t.closest('.rounded-md')) return
+                  const col = e.currentTarget as HTMLElement
+                  const rect = col.getBoundingClientRect()
+                  const raw = (e.clientY - rect.top) / pxPerMin
+                  const startMins = settings.newEventsUseSnap ? Math.round(raw / snap) * snap : Math.round(raw)
+                  const state = { key, startMins, curMins: startMins }
+                  setDragCreate(state)
+                  const onMove = (ev: MouseEvent): void => {
+                    const r = col.getBoundingClientRect()
+                    setDragCreate({ ...state, curMins: Math.max(0, Math.min(1440, Math.round((ev.clientY - r.top) / pxPerMin))) })
+                  }
+                  const onUp = (ev: MouseEvent): void => {
+                    window.removeEventListener('mousemove', onMove)
+                    window.removeEventListener('mouseup', onUp)
+                    setDragCreate(null)
+                    const r = col.getBoundingClientRect()
+                    const endMins = Math.max(0, Math.min(1440, Math.round((ev.clientY - r.top) / pxPerMin)))
+                    const dur = Math.round(Math.abs(endMins - state.startMins) / snap) * snap
+                    if (dur < snap) return
+                    const start = new Date(d)
+                    start.setHours(Math.floor(Math.min(state.startMins, endMins) / 60), Math.min(state.startMins, endMins) % 60, 0, 0)
+                    setDialog({ defaultStart: start.toISOString(), defaultDuration: dur })
+                  }
+                  window.addEventListener('mousemove', onMove)
+                  window.addEventListener('mouseup', onUp)
+                }}
                 onDrop={(e) => {
                   e.preventDefault()
                   const raw = e.dataTransfer.getData('application/x-cal-event')
@@ -453,6 +485,15 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                 }}
                 data-daycol={key}
               >
+                {dragCreate && dragCreate.key === key && (
+                  <div
+                    className="absolute left-1 right-1 z-10 pointer-events-none rounded-md border-2 border-dashed border-accent bg-accent/15"
+                    style={{
+                      top: Math.min(dragCreate.startMins, dragCreate.curMins) * pxPerMin + 1,
+                      height: Math.max(Math.abs(dragCreate.curMins - dragCreate.startMins) * pxPerMin - 2, 14)
+                    }}
+                  />
+                )}
                 {positioned.get(key)?.map((p) => {
                   const cal = calendarById.get(p.event.calendarId)
                   const color = p.event.color ?? cal?.color ?? '#1a73e8'
@@ -577,7 +618,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
         </button>
       </div>
 
-      {dialog && <EventDialog event={dialog.event} defaultDate={dialog.date} occurrence={dialog.occurrence} onClose={() => setDialog(null)} />}
+      {dialog && <EventDialog event={dialog.event} defaultDate={dialog.date} defaultStart={dialog.defaultStart} defaultDuration={dialog.defaultDuration} occurrence={dialog.occurrence} onClose={() => setDialog(null)} />}
       {gridMenu && (
         <ContextMenu
           x={gridMenu.x}

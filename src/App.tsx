@@ -28,7 +28,8 @@ export default function App(): React.JSX.Element {
       const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)
       const mod = e.ctrlKey || e.metaKey
       const cal = useCalendar.getState()
-      if (mod && e.key.toLowerCase() === 'k') {
+      if (!cal.settings.enableKeyboardShortcuts) return
+      if (mod && e.key.toLowerCase() === 'k' && cal.settings.enableCommandPalette) {
         e.preventDefault()
         setPaletteOpen(true)
         return
@@ -66,6 +67,12 @@ export default function App(): React.JSX.Element {
           break
         case 'a':
           cal.setView('agenda')
+          break
+        case 'j':
+          cal.navigate(1)
+          break
+        case 'k':
+          cal.navigate(-1)
           break
         case 'n':
           window.dispatchEvent(new CustomEvent('calendar:new-event'))

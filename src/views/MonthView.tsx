@@ -63,11 +63,11 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
   }, [events, date, settings.firstDayOfWeek])
 
   const holidays = useMemo(() => {
-    if (!settings.showHolidays) return new Map<string, string>()
+    if (!settings.monthShowHolidays) return new Map<string, string>()
     const from = rangeStart('month', date, settings.firstDayOfWeek)
     const to = rangeEnd('month', date, settings.firstDayOfWeek)
     return holidaysBetween(from, to, settings.holidaysCountry)
-  }, [date, settings.firstDayOfWeek, settings.showHolidays, settings.holidaysCountry])
+  }, [date, settings.firstDayOfWeek, settings.monthShowHolidays, settings.holidaysCountry])
 
   const calendarById = useMemo(() => new Map(calendars.map((c) => [c.id, c])), [calendars])
 
@@ -134,12 +134,19 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
           const weekend = d.getDay() === 0 || d.getDay() === 6
           const selected = isSameDay(d, date)
           const holiday = holidays.get(key)
+          const trailing = !isSameMonth(d, date)
+          if (!settings.monthTrailingDays && trailing) {
+            return <div key={i} className={`border-b border-r border-gray-200 dark:border-gray-700 ${settings.monthWeekendShading && weekend ? 'bg-gray-50 dark:bg-gray-800/60' : ''}`} />
+          }
           return (
             <div
               key={i}
               onClick={() => setDialog({ date: d })}
-              onDragOver={(e) => e.preventDefault()}
+              onDragOver={(e) => {
+                if (settings.monthDragDrop) e.preventDefault()
+              }}
               onDrop={(e) => {
+                if (!settings.monthDragDrop) return
                 e.preventDefault()
                 e.stopPropagation()
                 const raw = e.dataTransfer.getData('application/x-cal-event')
@@ -182,14 +189,16 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                   }
                 }
               }}
-              className={`border-b border-r border-gray-200 dark:border-gray-700 p-1 overflow-hidden cursor-pointer
-                ${weekend || holiday ? 'bg-gray-50 dark:bg-gray-800/60' : ''} ${selected ? 'ring-1 ring-inset ring-accent' : ''}`}
+              className={`border-b border-r border-gray-200 dark:border-gray-700 overflow-hidden cursor-pointer
+                ${(settings.monthWeekendShading && weekend) || holiday ? 'bg-gray-50 dark:bg-gray-800/60' : ''} ${selected ? 'ring-1 ring-inset ring-accent' : ''} ${settings.monthCompactWeekends && weekend ? 'p-0.5' : 'p-1'}`}
             >
               <div className="flex items-start justify-between px-0.5 mb-0.5">
                 <span
                   className={`text-xs h-6 w-6 flex items-center justify-center rounded-full ${
                     isToday(d)
-                      ? 'bg-accent text-white font-medium'
+                      ? settings.monthTodayRing
+                        ? 'text-accent font-medium ring-1 ring-accent'
+                        : 'text-accent font-medium'
                       : isSameMonth(d, date)
                         ? 'text-gray-700 dark:text-gray-200'
                         : 'text-gray-400 dark:text-gray-600'
@@ -203,7 +212,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                       {dayEvents.length}
                     </span>
                   )}
-                  {settings.showWeekNumbers && i % 7 === 0 && (
+                  {settings.monthShowWeekNumbers && i % 7 === 0 && (
                     <span className="text-[10px] text-gray-400">{weekNumber(d)}</span>
                   )}
                 </div>
@@ -219,6 +228,35 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                   const cal = calendarById.get(ev.calendarId)
                   const color = ev.color ?? cal?.color ?? '#1a73e8'
                   const continues = new Date(occ.end) > new Date(d.getTime() + 86400000 - 1)
+                  if (settings.monthEventStyle === 'dot') {
+                    return (
+                      <button
+                        key={ev.id + key}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setHover(null)
+                          setMenu({ x: e.clientX, y: e.clientY, event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+                        }}
+                        onMouseEnter={(e) => settings.monthHoverPreview && showHover(e.currentTarget, occ)}
+                        onMouseLeave={hideHoverSoon}
+                        draggable={settings.monthDragDrop && calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: occ.allDay }))
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        className="w-full flex items-center gap-1 text-[10px] px-1 py-px truncate hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded"
+                        title={settings.showEventTooltips ? `${ev.title}${ev.location ? '\n' + ev.location : ''}` : undefined}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <span className="truncate text-gray-700 dark:text-gray-200">{ev.title}</span>
+                      </button>
+                    )
+                  }
                   return (
                     <button
                       key={ev.id + key}
@@ -232,18 +270,18 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                         setHover(null)
                         setMenu({ x: e.clientX, y: e.clientY, event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
                       }}
-                      onMouseEnter={(e) => showHover(e.currentTarget, occ)}
+                      onMouseEnter={(e) => settings.monthHoverPreview && showHover(e.currentTarget, occ)}
                       onMouseLeave={hideHoverSoon}
-                      draggable={calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
+                      draggable={settings.monthDragDrop && calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: occ.allDay }))
                         e.dataTransfer.effectAllowed = 'move'
                       }}
-                      className={`w-full text-left text-[11px] px-1 py-0.5 rounded truncate hover:shadow ${continues ? '' : 'rounded-r-full'}`}
-                      style={{ backgroundColor: color + '22', color }}
-                      title={`${ev.title}${ev.location ? '\n' + ev.location : ''}`}
+                      className={`w-full text-left px-1 py-0.5 rounded truncate hover:shadow ${continues ? '' : 'rounded-r-full'} ${settings.monthEventStyle === 'compact' ? 'text-[10px]' : 'text-[11px]'}`}
+                      style={{ backgroundColor: settings.monthEventStyle === 'compact' ? 'transparent' : color + '22', color }}
+                      title={settings.showEventTooltips ? `${ev.title}${ev.location ? '\n' + ev.location : ''}` : undefined}
                     >
-                      {occ.allDay ? '' : format(new Date(occ.start), 'H:mm') + ' '}
+                      {settings.monthShowEventTime && !occ.allDay ? format(new Date(occ.start), 'H:mm') + ' ' : ''}
                       {ev.icon ? ev.icon + ' ' : ''}{ev.title}
                     </button>
                   )
