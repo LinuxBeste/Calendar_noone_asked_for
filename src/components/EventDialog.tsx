@@ -216,6 +216,10 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
       setError('Title is required')
       return
     }
+    if (!calendarId) {
+      setError('Create a calendar first (sidebar → + New)')
+      return
+    }
     setSaving(true)
     setError(null)
     const push = useCalendar.getState().pushHistory

@@ -118,7 +118,12 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
     const email = normalizeEmail(req.body.email)
     validatePassword(req.body.password)
     const name = validateName(req.body.name)
-    return auth.register({ email, name, password: req.body.password })
+    const result = await auth.register({ email, name, password: req.body.password })
+    const existing = await calendars.listCalendarsForUser(result.user.id)
+    if (existing.length === 0) {
+      await calendars.createCalendar(result.user.id, { name: 'My calendar', color: '#1a73e8' })
+    }
+    return result
   })
   app.post('/auth/login', async (req: Body<{ email: string; password: string }>) => {
     authLimiter(req.ip)

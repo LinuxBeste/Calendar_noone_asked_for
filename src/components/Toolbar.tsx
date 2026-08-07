@@ -89,8 +89,13 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
     }
     try {
       const { calendars: cals } = useCalendar.getState()
+      const calendarId = settings.defaultCalendarId || cals[0]?.id || ''
+      if (!calendarId) {
+        setQuickAddError('Create a calendar first (sidebar → + New)')
+        return
+      }
       const created = (await window.calendarApi.events.create(token, {
-        calendarId: settings.defaultCalendarId || cals[0]?.id || '',
+        calendarId,
         title: parsed.title,
         description: undefined,
         location: undefined,
