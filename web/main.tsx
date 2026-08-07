@@ -14,9 +14,32 @@ if (!nativeNotificationsAvailable() && 'Notification' in window && Notification.
 function ConnectionGate({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [reachable, setReachable] = useState<boolean | null>(null)
   const [url, setUrl] = useState(getApiUrl())
+  const [error, setError] = useState<string | null>(null)
+  const [connecting, setConnecting] = useState(false)
 
   const probe = async (): Promise<void> => {
+    setError(null)
     setReachable(await isReachable())
+  }
+
+  const connect = async (): Promise<void> => {
+    const target = url.trim()
+    if (!/^https?:\/\//i.test(target)) {
+      setError('Enter a full URL starting with http:// or https:// (e.g. http://10.0.2.2:3001)')
+      return
+    }
+    setError(null)
+    setConnecting(true)
+    setApiUrl(target)
+    try {
+      const ok = await isReachable()
+      if (ok) setReachable(true)
+      else setError(`Could not connect to ${target}. Make sure the server is running and reachable from this device.`)
+    } catch {
+      setError(`Could not connect to ${target}. Make sure the server is running and reachable from this device.`)
+    } finally {
+      setConnecting(false)
+    }
   }
 
   useEffect(() => {
@@ -43,20 +66,30 @@ function ConnectionGate({ children }: { children: React.ReactNode }): React.JSX.
         </p>
         <input
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value)
+            setError(null)
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && void connect()}
           placeholder="http://localhost:3001"
           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
         />
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={() => {
-              setApiUrl(url)
-              void probe()
-            }}
-            className="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Connect
-          </button>
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        <div className="flex items-center justify-between gap-2">
+          {connecting ? (
+            <span className="text-xs text-gray-400">Connecting…</span>
+          ) : (
+            <span className="text-xs text-gray-400 dark:text-gray-500">v{__APP_VERSION__}</span>
+          )}
+          <div className="flex justify-end">
+            <button
+              onClick={() => void connect()}
+              disabled={connecting}
+              className="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            >
+              {connecting ? 'Connecting…' : 'Connect'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

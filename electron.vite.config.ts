@@ -1,6 +1,9 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import { readFileSync } from 'fs'
+
+const version = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')).version as string
 
 export default defineConfig({
   main: {
@@ -28,6 +31,7 @@ export default defineConfig({
   renderer: {
     root: 'src',
     plugins: [react()],
+    define: { __APP_VERSION__: JSON.stringify(version) },
     resolve: {
       alias: { '@shared': resolve(__dirname, 'shared') }
     },
