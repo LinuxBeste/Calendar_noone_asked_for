@@ -2,6 +2,7 @@ import 'dotenv/config'
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
 import fastifyCors from '@fastify/cors'
+import fastifyWebsocket from '@fastify/websocket'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 import { tmpdir } from 'os'
@@ -14,6 +15,7 @@ import { AuthService } from './services/auth'
 import { CalendarService } from './services/calendar-service'
 import { EventService } from './services/event-service'
 import { ICalService } from './services/ical-service'
+import { WsHub } from './services/ws-hub'
 import { registerRoutes } from './routes'
 
 export const PORT = Number(process.env.CALENDAR_API_PORT ?? 3001)
@@ -81,6 +83,26 @@ async function bootstrap(): Promise<void> {
     }
   })
   await registerRoutes(app, { auth, calendars, events, ical, store, using: setup.using, apiKey: API_KEY })
+
+  // ---- live updates (WebSocket) ----
+  const hub = new WsHub()
+  await app.register(fastifyWebsocket)
+  app.get('/ws', { websocket: true }, (connection, req) => {
+    const token = String((req.query as { token?: string }).token ?? '')
+    void auth
+      .validateSession(token)
+      .then((user) => {
+        if (!user) {
+          connection.close(4001, 'unauthorized')
+          return
+        }
+        hub.add(connection)
+      })
+      .catch(() => connection.close(4001, 'unauthorized'))
+  })
+  await setup.cache.subscribe('events.changed', () => hub.broadcast({ type: 'events' }))
+  await setup.cache.subscribe('calendars.changed', () => hub.broadcast({ type: 'calendars' }))
+  console.log('[server] live updates enabled (ws://' + HOST + ':' + PORT + '/ws)')
 
   if (!API_KEY) {
     app.log.warn('CALENDAR_API_KEY not set — reminder endpoints require an authenticated user session (dev mode)')

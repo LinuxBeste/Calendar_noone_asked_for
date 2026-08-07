@@ -57,6 +57,15 @@ const api = {
     get: (token: string, key: string) => invoke('settings:get', { token, key }),
     set: (token: string, key: string, value: unknown) => invoke('settings:set', { token, key, value })
   },
+  updates: {
+    subscribe: (cb: (message: string) => void) => {
+      const listener = (_e: unknown, data: string): void => cb(data)
+      ipcRenderer.on('ws:message', listener)
+      return () => {
+        ipcRenderer.removeListener('ws:message', listener)
+      }
+    }
+  },
   appInfo: () => invoke('app:info', {})
 }
 

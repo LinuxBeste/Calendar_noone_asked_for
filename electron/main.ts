@@ -10,6 +10,29 @@ const isDev = !!process.env.ELECTRON_RENDERER_URL
 
 let updaterPrompted = false
 
+let liveSocket: WebSocket | null = null
+
+function connectLive(token: string | undefined): void {
+  try {
+    liveSocket?.close()
+    if (!token) return
+    const base = process.env.CALENDAR_API_URL ?? 'http://localhost:3001'
+    const url = base.replace(/^http/, 'ws') + '/ws?token=' + encodeURIComponent(token)
+    const ws = new WebSocket(url)
+    liveSocket = ws
+    ws.onmessage = (e) => {
+      const win = BrowserWindow.getAllWindows()[0]
+      win?.webContents.send('ws:message', String(e.data))
+    }
+    ws.onclose = () => {
+      if (liveSocket === ws) liveSocket = null
+    }
+    ws.onerror = () => ws.close()
+  } catch (err) {
+    console.error('[live] connect failed:', err)
+  }
+}
+
 function setupAutoUpdater(): void {
   if (!app.isPackaged) return
   autoUpdater.autoDownload = false
@@ -101,10 +124,26 @@ function formatTime(d: Date): string {
 
 function registerIpc(): void {
   // ---- auth ----
-  ipcMain.handle('auth:register', (_e, payload: { email: string; name: string; password: string }) => api.register(payload))
-  ipcMain.handle('auth:login', (_e, payload: { email: string; password: string }) => api.login(payload.email, payload.password))
-  ipcMain.handle('auth:logout', (_e, payload: { token: string }) => api.logout(payload.token))
-  ipcMain.handle('auth:validate', (_e, payload: { token: string }) => api.validate(payload.token))
+  ipcMain.handle('auth:register', async (_e, payload: { email: string; name: string; password: string }) => {
+    const result = (await api.register(payload)) as { token?: string }
+    connectLive(result.token)
+    return result
+  })
+  ipcMain.handle('auth:login', async (_e, payload: { email: string; password: string }) => {
+    const result = (await api.login(payload.email, payload.password)) as { token?: string }
+    connectLive(result.token)
+    return result
+  })
+  ipcMain.handle('auth:logout', (_e, payload: { token: string }) => {
+    connectLive(undefined)
+    return api.logout(payload.token)
+  })
+  ipcMain.handle('auth:validate', async (_e, payload: { token: string }) => {
+    const result = (await api.validate(payload.token)) as unknown
+    if (result) connectLive(payload.token)
+    else connectLive(undefined)
+    return result
+  })
 
   // ---- calendars ----
   ipcMain.handle('calendar:list', (_e, payload: { token: string }) => api.listCalendars(payload.token))

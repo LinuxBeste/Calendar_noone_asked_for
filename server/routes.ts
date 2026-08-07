@@ -100,6 +100,13 @@ async function reminderAccess(
 export async function registerRoutes(app: FastifyInstance, services: Services): Promise<void> {
   const { auth, calendars, events, ical, store } = services
 
+  const ensureDefaultCalendar = async (userId: string): Promise<void> => {
+    const existing = await calendars.listCalendarsForUser(userId)
+    if (existing.length === 0) {
+      await calendars.createCalendar(userId, { name: 'My calendar', color: '#1a73e8', isDefault: true })
+    }
+  }
+
   app.addHook('onError', async (_request, reply, error) => {
     const status =
       error instanceof RateLimitError
@@ -119,17 +126,16 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
     validatePassword(req.body.password)
     const name = validateName(req.body.name)
     const result = await auth.register({ email, name, password: req.body.password })
-    const existing = await calendars.listCalendarsForUser(result.user.id)
-    if (existing.length === 0) {
-      await calendars.createCalendar(result.user.id, { name: 'My calendar', color: '#1a73e8' })
-    }
+    await ensureDefaultCalendar(result.user.id)
     return result
   })
   app.post('/auth/login', async (req: Body<{ email: string; password: string }>) => {
     authLimiter(req.ip)
     normalizeEmail(req.body.email)
     if (typeof req.body.password !== 'string' || req.body.password.length === 0) throw new ValidationError('Password is required')
-    return auth.login(req.body.email, req.body.password)
+    const result = await auth.login(req.body.email, req.body.password)
+    await ensureDefaultCalendar(result.user.id)
+    return result
   })
   app.post('/auth/logout', async (req: FastifyRequest) => {
     await auth.logout(bearer(req))
@@ -137,7 +143,10 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
   })
   app.get('/auth/validate', async (req: FastifyRequest) => {
     try {
-      return await auth.validateSession(bearer(req))
+      const token = bearer(req)
+      const user = await auth.validateSession(token)
+      if (user) await ensureDefaultCalendar(user.id)
+      return user
     } catch {
       return null
     }

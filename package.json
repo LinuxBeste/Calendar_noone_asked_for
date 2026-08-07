@@ -78,6 +78,7 @@
   "dependencies": {
     "@fastify/cors": "^11.3.0",
     "@fastify/static": "^10.1.2",
+    "@fastify/websocket": "^11.3.0",
     "better-sqlite3": "^12.2.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",
@@ -102,6 +103,7 @@
     "@types/pg": "^8.15.4",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.6.0",
     "autoprefixer": "^10.4.21",
     "electron": "^37.2.0",
@@ -111,6 +113,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "vite": "^7.0.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "ws": "^8.21.2"
   }
 }

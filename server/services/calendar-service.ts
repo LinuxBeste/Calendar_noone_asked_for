@@ -37,6 +37,7 @@ export class CalendarService {
   async createCalendar(userId: string, input: CalendarInput): Promise<Calendar> {
     const cal = await this.store.createCalendar({ ...input, ownerId: userId })
     await this.cache.invalidateAll()
+    await this.cache.publish('calendars.changed', { type: 'created', calendarId: cal.id })
     return cal
   }
 
@@ -44,6 +45,7 @@ export class CalendarService {
     await this.assertCanWrite(userId, id)
     const cal = await this.store.updateCalendar(id, input)
     await this.cache.invalidateAll()
+    await this.cache.publish('calendars.changed', { type: 'updated', calendarId: id })
     return cal
   }
 
@@ -52,6 +54,7 @@ export class CalendarService {
     if (!cal || cal.ownerId !== userId) throw new PermissionError('Only the owner can delete this calendar')
     await this.store.deleteCalendar(id)
     await this.cache.invalidateAll()
+    await this.cache.publish('calendars.changed', { type: 'deleted', calendarId: id })
   }
 
   /** Checks the user can read this calendar. Throws otherwise. */

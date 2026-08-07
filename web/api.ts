@@ -127,6 +127,35 @@ export const webApi = {
     get: (token: string, key: string) => call('GET', `/settings/${encodeURIComponent(key)}`, token),
     set: (token: string, key: string, value: unknown) => call('PUT', `/settings/${encodeURIComponent(key)}`, token, { value })
   },
+  updates: {
+    subscribe(cb: (message: string) => void): () => void {
+      let socket: WebSocket | null = null
+      let stopped = false
+      let retry: ReturnType<typeof setTimeout> | null = null
+      const connect = (): void => {
+        if (stopped) return
+        const token = localStorage.getItem('calendar.token')
+        const url = getApiUrl().replace(/^http/, 'ws') + '/ws?token=' + encodeURIComponent(token ?? '')
+        try {
+          socket = new WebSocket(url)
+        } catch {
+          retry = setTimeout(connect, 3000)
+          return
+        }
+        socket.onmessage = (e) => cb(String(e.data))
+        socket.onerror = () => socket?.close()
+        socket.onclose = () => {
+          if (!stopped) retry = setTimeout(connect, 3000)
+        }
+      }
+      connect()
+      return () => {
+        stopped = true
+        if (retry) clearTimeout(retry)
+        socket?.close()
+      }
+    }
+  },
   appInfo: () => call('GET', '/info', null)
 }
 

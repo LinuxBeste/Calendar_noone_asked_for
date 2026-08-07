@@ -97,6 +97,28 @@ export default function AppShell(): React.JSX.Element {
 
   useEffect(() => {
     if (!token) return
+    const unsub = window.calendarApi.updates.subscribe((raw) => {
+      try {
+        const msg = JSON.parse(raw) as { type?: string }
+        if (msg.type === 'events') {
+          void useCalendar.getState().refreshVisible().catch(() => undefined)
+          void useCalendar.getState().refreshTrash()
+        } else if (msg.type === 'calendars') {
+          void useCalendar
+            .getState()
+            .refreshCalendars()
+            .then(() => useCalendar.getState().refreshVisible())
+            .catch(() => undefined)
+        }
+      } catch {
+        // ignore malformed messages
+      }
+    })
+    return unsub
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
     const onDragOver = (e: DragEvent): void => {
       if (e.dataTransfer?.types.includes('Files')) {
         e.preventDefault()
