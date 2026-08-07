@@ -83,7 +83,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
       occ,
       x,
       y,
-      canEdit: calendars.find((c) => c.id === occ.event.calendarId)?.role !== 'viewer'
+      canEdit: calendars.find((c) => c.id === occ.event.calendarId)?.role === 'owner' || calendars.find((c) => c.id === occ.event.calendarId)?.role === 'editor'
     })
   }
   const hideHoverSoon = (): void => {
@@ -244,7 +244,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                         }}
                         onMouseEnter={(e) => settings.monthHoverPreview && showHover(e.currentTarget, occ)}
                         onMouseLeave={hideHoverSoon}
-                        draggable={settings.monthDragDrop && calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
+                        draggable={settings.monthDragDrop && (calendars.find((c) => c.id === ev.calendarId)?.role === 'owner' || calendars.find((c) => c.id === ev.calendarId)?.role === 'editor')}
                         onDragStart={(e) => {
                           e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: occ.allDay }))
                           e.dataTransfer.effectAllowed = 'move'
@@ -272,7 +272,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                       }}
                       onMouseEnter={(e) => settings.monthHoverPreview && showHover(e.currentTarget, occ)}
                       onMouseLeave={hideHoverSoon}
-                      draggable={settings.monthDragDrop && calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'}
+                      draggable={settings.monthDragDrop && (calendars.find((c) => c.id === ev.calendarId)?.role === 'owner' || calendars.find((c) => c.id === ev.calendarId)?.role === 'editor')}
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: occ.allDay }))
                         e.dataTransfer.effectAllowed = 'move'

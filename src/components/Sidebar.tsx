@@ -5,7 +5,14 @@ import MiniCalendar from './MiniCalendar'
 import ContextMenu from './ContextMenu'
 import ConfirmDialog from './ConfirmDialog'
 import TrashDialog from './TrashDialog'
-import type { Calendar } from '@shared/types'
+import type { Calendar, ICalFeed } from '@shared/types'
+
+const API_BASE = (): string => localStorage.getItem('calendar.apiUrl') ?? 'http://localhost:3001'
+
+function extractToken(input: string): string | null {
+  const match = input.trim().match(/public\/([A-Za-z0-9_-]+)/)
+  return match ? match[1]! : input.trim().match(/^[A-Za-z0-9_-]{10,}$/) ? input.trim() : null
+}
 
 interface SidebarProps {
   open: boolean
@@ -14,23 +21,96 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.JSX.Element | null {
-  const { calendars, visibleCalendars, toggleCalendar, settings, trash } = useCalendar()
+  const { calendars, visibleCalendars, toggleCalendar, settings, trash, publicCalendars, addPublicCalendar, removePublicCalendar } = useCalendar()
   const { token, user } = useAuth()
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState('#1a73e8')
   const [sharing, setSharing] = useState<Calendar | null>(null)
+  const [linkFor, setLinkFor] = useState<Calendar | null>(null)
   const [transfer, setTransfer] = useState(false)
   const [trashOpen, setTrashOpen] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number; calendar: Calendar } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Calendar | null>(null)
+  const [feeds, setFeeds] = useState<ICalFeed[]>([])
+  const [addingFeed, setAddingFeed] = useState(false)
+  const [feedUrl, setFeedUrl] = useState('')
+  const [feedTarget, setFeedTarget] = useState('')
+  const [addingPublic, setAddingPublic] = useState(false)
+  const [publicUrl, setPublicUrl] = useState('')
+  const [busyFeed, setBusyFeed] = useState<string | null>(null)
+
+  const loadFeeds = (): void => {
+    if (!token) return
+    window.calendarApi.feeds.list(token).then((f) => setFeeds((f as ICalFeed[]) ?? [])).catch(() => undefined)
+  }
 
   useEffect(() => {
     void useCalendar.getState().refreshTrash()
     const openTrash = (): void => setTrashOpen(true)
     window.addEventListener('calendar:trash', openTrash)
+    loadFeeds()
     return () => window.removeEventListener('calendar:trash', openTrash)
   }, [])
+
+  const addFeed = async (): Promise<void> => {
+    if (!token || !feedUrl.trim() || !feedTarget) return
+    setBusyFeed('add')
+    try {
+      await window.calendarApi.feeds.create(token, { calendarId: feedTarget, url: feedUrl.trim() })
+      setFeedUrl('')
+      setAddingFeed(false)
+      loadFeeds()
+      toast('Feed subscribed — events will sync automatically')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to subscribe', 'error')
+    } finally {
+      setBusyFeed(null)
+    }
+  }
+
+  const syncFeed = async (id: string): Promise<void> => {
+    if (!token) return
+    setBusyFeed(id)
+    try {
+      const res = (await window.calendarApi.feeds.sync(token, id)) as { created: number; updated: number }
+      toast(`Feed synced (${res.created} new, ${res.updated} updated)`)
+      loadFeeds()
+      await useCalendar.getState().refreshVisible()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Sync failed', 'error')
+      loadFeeds()
+    } finally {
+      setBusyFeed(null)
+    }
+  }
+
+  const removeFeed = async (id: string): Promise<void> => {
+    if (!token) return
+    await window.calendarApi.feeds.remove(token, id)
+    loadFeeds()
+    await useCalendar.getState().refreshVisible()
+    toast('Feed removed')
+  }
+
+  const addPublic = async (): Promise<void> => {
+    const token2 = extractToken(publicUrl)
+    if (!token2) {
+      toast('Enter a share link or token', 'error')
+      return
+    }
+    try {
+      const res = await fetch(`${API_BASE()}/public/${token2}`)
+      if (!res.ok) throw new Error('Link not found or revoked')
+      const data = (await res.json()) as { calendar: { name: string; color: string } }
+      addPublicCalendar({ token: token2, name: data.calendar.name, color: data.calendar.color })
+      setPublicUrl('')
+      setAddingPublic(false)
+      toast(`Subscribed to “${data.calendar.name}”`)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to add public calendar', 'error')
+    }
+  }
 
   const deleteCalendar = async (): Promise<void> => {
     if (!token || !confirmDelete) return
@@ -121,6 +201,122 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
         {user && (
           <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">Signed in as {user.name}</p>
         )}
+
+        <h3 className="mt-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Subscribed feeds</h3>
+        {feeds.length > 0 && (
+          <div className="space-y-1 mb-1">
+            {feeds.map((f) => (
+              <div key={f.id} className="flex items-center gap-1 px-1 py-0.5 text-xs group/feed">
+                <span className="flex-1 truncate text-gray-600 dark:text-gray-300" title={`${f.url}${f.lastError ? '\n' + f.lastError : ''}`}>
+                  {f.url.replace(/^https?:\/\//, '')}
+                  {f.lastError ? ' ⚠' : ''}
+                </span>
+                <button
+                  onClick={() => void syncFeed(f.id)}
+                  disabled={busyFeed === f.id}
+                  className="opacity-0 group-hover/feed:opacity-100 text-gray-400 hover:text-accent disabled:opacity-30"
+                  title="Sync now"
+                  aria-label="Sync feed"
+                >
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                    <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => void removeFeed(f.id)}
+                  className="opacity-0 group-hover/feed:opacity-100 text-gray-400 hover:text-red-600"
+                  title="Unsubscribe"
+                  aria-label="Unsubscribe"
+                >
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                    <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {addingFeed && (
+          <div className="mx-1 p-2 rounded-lg border border-gray-200 dark:border-gray-700 space-y-1.5">
+            <input
+              autoFocus
+              placeholder="https://example.com/feed.ics"
+              value={feedUrl}
+              onChange={(e) => setFeedUrl(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void addFeed()}
+              className="w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+            <select
+              value={feedTarget}
+              onChange={(e) => setFeedTarget(e.target.value)}
+              className="w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="">Target calendar…</option>
+              {calendars.filter((c) => c.role !== 'viewer').map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-1.5">
+              <button onClick={() => void addFeed()} disabled={busyFeed === 'add'} className="flex-1 px-2 py-1 text-xs rounded bg-accent text-white disabled:opacity-50">
+                {busyFeed === 'add' ? 'Subscribing…' : 'Subscribe'}
+              </button>
+              <button onClick={() => setAddingFeed(false)} className="px-2 py-1 text-xs rounded hover:bg-gray-200 dark:hover:bg-gray-700">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={() => setAddingFeed(true)}
+          className="flex items-center gap-2 px-2 py-1 w-full text-xs text-gray-500 dark:text-gray-400 hover:text-accent hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+        >
+          + Subscribe to ICS feed
+        </button>
+
+        <h3 className="mt-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Public calendars</h3>
+        {publicCalendars.map((pc) => (
+          <div key={pc.token} className="group flex items-center gap-2 px-1 py-1">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: pc.color }} />
+            <span className="flex-1 text-sm truncate text-gray-700 dark:text-gray-200">{pc.name}</span>
+            <button
+              onClick={() => removePublicCalendar(pc.token)}
+              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 text-xs"
+              title="Unsubscribe"
+              aria-label="Unsubscribe public calendar"
+            >
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+              </svg>
+            </button>
+          </div>
+        ))}
+        {addingPublic && (
+          <div className="mx-1 p-2 rounded-lg border border-gray-200 dark:border-gray-700 space-y-1.5">
+            <input
+              autoFocus
+              placeholder="Share link or token"
+              value={publicUrl}
+              onChange={(e) => setPublicUrl(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void addPublic()}
+              className="w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+            <div className="flex gap-1.5">
+              <button onClick={() => void addPublic()} className="flex-1 px-2 py-1 text-xs rounded bg-accent text-white">
+                Add
+              </button>
+              <button onClick={() => setAddingPublic(false)} className="px-2 py-1 text-xs rounded hover:bg-gray-200 dark:hover:bg-gray-700">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={() => setAddingPublic(true)}
+          className="flex items-center gap-2 px-2 py-1 w-full text-xs text-gray-500 dark:text-gray-400 hover:text-accent hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+        >
+          + Add public calendar
+        </button>
+
         <button
           onClick={() => setTransfer(true)}
           className="mt-3 flex items-center gap-2 px-2 py-1.5 w-full text-xs text-gray-500 dark:text-gray-400 hover:text-accent hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
@@ -143,6 +339,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
       </div>
 
       {sharing && <ShareDialog calendar={sharing} onClose={() => setSharing(null)} />}
+      {linkFor && <LinkDialog calendar={linkFor} onClose={() => setLinkFor(null)} />}
       {transfer && <TransferDialog onClose={() => setTransfer(false)} />}
       {trashOpen && <TrashDialog onClose={() => setTrashOpen(false)} />}
       {menu && (
@@ -152,6 +349,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
           onClose={() => setMenu(null)}
           items={[
             { label: 'Share…', onClick: () => setSharing(menu.calendar) },
+            { label: 'Share link…', onClick: () => setLinkFor(menu.calendar) },
             {
               label: 'Delete calendar',
               danger: true,
@@ -182,6 +380,75 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
   }
 
   return content
+}
+
+function LinkDialog({ calendar, onClose }: { calendar: Calendar; onClose: () => void }): React.JSX.Element {
+  const { token } = useAuth()
+  const [links, setLinks] = useState<{ token: string; createdAt: string }[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  const load = async (): Promise<void> => {
+    if (!token) return
+    setLinks((await window.calendarApi.calendars.listLinks(token, calendar.id)) as typeof links)
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const create = async (): Promise<void> => {
+    if (!token) return
+    try {
+      await window.calendarApi.calendars.createLink(token, calendar.id)
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create link')
+    }
+  }
+
+  const revoke = async (linkToken: string): Promise<void> => {
+    if (!token) return
+    await window.calendarApi.calendars.removeLink(token, calendar.id, linkToken)
+    await load()
+  }
+
+  const copy = (linkToken: string): void => {
+    void navigator.clipboard.writeText(`${API_BASE()}/public/${linkToken}`).then(() => toast('Link copied'))
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-[420px] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-medium text-gray-800 dark:text-gray-100 mb-1">Share “{calendar.name}” by link</h3>
+        <p className="text-sm text-gray-500 mb-4">Anyone with the link can view this calendar — no account needed. You can also subscribe to it in any calendar app via the .ics URL.</p>
+
+        {links.map((l) => (
+          <div key={l.token} className="flex items-center gap-2 mb-2">
+            <code className="flex-1 text-xs px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 truncate" title={`${API_BASE()}/public/${l.token}`}>
+              {API_BASE()}/public/{l.token}
+            </code>
+            <button onClick={() => copy(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">
+              Copy
+            </button>
+            <button onClick={() => void revoke(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
+              Revoke
+            </button>
+          </div>
+        ))}
+
+        {links.length === 0 && (
+          <button onClick={() => void create()} className="w-full py-2 rounded-lg bg-accent text-white text-sm">
+            Create link
+          </button>
+        )}
+        {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+
+        <button onClick={onClose} className="w-full py-2 mt-3 rounded-lg border border-gray-300 dark:border-gray-600 text-sm">
+          Close
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function TransferDialog({ onClose }: { onClose: () => void }): React.JSX.Element {

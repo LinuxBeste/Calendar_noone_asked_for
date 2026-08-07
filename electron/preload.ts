@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { CalendarInput, EventInput, ShareInput, AppSettings } from '@shared/types'
+import type { CalendarInput, EventInput, ShareInput, AppSettings, FeedInput } from '@shared/types'
 
 const invoke = (channel: string, payload: unknown): Promise<unknown> => ipcRenderer.invoke(channel, payload)
 
@@ -18,7 +18,19 @@ const api = {
     delete: (token: string, id: string) => invoke('calendar:delete', { token, id }),
     share: (token: string, calendarId: string, input: ShareInput) => invoke('calendar:share', { token, calendarId, input }),
     unshare: (token: string, calendarId: string, userId: string) => invoke('calendar:unshare', { token, calendarId, userId }),
-    shares: (token: string, calendarId: string) => invoke('calendar:shares', { token, calendarId })
+    shares: (token: string, calendarId: string) => invoke('calendar:shares', { token, calendarId }),
+    createLink: (token: string, calendarId: string) => invoke('calendar:link:create', { token, calendarId }),
+    listLinks: (token: string, calendarId: string) => invoke('calendar:link:list', { token, calendarId }),
+    removeLink: (token: string, calendarId: string, linkToken: string) => invoke('calendar:link:remove', { token, calendarId, linkToken })
+  },
+  feeds: {
+    list: (token: string) => invoke('feeds:list', { token }),
+    create: (token: string, input: FeedInput) => invoke('feeds:create', { token, input }),
+    remove: (token: string, feedId: string) => invoke('feeds:remove', { token, feedId }),
+    sync: (token: string, feedId: string) => invoke('feeds:sync', { token, feedId })
+  },
+  public: {
+    getOccurrences: (token: string, from: string, to: string) => invoke('public:occurrences', { token, from, to })
   },
   events: {
     list: (token: string, from: string, to: string, calendarIds?: string[]) => invoke('events:list', { token, from, to, calendarIds }),

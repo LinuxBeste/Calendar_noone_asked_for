@@ -205,6 +205,7 @@ interface CalendarState {
   visibleCalendars: Record<string, boolean>
   settings: typeof DEFAULT_SETTINGS
   lastRange: { from: string; to: string } | null
+  publicCalendars: PublicCalendar[]
   setView(view: ViewType): void
   setDate(date: Date): void
   navigate(delta: number): void
@@ -217,6 +218,8 @@ interface CalendarState {
   purgeTrashed(id: string): Promise<void>
   toggleCalendar(id: string): void
   setSettings(patch: Partial<typeof DEFAULT_SETTINGS>): void
+  addPublicCalendar(input: PublicCalendar): void
+  removePublicCalendar(token: string): void
   history: HistoryAction[]
   historyIndex: number
   canUndo(): boolean
@@ -224,6 +227,26 @@ interface CalendarState {
   pushHistory(action: HistoryAction): void
   undo(): Promise<void>
   redo(): Promise<void>
+}
+
+export interface PublicCalendar {
+  token: string
+  name: string
+  color: string
+}
+
+const PUBLIC_KEY = 'calendar.publicCalendars'
+
+function loadPublicCalendars(): PublicCalendar[] {
+  try {
+    return JSON.parse(localStorage.getItem(PUBLIC_KEY) ?? '[]') as PublicCalendar[]
+  } catch {
+    return []
+  }
+}
+
+function savePublicCalendars(items: PublicCalendar[]): void {
+  localStorage.setItem(PUBLIC_KEY, JSON.stringify(items))
 }
 
 const HISTORY_LIMIT = 50
@@ -316,6 +339,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   visibleCalendars: {},
   settings: DEFAULT_SETTINGS,
   lastRange: null,
+  publicCalendars: loadPublicCalendars(),
   setView(view) {
     set({ view })
   },
@@ -350,9 +374,20 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     const visible = Object.entries(get().visibleCalendars)
       .filter(([, v]) => v)
       .map(([id]) => id)
-    const events = (await window.calendarApi.events.listOccurrences(token, from, to, visible.length ? visible : undefined)) as EventOccurrence[]
-    set((s) => ({ events: events ?? [], lastRange: { from, to } }))
-    return events ?? []
+    const publics = get().publicCalendars
+    const [events, ...publicBatches] = await Promise.all([
+      window.calendarApi.events.listOccurrences(token, from, to, visible.length ? visible : undefined) as Promise<EventOccurrence[]>,
+      ...publics.map((pc, i) =>
+        (window.calendarApi.public.getOccurrences(pc.token, from, to) as Promise<EventOccurrence[]>).catch(() => [] as EventOccurrence[])
+          .then((occs) => occs.map((occ) => ({
+            ...occ,
+            event: { ...occ.event, id: `pub-${i}-${occ.event.id}`, calendarId: `pub-${i}`, feedId: 'public' }
+          })))
+      )
+    ])
+    const merged = [...(events ?? []), ...publicBatches.flat()]
+    set((s) => ({ events: merged, lastRange: { from, to } }))
+    return merged
   },
   async refreshVisible() {
     const range = get().lastRange
@@ -408,6 +443,22 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   },
   toggleCalendar(id) {
     set((s) => ({ visibleCalendars: { ...s.visibleCalendars, [id]: !s.visibleCalendars[id] } }))
+  },
+  addPublicCalendar(input) {
+    set((s) => {
+      const items = [...s.publicCalendars.filter((p) => p.token !== input.token), input]
+      savePublicCalendars(items)
+      return { publicCalendars: items }
+    })
+    void refreshAll()
+  },
+  removePublicCalendar(token) {
+    set((s) => {
+      const items = s.publicCalendars.filter((p) => p.token !== token)
+      savePublicCalendars(items)
+      return { publicCalendars: items }
+    })
+    void refreshAll()
   },
   setSettings(patch) {
     set((s) => ({ settings: { ...s.settings, ...patch } }))

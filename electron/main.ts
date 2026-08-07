@@ -159,6 +159,22 @@ function registerIpc(): void {
     api.unshareCalendar(payload.token, payload.calendarId, payload.userId))
   ipcMain.handle('calendar:shares', (_e, payload: { token: string; calendarId: string }) =>
     api.listShares(payload.token, payload.calendarId))
+  ipcMain.handle('calendar:link:create', (_e, payload: { token: string; calendarId: string }) =>
+    api.createLink(payload.token, payload.calendarId))
+  ipcMain.handle('calendar:link:list', (_e, payload: { token: string; calendarId: string }) =>
+    api.listLinks(payload.token, payload.calendarId))
+  ipcMain.handle('calendar:link:remove', (_e, payload: { token: string; calendarId: string; linkToken: string }) =>
+    api.deleteLink(payload.token, payload.calendarId, payload.linkToken))
+  ipcMain.handle('feeds:list', (_e, payload: { token: string }) =>
+    api.listFeeds(payload.token))
+  ipcMain.handle('feeds:create', (_e, payload: { token: string; input: unknown }) =>
+    api.createFeed(payload.token, payload.input as never))
+  ipcMain.handle('feeds:remove', (_e, payload: { token: string; feedId: string }) =>
+    api.deleteFeed(payload.token, payload.feedId))
+  ipcMain.handle('feeds:sync', (_e, payload: { token: string; feedId: string }) =>
+    api.syncFeed(payload.token, payload.feedId))
+  ipcMain.handle('public:occurrences', (_e, payload: { token: string; from: string; to: string }) =>
+    api.getPublicOccurrences(payload.token, payload.from, payload.to))
 
   // ---- events ----
   ipcMain.handle('events:list', (_e, payload: { token: string; from: string; to: string; calendarIds?: string[] }) =>

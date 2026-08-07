@@ -215,7 +215,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       occ,
       x,
       y,
-      canEdit: calendars.find((c) => c.id === occ.event.calendarId)?.role !== 'viewer'
+      canEdit: calendars.find((c) => c.id === occ.event.calendarId)?.role === 'owner' || calendars.find((c) => c.id === occ.event.calendarId)?.role === 'editor'
     })
   }
   const hideHoverSoon = (): void => {
@@ -287,7 +287,10 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     }
   }
 
-  const editableFor = (ev: Event): boolean => calendars.find((c) => c.id === ev.calendarId)?.role !== 'viewer'
+  const editableFor = (ev: Event): boolean => {
+    const role = calendars.find((c) => c.id === ev.calendarId)?.role
+    return role === 'owner' || role === 'editor'
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">

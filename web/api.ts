@@ -1,4 +1,4 @@
-import type { CalendarInput, EventInput, ShareInput } from '@shared/types'
+import type { CalendarInput, EventInput, ShareInput, FeedInput } from '@shared/types'
 
 export const logger = {
   info: (...args: unknown[]) => console.info('[calendar]', ...args),
@@ -56,7 +56,22 @@ export const webApi = {
     delete: (token: string, id: string) => call('DELETE', `/calendars/${id}`, token),
     share: (token: string, calendarId: string, input: ShareInput) => call('POST', `/calendars/${calendarId}/share`, token, input),
     unshare: (token: string, calendarId: string, userId: string) => call('DELETE', `/calendars/${calendarId}/share/${encodeURIComponent(userId)}`, token),
-    shares: (token: string, calendarId: string) => call('GET', `/calendars/${calendarId}/shares`, token)
+    shares: (token: string, calendarId: string) => call('GET', `/calendars/${calendarId}/shares`, token),
+    createLink: (token: string, calendarId: string) => call('POST', `/calendars/${calendarId}/link`, token),
+    listLinks: (token: string, calendarId: string) => call('GET', `/calendars/${calendarId}/links`, token),
+    removeLink: (token: string, calendarId: string, linkToken: string) => call('DELETE', `/calendars/${calendarId}/link/${encodeURIComponent(linkToken)}`, token)
+  },
+  feeds: {
+    list: (token: string) => call('GET', '/feeds', token),
+    create: (token: string, input: FeedInput) => call('POST', '/feeds', token, input),
+    remove: (token: string, feedId: string) => call('DELETE', `/feeds/${feedId}`, token),
+    sync: (token: string, feedId: string) => call('POST', `/feeds/${feedId}/sync`, token)
+  },
+  public: {
+    getOccurrences: (token: string, from: string, to: string) => {
+      const params = new URLSearchParams({ from, to })
+      return call('GET', `/public/${token}/events?${params}`, null)
+    }
   },
   events: {
     list: (token: string, from: string, to: string, calendarIds?: string[]) => {

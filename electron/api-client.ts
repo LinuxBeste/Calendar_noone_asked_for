@@ -1,4 +1,4 @@
-import type { CalendarInput, EventInput, ShareInput } from '@shared/types'
+import type { CalendarInput, EventInput, ShareInput, FeedInput } from '@shared/types'
 
 const BASE = process.env.CALENDAR_API_URL ?? 'http://localhost:3001'
 const API_KEY = process.env.CALENDAR_API_KEY?.trim() || undefined
@@ -67,6 +67,34 @@ class ApiClient {
   }
   async listShares(token: string, id: string): Promise<unknown> {
     return this.call('GET', `/calendars/${id}/shares`, token)
+  }
+  async createLink(token: string, id: string): Promise<unknown> {
+    return this.call('POST', `/calendars/${id}/link`, token)
+  }
+  async listLinks(token: string, id: string): Promise<unknown> {
+    return this.call('GET', `/calendars/${id}/links`, token)
+  }
+  async deleteLink(token: string, id: string, linkToken: string): Promise<unknown> {
+    return this.call('DELETE', `/calendars/${id}/link/${encodeURIComponent(linkToken)}`, token)
+  }
+
+  // ---- ICS feed subscriptions ----
+  async listFeeds(token: string): Promise<unknown> {
+    return this.call('GET', '/feeds', token)
+  }
+  async createFeed(token: string, input: FeedInput): Promise<unknown> {
+    return this.call('POST', '/feeds', token, input)
+  }
+  async deleteFeed(token: string, feedId: string): Promise<unknown> {
+    return this.call('DELETE', `/feeds/${feedId}`, token)
+  }
+  async syncFeed(token: string, feedId: string): Promise<unknown> {
+    return this.call('POST', `/feeds/${feedId}/sync`, token)
+  }
+
+  // ---- public share links (no auth) ----
+  async getPublicOccurrences(token: string, from: string, to: string): Promise<unknown> {
+    return this.call('GET', `/public/${encodeURIComponent(token)}/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, null)
   }
 
   // ---- events ----
