@@ -3,7 +3,7 @@ import { useAuth, useCalendar, DEFAULT_SETTINGS } from '../store'
 import { HOLIDAY_COUNTRIES } from '../utils/holidays'
 
 const selectCls =
-  'px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent'
 
 export default function SetupDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { token } = useAuth()
@@ -113,7 +113,7 @@ export default function SetupDialog({ onClose }: { onClose: () => void }): React
                 type="checkbox"
                 checked={draft.showHolidays}
                 onChange={(e) => setDraft({ ...draft, showHolidays: e.target.checked })}
-                className="accent-blue-600"
+                className="accent-accent"
               />
               <select
                 value={draft.holidaysCountry}
@@ -168,7 +168,7 @@ export default function SetupDialog({ onClose }: { onClose: () => void }): React
           <button
             onClick={() => void save()}
             disabled={saving}
-            className="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-50"
+            className="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-accent-hover text-white font-medium disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Get started'}
           </button>

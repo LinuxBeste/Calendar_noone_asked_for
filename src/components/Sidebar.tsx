@@ -56,7 +56,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
     <div className={`${narrow ? 'w-full' : 'w-60 shrink-0'} flex flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto h-full`}>
       <button
         onClick={() => setAdding(true)}
-        className="mx-3 mt-3 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-blue-600 dark:text-blue-400 border border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+        className="mx-3 mt-3 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-accent dark:text-accent border border-gray-300 dark:border-gray-600 hover:bg-accent/10 dark:hover:bg-accent/20 transition-colors"
       >
         <span className="text-lg leading-none">+</span> Create
       </button>
@@ -73,7 +73,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
           />
           <div className="flex items-center gap-2">
             <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer" />
-            <button onClick={() => void createCalendar()} className="px-3 py-1 text-xs rounded bg-blue-600 text-white">
+            <button onClick={() => void createCalendar()} className="px-3 py-1 text-xs rounded bg-accent text-white">
               Add
             </button>
             <button onClick={() => setAdding(false)} className="px-3 py-1 text-xs rounded hover:bg-gray-200 dark:hover:bg-gray-700">
@@ -96,7 +96,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
                 type="checkbox"
                 checked={visibleCalendars[c.id] ?? true}
                 onChange={() => toggleCalendar(c.id)}
-                className="accent-blue-600"
+                className="accent-accent"
               />
               <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: c.color }} />
               <span className="flex-1 text-sm truncate text-gray-700 dark:text-gray-200">{c.name}</span>
@@ -106,7 +106,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
                     e.stopPropagation()
                     setMenu({ x: e.clientX, y: e.clientY, calendar: c })
                   }}
-                  className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 hover:text-blue-600"
+                  className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 hover:text-accent"
                   title="Calendar options"
                   aria-label="Calendar options"
                 >
@@ -123,7 +123,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
         )}
         <button
           onClick={() => setTransfer(true)}
-          className="mt-3 flex items-center gap-2 px-2 py-1.5 w-full text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+          className="mt-3 flex items-center gap-2 px-2 py-1.5 w-full text-xs text-gray-500 dark:text-gray-400 hover:text-accent hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
         >
           <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
             <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
@@ -324,7 +324,7 @@ function ShareDialog({ calendar, onClose }: { calendar: Calendar; onClose: () =>
             <option value="viewer">Viewer</option>
             <option value="editor">Editor</option>
           </select>
-          <button onClick={() => void share()} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white">
+          <button onClick={() => void share()} className="px-3 py-1.5 text-sm rounded-lg bg-accent text-white">
             Share
           </button>
         </div>

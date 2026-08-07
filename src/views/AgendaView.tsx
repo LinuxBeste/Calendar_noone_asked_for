@@ -56,10 +56,10 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
         return (
           <div key={key} className="px-6 py-3">
             <div className="flex items-center gap-2 mb-2">
-              <span className={`text-sm font-medium ${isToday(d) ? 'text-blue-600' : 'text-gray-800 dark:text-gray-100'}`}>
+              <span className={`text-sm font-medium ${isToday(d) ? 'text-accent' : 'text-gray-800 dark:text-gray-100'}`}>
                 {format(d, 'EEEE, MMMM d')}
               </span>
-              {isToday(d) && <span className="text-xs text-blue-600 bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 rounded-full">Today</span>}
+              {isToday(d) && <span className="text-xs text-accent bg-accent/15 dark:bg-accent/25 px-2 py-0.5 rounded-full">Today</span>}
             </div>
             <div className="space-y-1">
               {dayEvents.map((occ) => {

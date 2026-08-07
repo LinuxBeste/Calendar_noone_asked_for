@@ -168,7 +168,10 @@ const settingSchemas: Record<string, z.ZodType<unknown>> = {
   secondaryTimezone: z.string().max(40),
   hideWeekends: z.boolean(),
   showHolidays: z.boolean(),
-  holidaysCountry: z.string().max(4)
+  holidaysCountry: z.string().max(4),
+  accentColor: colorSchema,
+  agendaRangeDays: z.number().int().min(1).max(90),
+  monthMaxEvents: z.number().int().min(1).max(10)
 }
 
 // ---- misc ----

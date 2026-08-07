@@ -70,7 +70,7 @@ export default function FindFreeTimeDialog({ onClose }: { onClose: () => void })
   }, [onClose])
 
   const selectCls =
-    'px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500'
+    'px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent'
   const labelCls = 'text-xs text-gray-500 dark:text-gray-400 mb-1 block'
 
   return (
@@ -116,7 +116,7 @@ export default function FindFreeTimeDialog({ onClose }: { onClose: () => void })
             </select>
           </div>
           <div className="col-span-2 sm:col-span-5 flex items-center gap-2 pt-1">
-            <input id="ignore-free" type="checkbox" checked={ignoreFree} onChange={(e) => setIgnoreFree(e.target.checked)} className="accent-blue-600" />
+            <input id="ignore-free" type="checkbox" checked={ignoreFree} onChange={(e) => setIgnoreFree(e.target.checked)} className="accent-accent" />
             <label htmlFor="ignore-free" className="text-xs text-gray-600 dark:text-gray-300">Ignore events marked as free</label>
           </div>
         </div>
@@ -134,7 +134,7 @@ export default function FindFreeTimeDialog({ onClose }: { onClose: () => void })
                     <span>
                       {format(slot.start, 'EEE, MMM d')} · {fmt(slot.start)} – {fmt(slot.end)}
                     </span>
-                    <span className="text-xs text-blue-600 dark:text-blue-400">Add event +</span>
+                    <span className="text-xs text-accent dark:text-accent">Add event +</span>
                   </button>
                 </li>
               ))}

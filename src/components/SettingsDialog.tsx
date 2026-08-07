@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth, useCalendar, DEFAULT_SETTINGS } from '../store'
 import { HOLIDAY_COUNTRIES, type HolidayCountry } from '../utils/holidays'
+import { ACCENT_PRESETS, applyTheme, isDarkMode } from '../utils/theme'
 import type { ViewType } from '@shared/types'
 
 type Tab = 'general' | 'appearance' | 'hours' | 'defaults' | 'data'
@@ -16,9 +17,9 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 const TIMEZONES: string[] = Intl.supportedValuesOf('timeZone')
 
 const selectCls =
-  'px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full'
+  'px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent w-full'
 const inputCls =
-  'px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-20 text-center'
+  'px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent w-20 text-center'
 
 export default function SettingsDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { token, user } = useAuth()
@@ -46,7 +47,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
         }
       }
       setSettings(draft)
-      document.documentElement.classList.toggle('dark', isDark(draft.darkMode))
+      applyTheme(draft)
       onClose()
       void refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
     } catch (err) {
@@ -56,7 +57,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
     }
   }
 
-  const isDark = (mode: string): boolean => mode === 'dark' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const isDark = (mode: string): boolean => isDarkMode(mode)
 
   const row = 'flex items-center justify-between gap-4 py-2.5'
   const label = 'text-sm text-gray-700 dark:text-gray-200'
@@ -73,7 +74,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
               onClick={() => setTab(t.id)}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors ${
                 tab === t.id
-                  ? 'bg-blue-600 text-white font-medium'
+                  ? 'bg-accent text-white font-medium'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
@@ -127,10 +128,36 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
                 </div>
                 <div className={row}>
                   <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                    <input type="checkbox" checked={draft.showWeekNumbers} onChange={(e) => setDraft({ ...draft, showWeekNumbers: e.target.checked })} className="accent-blue-600" />
+                    <input type="checkbox" checked={draft.showWeekNumbers} onChange={(e) => setDraft({ ...draft, showWeekNumbers: e.target.checked })} className="accent-accent" />
                     Show week numbers
                     <span className={hint}>in Month view</span>
                   </label>
+                </div>
+                <div className={row}>
+                  <div>
+                    <p className={label}>Agenda view range</p>
+                    <p className={hint}>How many days ahead the agenda lists</p>
+                  </div>
+                  <select value={draft.agendaRangeDays} onChange={(e) => setDraft({ ...draft, agendaRangeDays: Number(e.target.value) })} className={selectCls + ' w-40'}>
+                    <option value={7}>7 days</option>
+                    <option value={14}>14 days</option>
+                    <option value={30}>30 days</option>
+                    <option value={60}>60 days</option>
+                  </select>
+                </div>
+                <div className={row}>
+                  <div>
+                    <p className={label}>Events per month cell</p>
+                    <p className={hint}>Max events shown before “+n more”</p>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={6}
+                    value={draft.monthMaxEvents}
+                    onChange={(e) => setDraft({ ...draft, monthMaxEvents: Math.max(1, Math.min(6, Number(e.target.value) || 3)) })}
+                    className={inputCls}
+                  />
                 </div>
               </div>
             )}
@@ -152,6 +179,38 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
                 <p className={`text-xs ${isDark(draft.darkMode) ? 'text-gray-500 dark:text-gray-400' : 'text-gray-400'}`}>
                   Preview: {isDark(draft.darkMode) ? 'dark theme will be applied' : 'light theme will be applied'}
                 </p>
+                <div className={row}>
+                  <div>
+                    <p className={label}>Accent color</p>
+                    <p className={hint}>Your custom theme — used for buttons, highlights and today</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {ACCENT_PRESETS.map((p) => (
+                      <button
+                        key={p.value}
+                        onClick={() => setDraft({ ...draft, accentColor: p.value })}
+                        title={p.name}
+                        aria-label={`Accent ${p.name}`}
+                        className={`w-6 h-6 rounded-full transition-transform hover:scale-110 ${
+                          draft.accentColor.toLowerCase() === p.value ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-gray-500' : ''
+                        }`}
+                        style={{ backgroundColor: p.value }}
+                      />
+                    ))}
+                    <label
+                      className="w-6 h-6 rounded-full cursor-pointer border border-gray-300 dark:border-gray-600 flex items-center justify-center text-[10px] text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      title="Custom color"
+                    >
+                      +
+                      <input
+                        type="color"
+                        value={draft.accentColor}
+                        onChange={(e) => setDraft({ ...draft, accentColor: e.target.value })}
+                        className="sr-only"
+                      />
+                    </label>
+                  </div>
+                </div>
                 <div className={row}>
                   <div>
                     <p className={label}>Secondary timezone</p>
@@ -185,14 +244,14 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
                 </div>
                 <div className={row}>
                   <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                    <input type="checkbox" checked={draft.hideWeekends} onChange={(e) => setDraft({ ...draft, hideWeekends: e.target.checked })} className="accent-blue-600" />
+                    <input type="checkbox" checked={draft.hideWeekends} onChange={(e) => setDraft({ ...draft, hideWeekends: e.target.checked })} className="accent-accent" />
                     Hide weekends
                     <span className={hint}>Show a 5-day week in Week view</span>
                   </label>
                 </div>
                 <div className={row}>
                   <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                    <input type="checkbox" checked={draft.showHolidays} onChange={(e) => setDraft({ ...draft, showHolidays: e.target.checked })} className="accent-blue-600" />
+                    <input type="checkbox" checked={draft.showHolidays} onChange={(e) => setDraft({ ...draft, showHolidays: e.target.checked })} className="accent-accent" />
                     Show holidays
                     <span className={hint}>Public holidays in week and month view</span>
                   </label>
@@ -289,7 +348,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
             <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200">
               Cancel
             </button>
-            <button onClick={() => void save()} disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">
+            <button onClick={() => void save()} disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-accent-hover text-white disabled:opacity-50">
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>

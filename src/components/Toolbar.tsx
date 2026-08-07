@@ -112,7 +112,8 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
   }
 
   return (
-    <div className="h-14 flex items-center gap-1 sm:gap-2 px-2 sm:px-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
+    <div className="h-14 shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-x-auto">
+      <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 h-full w-max min-w-full">
       <button
         onClick={onToggleSidebar}
         className="lg:hidden p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
@@ -125,7 +126,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
       </button>
 
       <h1 className="font-medium text-gray-800 dark:text-gray-100 mr-1 text-lg">
-        <svg viewBox="0 0 24 24" className="w-6 h-6 inline mr-1 text-blue-600" fill="currentColor">
+        <svg viewBox="0 0 24 24" className="w-6 h-6 inline mr-1 text-accent" fill="currentColor">
           <path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10z" />
         </svg>
         <span className="hidden sm:inline">Calendar</span>
@@ -133,7 +134,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
 
       <button
         onClick={() => setNewEventOpen(true)}
-        className="flex items-center gap-1 px-2 md:px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-full"
+        className="flex items-center gap-1 px-2 md:px-3 py-1.5 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-full"
         title="New event"
         aria-label="New event"
       >
@@ -177,7 +178,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
         onChange={(e) => e.target.value && setDate(new Date(e.target.value + 'T00:00:00'))}
         title="Go to date"
         aria-label="Go to date"
-        className="hidden md:block px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="hidden md:block px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-accent"
       />
 
       <div className="flex items-center gap-1">
@@ -223,7 +224,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus-within:ring-2 focus-within:ring-blue-500 w-56">
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus-within:ring-2 focus-within:ring-accent w-56">
           <span className="text-sm leading-none">⚡</span>
           <input
             ref={quickAddRef}
@@ -367,7 +368,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
           </svg>
         </button>
         <div className="relative group">
-          <button className="w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-medium flex items-center justify-center">
+          <button className="w-8 h-8 rounded-full bg-accent text-white text-sm font-medium flex items-center justify-center">
             {user?.name?.[0]?.toUpperCase() ?? '?'}
           </button>
           <div className="absolute right-0 top-10 hidden group-hover:block z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 w-44">
@@ -377,6 +378,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
             </button>
           </div>
         </div>
+      </div>
       </div>
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}

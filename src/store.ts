@@ -17,7 +17,10 @@ export const DEFAULT_SETTINGS = {
   secondaryTimezone: '',
   hideWeekends: false,
   showHolidays: false,
-  holidaysCountry: 'de' as 'de' | 'at' | 'ch' | 'us' | 'gb' | 'fr' | 'es' | 'it' | 'nl' | 'pl' | 'se' | 'jp'
+  holidaysCountry: 'de' as 'de' | 'at' | 'ch' | 'us' | 'gb' | 'fr' | 'es' | 'it' | 'nl' | 'pl' | 'se' | 'jp',
+  accentColor: '#1a73e8',
+  agendaRangeDays: 14,
+  monthMaxEvents: 3
 }
 
 export interface HistoryAction {

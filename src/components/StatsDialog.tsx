@@ -104,7 +104,7 @@ export default function StatsDialog({ onClose }: { onClose: () => void }): React
                   <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: cal?.color ?? '#1a73e8' }} />
                   <span className="text-xs text-gray-700 dark:text-gray-200 w-32 truncate">{cal?.name ?? 'Unknown'}</span>
                   <div className="flex-1 h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(count / maxCount) * 100}%` }} />
+                    <div className="h-full bg-accent rounded-full" style={{ width: `${(count / maxCount) * 100}%` }} />
                   </div>
                   <span className="text-xs text-gray-500 w-8 text-right">{count}</span>
                 </div>

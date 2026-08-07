@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --accent: 26 115 232;
+  --accent-hover: 21 101 216;
+}
+
 html,
 body,
 #root {

@@ -6,9 +6,8 @@ export default {
     extend: {
       colors: {
         accent: {
-          DEFAULT: '#1a73e8',
-          light: '#1a73e8',
-          dark: '#8ab4f8'
+          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
+          hover: 'rgb(var(--accent-hover) / <alpha-value>)'
         }
       }
     }

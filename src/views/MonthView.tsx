@@ -129,7 +129,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
         {days.map((d, i) => {
           const key = format(d, 'yyyy-MM-dd')
           const dayEvents = byDay.get(key) ?? []
-          const visible = dayEvents.slice(0, 3)
+          const visible = dayEvents.slice(0, settings.monthMaxEvents)
           const extra = dayEvents.length - visible.length
           const weekend = d.getDay() === 0 || d.getDay() === 6
           const selected = isSameDay(d, date)
@@ -183,13 +183,13 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                 }
               }}
               className={`border-b border-r border-gray-200 dark:border-gray-700 p-1 overflow-hidden cursor-pointer
-                ${weekend || holiday ? 'bg-gray-50 dark:bg-gray-800/60' : ''} ${selected ? 'ring-1 ring-inset ring-blue-500' : ''}`}
+                ${weekend || holiday ? 'bg-gray-50 dark:bg-gray-800/60' : ''} ${selected ? 'ring-1 ring-inset ring-accent' : ''}`}
             >
               <div className="flex items-start justify-between px-0.5 mb-0.5">
                 <span
                   className={`text-xs h-6 w-6 flex items-center justify-center rounded-full ${
                     isToday(d)
-                      ? 'bg-blue-600 text-white font-medium'
+                      ? 'bg-accent text-white font-medium'
                       : isSameMonth(d, date)
                         ? 'text-gray-700 dark:text-gray-200'
                         : 'text-gray-400 dark:text-gray-600'
@@ -199,7 +199,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                 </span>
                 <div className="flex flex-col items-end gap-0.5">
                   {dayEvents.length > 0 && (
-                    <span className="text-[9px] leading-none px-1 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                    <span className="text-[9px] leading-none px-1 py-0.5 rounded-full bg-accent/15 dark:bg-accent/25 text-accent dark:text-accent">
                       {dayEvents.length}
                     </span>
                   )}
@@ -261,7 +261,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                         date: d
                       })
                     }}
-                    className="text-[11px] text-gray-500 dark:text-gray-400 pl-1 hover:text-blue-600"
+                    className="text-[11px] text-gray-500 dark:text-gray-400 pl-1 hover:text-accent"
                   >
                     +{extra} more
                   </button>
@@ -313,7 +313,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                 setMoreMenu(null)
                 setDialog({ date: moreMenu.date })
               }}
-              className="w-full mt-1 px-2 py-1.5 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-left"
+              className="w-full mt-1 px-2 py-1.5 rounded-lg text-sm text-accent dark:text-accent hover:bg-accent/10 dark:hover:bg-accent/20 text-left"
             >
               + Add event
             </button>

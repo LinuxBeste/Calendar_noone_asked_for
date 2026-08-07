@@ -88,11 +88,11 @@ export default function MiniCalendar({ weekStartsOn }: MiniCalendarProps): React
               key={i}
               onClick={() => setDate(d)}
               className={`relative h-7 w-7 mx-auto rounded-full text-xs flex items-center justify-center transition-colors
-                ${selected ? 'bg-blue-600 text-white' : today ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200' : inMonth ? 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                ${selected ? 'bg-accent text-white' : today ? 'bg-accent/15 text-accent dark:bg-accent/25 dark:text-accent' : inMonth ? 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
             >
               {d.getDate()}
               {hasEvents && !selected && (
-                <span className={`absolute bottom-0.5 h-1 w-1 rounded-full ${today ? 'bg-blue-500' : 'bg-gray-400 dark:bg-gray-500'}`} />
+                <span className={`absolute bottom-0.5 h-1 w-1 rounded-full ${today ? 'bg-accent' : 'bg-gray-400 dark:bg-gray-500'}`} />
               )}
             </button>
           )

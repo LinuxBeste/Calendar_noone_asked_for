@@ -162,7 +162,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }): Re
               className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
             >
               <span className="text-gray-800 dark:text-gray-100">Jump to {format(dateJump, 'EEEE, MMMM d, yyyy')}</span>
-              <span className="text-xs text-blue-600 dark:text-blue-400">Go ↵</span>
+              <span className="text-xs text-accent dark:text-accent">Go ↵</span>
             </button>
           )}
           {filtered.length === 0 && !dateJump && <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">No commands match “{query}”</p>}
@@ -183,7 +183,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }): Re
                         onClose()
                       }}
                       className={`w-full flex items-center justify-between px-4 py-2 text-sm text-left ${
-                        idx === active ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                        idx === active ? 'bg-accent/10 dark:bg-accent/25/30' : ''
                       }`}
                     >
                       <span className="text-gray-800 dark:text-gray-100">{c.label}</span>

@@ -235,9 +235,10 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-x-auto">
       <div className="flex shrink-0 border-b border-gray-200 dark:border-gray-700">
         <div className="w-12 shrink-0" />
-        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${dayColumns.length}, 1fr)` }}>
+        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${dayColumns.length}, minmax(120px, 1fr))` }}>
           {dayColumns.map((d, i) => {
             const key = format(d, 'yyyy-MM-dd')
             const weekend = d.getDay() === 0 || d.getDay() === 6
@@ -247,7 +248,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                 key={i}
                 className={`border-l border-gray-200 dark:border-gray-700 py-1 text-center ${weekend || holiday ? 'bg-gray-50 dark:bg-gray-800/60' : ''}`}
               >
-                <div className={`text-sm ${isToday(d) ? 'text-blue-600 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
+                <div className={`text-sm ${isToday(d) ? 'text-accent font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
                   {format(d, 'EEE')}
                   {settings.showWeekNumbers && days === 7 && (
                     <span className="ml-1 text-[9px] text-gray-400 dark:text-gray-500">W{isoWeekNumber(d)}</span>
@@ -255,7 +256,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                 </div>
                 <div
                   className={`mx-auto h-7 w-7 flex items-center justify-center rounded-full text-sm ${
-                    isToday(d) ? 'bg-blue-600 text-white font-medium' : 'text-gray-700 dark:text-gray-200'
+                    isToday(d) ? 'bg-accent text-white font-medium' : 'text-gray-700 dark:text-gray-200'
                   }`}
                 >
                   {d.getDate()}
@@ -302,7 +303,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
           ))}
         </div>
 
-        <div className="flex-1 relative" style={{ display: 'grid', gridTemplateColumns: `repeat(${dayColumns.length}, 1fr)` }}>
+        <div className="flex-1 relative" style={{ display: 'grid', gridTemplateColumns: `repeat(${dayColumns.length}, minmax(120px, 1fr))` }}>
           {Array.from({ length: 24 }, (_, h) => (
             <div key={h} className="absolute left-0 right-0 border-t border-gray-200 dark:border-gray-700" style={{ top: h * 60 * PX_PER_MIN }} />
           ))}
@@ -484,6 +485,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {dialog && <EventDialog event={dialog.event} defaultDate={dialog.date} occurrence={dialog.occurrence} onClose={() => setDialog(null)} />}

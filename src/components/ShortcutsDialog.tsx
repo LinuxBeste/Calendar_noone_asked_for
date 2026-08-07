@@ -38,7 +38,7 @@ export default function ShortcutsDialog({ onClose }: { onClose: () => void }): R
         <div className="flex justify-end mt-5">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
+            className="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-accent-hover text-white"
           >
             Close
           </button>

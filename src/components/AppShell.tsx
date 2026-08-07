@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useCalendar, useAuth, DEFAULT_SETTINGS } from '../store'
+import { applyTheme } from '../utils/theme'
+import NavRail from './NavRail'
 import Sidebar from './Sidebar'
 import Toolbar from './Toolbar'
 import MonthView from '../views/MonthView'
@@ -86,15 +88,12 @@ export default function AppShell(): React.JSX.Element {
   }, [token, setSettings])
 
   useEffect(() => {
-    const apply = (): void => {
-      const dark = settings.darkMode === 'dark' || (settings.darkMode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      document.documentElement.classList.toggle('dark', dark)
-    }
-    apply()
+    applyTheme(settings)
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const apply = (): void => applyTheme(settings)
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
-  }, [settings.darkMode])
+  }, [settings.darkMode, settings.accentColor])
 
   useEffect(() => {
     if (!token) return
@@ -140,7 +139,7 @@ export default function AppShell(): React.JSX.Element {
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       <Toolbar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
       {dragOver && (
-        <div className="pointer-events-none fixed inset-0 z-[80] bg-blue-600/20 border-4 border-dashed border-blue-500 flex items-center justify-center">
+        <div className="pointer-events-none fixed inset-0 z-[80] bg-accent/20 border-4 border-dashed border-accent flex items-center justify-center">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl px-8 py-6 text-center">
             <p className="text-2xl mb-1">📅</p>
             <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Drop the .ics file to import its events</p>
@@ -149,17 +148,18 @@ export default function AppShell(): React.JSX.Element {
       )}
       {token && calendars.length === 0 && (
         <div className="h-0.5 bg-gray-100 dark:bg-gray-700 overflow-hidden shrink-0">
-          <div className="h-full w-1/3 bg-blue-600 animate-[loading-slide_1s_ease-in-out_infinite]" />
+          <div className="h-full w-1/3 bg-accent animate-[loading-slide_1s_ease-in-out_infinite]" />
         </div>
       )}
       <div className="flex-1 flex overflow-hidden">
+        <NavRail />
         <Sidebar open={sidebarOpen} narrow={narrow} onClose={() => setSidebarOpen(false)} />
-        <main className="flex-1 flex overflow-hidden">
+        <main className="flex-1 flex min-w-0 overflow-hidden">
           {view === 'month' && <MonthView date={date} />}
           {view === 'week' && <WeekView date={date} days={7} />}
           {view === 'day' && <WeekView date={date} days={1} />}
           {view === 'year' && <YearView date={date} />}
-          {view === 'agenda' && <AgendaView date={date} days={14} />}
+          {view === 'agenda' && <AgendaView date={date} days={settings.agendaRangeDays} />}
         </main>
       </div>
     </div>

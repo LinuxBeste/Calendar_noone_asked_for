@@ -42,7 +42,7 @@ export default function YearView({ date }: YearViewProps): React.JSX.Element {
         {months.map((month) => (
           <div key={month.name} className="text-sm">
             <h3 className="font-medium text-gray-800 dark:text-gray-100 mb-2">
-              <button onClick={() => jump(new Date(date.getFullYear(), new Date(`${date.getFullYear()}-${month.name}-01`)?.getMonth() ?? 0, 1))} className="hover:text-blue-600">
+              <button onClick={() => jump(new Date(date.getFullYear(), new Date(`${date.getFullYear()}-${month.name}-01`)?.getMonth() ?? 0, 1))} className="hover:text-accent">
                 {month.name}
               </button>
             </h3>
@@ -60,7 +60,7 @@ export default function YearView({ date }: YearViewProps): React.JSX.Element {
                     key={i}
                     onClick={() => jump(d)}
                     className={`h-6 w-6 mx-auto flex items-center justify-center rounded-full text-xs ${
-                      isToday(d) ? 'bg-blue-600 text-white font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      isToday(d) ? 'bg-accent text-white font-medium' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     {d.getDate()}

@@ -295,7 +295,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
   }
 
   const inputCls =
-    'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50'
+    'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent text-sm disabled:opacity-50'
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
@@ -324,7 +324,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
             </svg>
             <div className="flex-1 space-y-2">
               <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} disabled={!editable} className="accent-blue-600" />
+                <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} disabled={!editable} className="accent-accent" />
                 All day
               </label>
               <div className="flex gap-2">
@@ -432,7 +432,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
                   key={em}
                   onClick={() => setIcon(em === icon ? '' : em)}
                   disabled={!editable}
-                  className={`text-lg leading-none w-7 h-7 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 ${icon === em ? 'bg-gray-100 dark:bg-gray-700 ring-1 ring-blue-500' : ''}`}
+                  className={`text-lg leading-none w-7 h-7 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 ${icon === em ? 'bg-gray-100 dark:bg-gray-700 ring-1 ring-accent' : ''}`}
                   title={em}
                 >
                   {em}
@@ -466,7 +466,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
               ))}
             </div>
             <label className="ml-2 flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
-              <input type="checkbox" checked={busy} onChange={(e) => setBusy(e.target.checked)} disabled={!editable} className="accent-blue-600" />
+              <input type="checkbox" checked={busy} onChange={(e) => setBusy(e.target.checked)} disabled={!editable} className="accent-accent" />
               Busy
             </label>
           </div>
@@ -528,7 +528,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
                     disabled={!editable}
                     className={`px-2 py-1 text-xs rounded-full border ${
                       editMode === mode
-                        ? 'bg-blue-600 text-white border-blue-600'
+                        ? 'bg-accent text-white border-accent'
                         : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
@@ -566,7 +566,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
               Cancel
             </button>
             {editable && (
-              <button onClick={() => void save()} disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">
+              <button onClick={() => void save()} disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-accent-hover text-white disabled:opacity-50">
                 {saving ? 'Saving…' : 'Save'}
               </button>
             )}
