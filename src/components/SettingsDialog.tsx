@@ -15,6 +15,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
   const { token, user } = useAuth()
   const { settings, setSettings, refreshEvents, calendars } = useCalendar()
   const [tab, setTab] = useState(SETTING_CATEGORIES[0]!.id)
+  const [search, setSearch] = useState('')
   const [draft, setDraft] = useState(settings)
   const [info, setInfo] = useState<{ using: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -24,6 +25,14 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
     if (!token) return
     void window.calendarApi.appInfo().then((i) => setInfo(i as { using: string })).catch(() => undefined)
   }, [token])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   const save = async (): Promise<void> => {
     if (!token) return
@@ -71,14 +80,23 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
     return []
   }
 
+  const q = search.trim().toLowerCase()
+  const matches = (def: SettingDef): boolean =>
+    q.length === 0 || def.label.toLowerCase().includes(q) || (def.hint ?? '').toLowerCase().includes(q) || def.key.toLowerCase().includes(q)
+  const groups = q.length === 0
+    ? [{ category: SETTING_CATEGORIES.find((c) => c.id === tab)!, defs: SETTING_DEFS.filter((d) => d.category === tab) }]
+    : SETTING_CATEGORIES
+        .map((c) => ({ category: c, defs: SETTING_DEFS.filter((d) => d.category === c.id && matches(d)) }))
+        .filter((g) => g.defs.length > 0)
+
   const renderControl = (def: SettingDef): React.JSX.Element => {
     const value = draft[def.key as keyof typeof DEFAULT_SETTINGS]
     switch (def.type) {
       case 'boolean':
         return (
-          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+          <label className="flex items-center text-sm text-gray-700 dark:text-gray-200" title={def.label}>
             <input type="checkbox" checked={!!value} onChange={(e) => update(def.key, e.target.checked)} className="accent-accent" />
-            {def.label}
+            <span className="sr-only">{def.label}</span>
           </label>
         )
       case 'number':
@@ -153,14 +171,17 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-[820px] max-w-[94vw] h-[600px] max-h-[90vh] flex overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <aside className="w-48 shrink-0 border-r border-gray-200 dark:border-gray-700 p-3 flex flex-col gap-1 bg-gray-50 dark:bg-gray-900/40 overflow-y-auto">
-          <h2 className="text-sm font-medium text-gray-900 dark:text-gray-100 px-3 py-2">Settings</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-[820px] max-w-[94vw] h-[600px] max-h-[90vh] flex flex-col md:flex-row overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <aside className="md:w-48 md:shrink-0 md:border-r border-b md:border-b-0 border-gray-200 dark:border-gray-700 p-3 flex md:flex-col gap-1 bg-gray-50 dark:bg-gray-900/40 overflow-x-auto md:overflow-y-auto">
+          <h2 className="hidden md:block text-sm font-medium text-gray-900 dark:text-gray-100 px-3 py-2">Settings</h2>
           {SETTING_CATEGORIES.map((c) => (
             <button
               key={c.id}
-              onClick={() => setTab(c.id)}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors ${
+              onClick={() => {
+                setTab(c.id)
+                setSearch('')
+              }}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors whitespace-nowrap ${
                 tab === c.id
                   ? 'bg-accent text-white font-medium'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -173,30 +194,51 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
             </button>
           ))}
           <div className="flex-1" />
-          <p className="text-[10px] text-gray-400 dark:text-gray-500 px-3">Signed in as {user?.email}</p>
+          <p className="hidden md:block text-[10px] text-gray-400 dark:text-gray-500 px-3">Signed in as {user?.email}</p>
         </aside>
 
         <main className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="p-4 md:p-6 pb-0">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search settings…"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 md:p-6">
             {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
-            <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-2">{SETTING_CATEGORIES.find((c) => c.id === tab)?.label}</h3>
-            <div className="space-y-1">
-              {SETTING_DEFS.filter((d) => d.category === tab).map((def) => (
-                <div key={def.key} className={row}>
-                  <div>
-                    <p className={label}>{def.label}</p>
-                    {def.hint && <p className={hint}>{def.hint}</p>}
-                  </div>
-                  <div className="shrink-0">{renderControl(def)}</div>
+            {groups.map((g) => (
+              <div key={g.category.id} className="mb-5">
+                {q.length > 0 && (
+                  <h4 className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1">{g.category.label}</h4>
+                )}
+                {q.length === 0 && (
+                  <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-2">{g.category.label}</h3>
+                )}
+                <div className="space-y-1">
+                  {g.defs.map((def) => (
+                    <div key={def.key} className={row}>
+                      <div>
+                        <p className={label}>{def.label}</p>
+                        {def.hint && <p className={hint}>{def.hint}</p>}
+                      </div>
+                      <div className="shrink-0">{renderControl(def)}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            {tab === 'appearance' && (
+              </div>
+            ))}
+            {q.length > 0 && groups.length === 0 && (
+              <p className="text-sm text-gray-400 dark:text-gray-500">No settings match “{search.trim()}”.</p>
+            )}
+            {tab === 'appearance' && q.length === 0 && (
               <p className={`text-xs ${isDark(String(draft.darkMode)) ? 'text-gray-500 dark:text-gray-400' : 'text-gray-400'}`}>
                 Preview: {isDark(String(draft.darkMode)) ? 'dark theme will be applied' : 'light theme will be applied'}
               </p>
             )}
-            {tab === 'privacy' && <p className={hint + ' pt-3'}>Import/Export of your data is available in the sidebar under "Import / Export".</p>}
+            {tab === 'privacy' && q.length === 0 && <p className={hint + ' pt-3'}>Import/Export of your data is available in the sidebar under "Import / Export".</p>}
           </div>
 
           <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 dark:border-gray-700 shrink-0">

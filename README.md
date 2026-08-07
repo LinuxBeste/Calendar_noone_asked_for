@@ -112,15 +112,22 @@ the backend over HTTP (login, all views, editing, search, undo, sharing,
 import/export, settings). If the backend is unreachable, a connection screen
 lets you enter the server URL (stored in `localStorage`).
 
-The Android app is the same web client wrapped in Capacitor:
+The Android app is the same web client wrapped in Capacitor, with mobile
+extras: touch drag & drop (drag-to-create via long-press, move/resize events),
+native notifications for reminders (works while the app is in the background),
+a native share sheet for public calendar links, a hardware back button (closes
+dialogs → previous view → minimize), and a responsive layout from phones to
+tablets to desktops.
 
 ```bash
 npm run build:android     # builds web client + syncs into the Android project
 npm run android:run       # …then opens Android Studio (needs the Android SDK + JDK)
 ```
 
-Point the app at your backend (`http://10.0.2.2:3001` on the emulator, or your
-computer's LAN IP from a device). Cleartext HTTP is enabled for local backends.
+Point the app at your backend (`http://10.0.2.2:3001` is the default on the
+Android emulator, or enter your computer's LAN IP from a device — the
+connection screen and Settings → API URL both work). Cleartext HTTP is enabled
+for local backends.
 
 ## Testing
 

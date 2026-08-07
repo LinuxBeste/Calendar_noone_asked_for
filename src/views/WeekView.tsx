@@ -3,6 +3,8 @@ import { format, isSameDay, isToday, differenceInCalendarDays, startOfDay, endOf
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays, isoWeekNumber } from '../utils/date'
 import { holidaysBetween } from '../utils/holidays'
+import { attachPointerDrag } from '../lib/pointer-drag'
+import { isTouchDevice } from '../lib/platform'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 import ContextMenu from '../components/ContextMenu'
@@ -44,6 +46,17 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const [now, setNow] = useState(new Date())
   const scrollRef = useRef<HTMLDivElement>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [ghost, setGhost] = useState<{ id: string; title: string; x: number; y: number } | null>(null)
+  const dragSessions = useRef(new Map<string, ReturnType<typeof attachPointerDrag>>())
+  const suppressClickRef = useRef(false)
+
+  const consumeClick = (): boolean => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return true
+    }
+    return false
+  }
 
   const pxPerMin = BASE_PX_PER_MIN * zoom
 
@@ -119,6 +132,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     const cols = [...iterateDays(from, to)]
     return settings.hideWeekends && days === 7 ? cols.filter((d) => d.getDay() !== 0 && d.getDay() !== 6) : cols
   }, [from, to, settings.hideWeekends, days])
+  const colMin = `min(${settings.dayColumnMinWidth}px, ${100 / Math.max(dayColumns.length, 1)}%)`
 
   const holidays = useMemo(() => (settings.showHolidays ? holidaysBetween(from, to, settings.holidaysCountry) : new Map<string, string>()), [from, to, settings.showHolidays, settings.holidaysCountry])
 
@@ -292,13 +306,118 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     return role === 'owner' || role === 'editor'
   }
 
+  const applyAllDayMove = (ev: Event, occ: EventOccurrence, day: Date): void => {
+    const dayKey = format(day, 'yyyy-MM-dd')
+    const push = useCalendar.getState().pushHistory
+    const finish = (): void => {
+      void refreshEvents(toISO(from), toISO(to))
+    }
+    const fail = (err: unknown): void => toast(err instanceof Error ? err.message : 'Move failed', 'error')
+    if (ev.rrule) {
+      const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
+      void window.calendarApi.events
+        .updateOccurrence(token!, ev.id, sourceDay, { startDate: dayKey, endDate: dayKey, allDay: true })
+        .then(() => {
+          push({ op: 'occurrence', eventId: ev.id, occurrence: sourceDay, before: { allDay: false, startsAt: occ.start, endsAt: occ.end }, after: { allDay: true, startDate: dayKey, endDate: dayKey } })
+          finish()
+        })
+        .catch(fail)
+    } else {
+      const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
+      void window.calendarApi.events
+        .update(token!, ev.id, {
+          startDate: dayKey,
+          endDate: dur > 86400000 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey
+        })
+        .then(() => {
+          push({ op: 'update', eventId: ev.id, before: { startsAt: occ.start, endsAt: occ.end }, after: { startDate: dayKey, endDate: dayKey, allDay: true } })
+          finish()
+        })
+        .catch(fail)
+    }
+  }
+
+  const applyTimedMove = (ev: Event, occ: EventOccurrence, start: Date): void => {
+    const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
+    const end = new Date(start.getTime() + dur)
+    const finish = (): void => {
+      void refreshEvents(toISO(from), toISO(to))
+    }
+    const fail = (err: unknown): void => toast(err instanceof Error ? err.message : 'Move failed', 'error')
+    if (ev.rrule) {
+      const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
+      void window.calendarApi.events
+        .updateOccurrence(token!, ev.id, sourceDay, { startsAt: start.toISOString(), endsAt: end.toISOString() })
+        .then(() => {
+          useCalendar.getState().pushHistory({ op: 'occurrence', eventId: ev.id, occurrence: sourceDay, before: { startsAt: occ.start, endsAt: occ.end }, after: { startsAt: start.toISOString(), endsAt: end.toISOString() } })
+          finish()
+        })
+        .catch(fail)
+    } else {
+      void moveEvent(ev, start)
+    }
+  }
+
+  const handleDrop = (day: Date, clientY: number | undefined, raw: string): void => {
+    if (!raw || !token) return
+    const { id, allDay } = JSON.parse(raw) as { id: string; allDay?: boolean }
+    const occ = events.find((x) => x.event.id === id)
+    if (!occ) return
+    const ev = occ.event
+    if (allDay) {
+      applyAllDayMove(ev, occ, day)
+      return
+    }
+    if (clientY === undefined) return
+    const dayEl = document.querySelector(`[data-daycol="${format(day, 'yyyy-MM-dd')}"]`)
+    if (!dayEl) return
+    const rect = dayEl.getBoundingClientRect()
+    const mins = Math.max(0, Math.min(1439, Math.round(((clientY - rect.top) / pxPerMin) / snap) * snap))
+    const start = new Date(day)
+    start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
+    applyTimedMove(ev, occ, start)
+  }
+
+  const startChipDrag = (e: React.PointerEvent, ev: Event, occ: EventOccurrence, allDayDrop: boolean): void => {
+    if (e.pointerType !== 'touch') return
+    if (!token) return
+    const chip = e.currentTarget as HTMLElement
+    attachPointerDrag(chip, e.pointerId, e.pointerType, e.clientX, e.clientY, {
+      onClaim() {
+        suppressClickRef.current = true
+      },
+      onMove(x, y) {
+        setGhost({ id: ev.id, title: ev.title, x, y })
+      },
+      onEnd(x, y) {
+        setGhost(null)
+        const el = document.elementFromPoint(x, y) as HTMLElement | null
+        const col = el?.closest('[data-daycol]') as HTMLElement | null
+        if (!col || !col.dataset.daycol) return
+        const day = parseDayKey(col.dataset.daycol)
+        if (!day) return
+        if (allDayDrop) applyAllDayMove(ev, occ, day)
+        else {
+          const rect = col.getBoundingClientRect()
+          const mins = Math.max(0, Math.min(1439, Math.round(((y - rect.top) / pxPerMin) / snap) * snap))
+          const start = new Date(day)
+          start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
+          applyTimedMove(ev, occ, start)
+        }
+      },
+      onCancel() {
+        setGhost(null)
+      }
+    })
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
       <div className="flex-1 flex flex-col min-h-0 overflow-x-auto">
       {settings.showDayHeaders && (
       <div className="flex shrink-0 border-b border-gray-200 dark:border-gray-700">
         <div className={`${gutterWidth} shrink-0`} />
-        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${dayColumns.length}, minmax(${settings.dayColumnMinWidth}px, 1fr))` }}>
+        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${dayColumns.length}, minmax(${colMin}, 1fr))` }}>
           {dayColumns.map((d, i) => {
             const key = format(d, 'yyyy-MM-dd')
             const weekend = d.getDay() === 0 || d.getDay() === 6
@@ -306,6 +425,13 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
             return (
               <div
                 key={i}
+                data-daycol={key}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleDrop(d, e.clientY, e.dataTransfer.getData('application/x-cal-event'))
+                }}
                 className={`border-l border-gray-200 dark:border-gray-700 py-1 text-center ${(settings.weekendShading && weekend) || (settings.holidayShading && holiday) ? 'bg-gray-50 dark:bg-gray-800/60' : ''}`}
               >
                 <div className={`text-sm ${isToday(d) ? 'text-accent font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
@@ -335,14 +461,18 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       return (
                         <button
                           key={ev.id + d.toISOString()}
-                          onClick={() => setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })}
-                          draggable={editableFor(ev) && settings.dragAndDropEnabled}
+                          onClick={() => {
+                            if (consumeClick()) return
+                            setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+                          }}
+                          onPointerDown={(e) => startChipDrag(e, ev, occ, true)}
+                          draggable={!isTouchDevice() && editableFor(ev) && settings.dragAndDropEnabled}
                           onDragStart={(e) => {
                             e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: true }))
                             e.dataTransfer.effectAllowed = 'move'
                           }}
+                          style={{ backgroundColor: color + barAlpha, color, touchAction: editableFor(ev) && settings.dragAndDropEnabled ? 'none' : 'auto' }}
                           className={`w-full text-left text-[11px] px-1 py-0.5 truncate rounded hover:shadow ${continues ? '' : 'rounded-r-full'}`}
-                          style={{ backgroundColor: color + barAlpha, color }}
                           title={settings.showEventTooltips ? ev.title : undefined}
                         >
                           {ev.title}
@@ -367,7 +497,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
           ))}
         </div>
 
-        <div className="flex-1 relative" style={{ display: 'grid', gridTemplateColumns: `repeat(${dayColumns.length}, minmax(${settings.dayColumnMinWidth}px, 1fr))` }}>
+        <div className="flex-1 relative" style={{ display: 'grid', gridTemplateColumns: `repeat(${dayColumns.length}, minmax(${colMin}, 1fr))` }}>
           {Array.from({ length: 24 }, (_, h) => (
             <div key={h} className={`absolute left-0 right-0 border-t border-gray-200 dark:border-gray-700 ${settings.hourLineStyle === 'dashed' ? 'border-dashed' : ''}`} style={{ top: h * 60 * pxPerMin }} />
           ))}
@@ -394,6 +524,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                 key={i}
                 className={`relative border-l border-gray-200 dark:border-gray-700 cursor-pointer ${(settings.weekendShading && weekend) || (settings.holidayShading && holiday) ? 'bg-gray-100/50 dark:bg-gray-900/40' : ''}`}
                 onClick={(e) => {
+                  if (consumeClick()) return
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                   const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / snap) * snap))
                   const start = new Date(d)
@@ -410,82 +541,46 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   setGridMenu({ x: e.clientX, y: e.clientY, date: start })
                 }}
                 onDragOver={(e) => e.preventDefault()}
-                onMouseDown={(e) => {
-                  if (e.button !== 0) return
+                onPointerDown={(e) => {
+                  if (e.pointerType === 'mouse' && e.button !== 0) return
                   const t = e.target as HTMLElement
                   if (t.closest('[draggable]') || t.closest('.rounded-md')) return
                   const col = e.currentTarget as HTMLElement
                   const rect = col.getBoundingClientRect()
                   const raw = (e.clientY - rect.top) / pxPerMin
                   const startMins = settings.newEventsUseSnap ? Math.round(raw / snap) * snap : Math.round(raw)
-                  const state = { key, startMins, curMins: startMins }
-                  setDragCreate(state)
-                  const onMove = (ev: MouseEvent): void => {
-                    const r = col.getBoundingClientRect()
-                    setDragCreate({ ...state, curMins: Math.max(0, Math.min(1440, Math.round((ev.clientY - r.top) / pxPerMin))) })
-                  }
-                  const onUp = (ev: MouseEvent): void => {
-                    window.removeEventListener('mousemove', onMove)
-                    window.removeEventListener('mouseup', onUp)
-                    setDragCreate(null)
-                    const r = col.getBoundingClientRect()
-                    const endMins = Math.max(0, Math.min(1440, Math.round((ev.clientY - r.top) / pxPerMin)))
-                    const dur = Math.round(Math.abs(endMins - state.startMins) / snap) * snap
-                    if (dur < snap) return
-                    const start = new Date(d)
-                    start.setHours(Math.floor(Math.min(state.startMins, endMins) / 60), Math.min(state.startMins, endMins) % 60, 0, 0)
-                    setDialog({ defaultStart: start.toISOString(), defaultDuration: dur })
-                  }
-                  window.addEventListener('mousemove', onMove)
-                  window.addEventListener('mouseup', onUp)
+                  if (!settings.dragAndDropEnabled) return
+                  if (e.pointerType !== 'touch') e.preventDefault()
+                  const session = attachPointerDrag(col, e.pointerId, e.pointerType, e.clientX, e.clientY, {
+                    onClaim() {
+                      suppressClickRef.current = true
+                      setDragCreate({ key, startMins, curMins: startMins })
+                    },
+                    onMove(_x, y) {
+                      const r = col.getBoundingClientRect()
+                      setDragCreate((s) => (s ? { ...s, curMins: Math.max(0, Math.min(1440, Math.round((y - r.top) / pxPerMin))) } : s))
+                    },
+                    onEnd(_x, y) {
+                      dragSessions.current.delete(key)
+                      setDragCreate(null)
+                      const r = col.getBoundingClientRect()
+                      const endMins = Math.max(0, Math.min(1440, Math.round((y - r.top) / pxPerMin)))
+                      const dur = Math.round(Math.abs(endMins - startMins) / snap) * snap
+                      if (dur < snap) return
+                      const start = new Date(d)
+                      start.setHours(Math.floor(Math.min(startMins, endMins) / 60), Math.min(startMins, endMins) % 60, 0, 0)
+                      setDialog({ defaultStart: start.toISOString(), defaultDuration: dur })
+                    },
+                    onCancel() {
+                      dragSessions.current.delete(key)
+                      setDragCreate(null)
+                    }
+                  })
+                  dragSessions.current.set(key, session)
                 }}
                 onDrop={(e) => {
                   e.preventDefault()
-                  const raw = e.dataTransfer.getData('application/x-cal-event')
-                  if (!raw) return
-                  const { id, allDay } = JSON.parse(raw) as { id: string; allDay?: boolean }
-                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / snap) * snap))
-                  const start = new Date(d)
-                  start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
-                  const occ = events.find((x) => x.event.id === id)
-                  if (!occ) return
-                  const ev = occ.event
-                  const dayKey = format(d, 'yyyy-MM-dd')
-                  if (allDay) {
-                    void (async () => {
-                      try {
-                        const push = useCalendar.getState().pushHistory
-                        if (ev.rrule) {
-                          const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
-                          await window.calendarApi.events.updateOccurrence(token!, id, sourceDay, { startDate: dayKey, endDate: dayKey, allDay: true })
-                          push({ op: 'occurrence', eventId: id, occurrence: sourceDay, before: { allDay: false, startsAt: occ.start, endsAt: occ.end }, after: { allDay: true, startDate: dayKey, endDate: dayKey } })
-                        } else {
-                          const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
-                          await window.calendarApi.events.update(token!, id, {
-                            startDate: dayKey,
-                            endDate: dur > 86400000 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey
-                          })
-                          push({ op: 'update', eventId: id, before: { startsAt: occ.start, endsAt: occ.end }, after: { startDate: dayKey, endDate: dayKey, allDay: true } })
-                        }
-                        void refreshEvents(toISO(from), toISO(to))
-                      } catch (err) {
-                        toast(err instanceof Error ? err.message : 'Move failed', 'error')
-                      }
-                    })()
-                  } else if (ev.rrule) {
-                    const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
-                    const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
-                    window.calendarApi.events.updateOccurrence(token!, id, sourceDay, {
-                      startsAt: start.toISOString(),
-                      endsAt: new Date(start.getTime() + dur).toISOString()
-                    }).then(() => {
-                      useCalendar.getState().pushHistory({ op: 'occurrence', eventId: id, occurrence: sourceDay, before: { startsAt: occ.start, endsAt: occ.end }, after: { startsAt: start.toISOString(), endsAt: new Date(start.getTime() + dur).toISOString() } })
-                      void refreshEvents(toISO(from), toISO(to))
-                    }).catch((err: unknown) => toast(err instanceof Error ? err.message : 'Move failed', 'error'))
-                  } else {
-                    void moveEvent(ev, start)
-                  }
+                  handleDrop(d, e.clientY, e.dataTransfer.getData('application/x-cal-event'))
                 }}
                 data-daycol={key}
               >
@@ -498,6 +593,14 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                     }}
                   />
                 )}
+                {ghost && (
+                  <div
+                    className="pointer-events-none fixed z-[60] max-w-[60vw] truncate rounded-md border border-accent bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-800 dark:text-gray-100 shadow-lg"
+                    style={{ left: ghost.x + 10, top: ghost.y - 24 }}
+                  >
+                    {ghost.title}
+                  </div>
+                )}
                 {positioned.get(key)?.map((p) => {
                   const cal = calendarById.get(p.event.calendarId)
                   const color = p.event.color ?? cal?.color ?? '#1a73e8'
@@ -509,6 +612,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                     <div
                       key={p.event.id}
                       onClick={(e) => {
+                        if (consumeClick()) return
                         e.stopPropagation()
                         setDialog({ event: p.event, occurrence: key })
                       }}
@@ -520,7 +624,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       }}
                       onMouseEnter={(e) => showHover(e.currentTarget, p.occ)}
                       onMouseLeave={hideHoverSoon}
-                      draggable={editable && settings.dragAndDropEnabled}
+                      onPointerDown={(e) => startChipDrag(e, p.event, p.occ, false)}
+                      draggable={!isTouchDevice() && editable && settings.dragAndDropEnabled}
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: p.event.id, allDay: false }))
                         e.dataTransfer.effectAllowed = 'move'
@@ -538,6 +643,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                         borderStyle: free ? 'dashed' : undefined,
                         borderWidth: free ? 1 : undefined,
                         borderColor: 'rgba(255,255,255,0.6)',
+                        touchAction: editable && settings.dragAndDropEnabled ? 'none' : 'auto',
                         zIndex: 10
                       }}
                       title={settings.showEventTooltips ? `${p.event.title}\n${format(new Date(p.event.startsAt!), 'HH:mm')} – ${format(new Date(p.event.endsAt!), 'HH:mm')}${p.event.location ? '\n' + p.event.location : ''}${p.event.description ? '\n' + p.event.description : ''}` : undefined}
@@ -553,26 +659,33 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       </div>
                       {editable && settings.resizeEnabled && (p.endMin - p.startMin) * pxPerMin > 28 && (
                         <div
-                          className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 bg-black/20"
-                          onMouseDown={(e) => {
+                          className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-100 sm:opacity-0 sm:group-hover:opacity-100 bg-black/20"
+                          onPointerDown={(e) => {
                             e.stopPropagation()
-                            const colEl = e.currentTarget.closest('[data-daycol]') as HTMLElement
+                            e.preventDefault()
+                            const colEl = e.currentTarget.closest('[data-daycol]') as HTMLElement | null
                             if (!colEl) return
                             const startY = e.clientY
                             const origEnd = new Date(p.event.endsAt!).getTime()
-                            const onMove = (ev: MouseEvent): void => {
-                              const dy = ev.clientY - startY
-                              const newEnd = new Date(origEnd + dy / pxPerMin * 60000)
-                              newEnd.setMinutes(Math.round(newEnd.getMinutes() / settings.snapInterval) * settings.snapInterval)
-                              if (newEnd <= new Date(p.event.startsAt!)) return
-                              void resizeEvent(p.event, newEnd)
-                            }
-                            const onUp = (): void => {
-                              window.removeEventListener('mousemove', onMove)
-                              window.removeEventListener('mouseup', onUp)
-                            }
-                            window.addEventListener('mousemove', onMove)
-                            window.addEventListener('mouseup', onUp)
+                            const session = attachPointerDrag(e.currentTarget as HTMLElement, e.pointerId, e.pointerType, e.clientX, e.clientY, {
+                              onClaim() {
+                                suppressClickRef.current = true
+                              },
+                              onMove(_x, y) {
+                                const dy = y - startY
+                                const newEnd = new Date(origEnd + (dy / pxPerMin) * 60000)
+                                newEnd.setMinutes(Math.round(newEnd.getMinutes() / settings.snapInterval) * settings.snapInterval)
+                                if (newEnd <= new Date(p.event.startsAt!)) return
+                                void resizeEvent(p.event, newEnd)
+                              },
+                              onEnd() {
+                                dragSessions.current.delete('resize-' + p.event.id)
+                              },
+                              onCancel() {
+                                dragSessions.current.delete('resize-' + p.event.id)
+                              }
+                            })
+                            dragSessions.current.set('resize-' + p.event.id, session)
                           }}
                         />
                       )}
@@ -697,4 +810,11 @@ function occDaySpan(occ: EventOccurrence, day: Date): boolean {
   const dayKey = format(day, 'yyyy-MM-dd')
   const start = format(new Date(occ.start), 'yyyy-MM-dd')
   return start <= dayKey && format(new Date(occ.end), 'yyyy-MM-dd') >= dayKey
+}
+
+function parseDayKey(key: string | undefined): Date | null {
+  if (!key) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key)
+  if (!m) return null
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
 }

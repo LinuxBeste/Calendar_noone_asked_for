@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth, useCalendar } from '../store'
 import { toast } from '../toasts'
+import { nativeShare } from '../lib/platform'
 import MiniCalendar from './MiniCalendar'
 import ContextMenu from './ContextMenu'
 import ConfirmDialog from './ConfirmDialog'
@@ -52,6 +53,15 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
     loadFeeds()
     return () => window.removeEventListener('calendar:trash', openTrash)
   }, [])
+
+  useEffect(() => {
+    if (!(narrow && open)) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [narrow, open, onClose])
 
   const addFeed = async (): Promise<void> => {
     if (!token || !feedUrl.trim() || !feedTarget) return
@@ -396,6 +406,14 @@ function LinkDialog({ calendar, onClose }: { calendar: Calendar; onClose: () => 
     void load()
   }, [])
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const create = async (): Promise<void> => {
     if (!token) return
     try {
@@ -416,6 +434,14 @@ function LinkDialog({ calendar, onClose }: { calendar: Calendar; onClose: () => 
     void navigator.clipboard.writeText(`${API_BASE()}/public/${linkToken}`).then(() => toast('Link copied'))
   }
 
+  const share = async (linkToken: string): Promise<void> => {
+    const url = `${API_BASE()}/public/${linkToken}`
+    const shared = await nativeShare({ title: `Calendar: ${calendar.name}`, text: `View “${calendar.name}”`, url })
+    if (shared) return
+    await navigator.clipboard.writeText(url)
+    toast('Link copied')
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-[420px] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
@@ -429,6 +455,9 @@ function LinkDialog({ calendar, onClose }: { calendar: Calendar; onClose: () => 
             </code>
             <button onClick={() => copy(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">
               Copy
+            </button>
+            <button onClick={() => void share(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">
+              Share
             </button>
             <button onClick={() => void revoke(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
               Revoke
@@ -461,6 +490,14 @@ function TransferDialog({ onClose }: { onClose: () => void }): React.JSX.Element
   useEffect(() => {
     if (!target && calendars.length > 0) setTarget(calendars[0]!.id)
   }, [calendars, target])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   const run = async (fn: () => Promise<unknown>, label: string): Promise<void> => {
     if (!token) return
@@ -557,6 +594,14 @@ function ShareDialog({ calendar, onClose }: { calendar: Calendar; onClose: () =>
   useEffect(() => {
     void load()
   }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   const share = async (): Promise<void> => {
     if (!token) return

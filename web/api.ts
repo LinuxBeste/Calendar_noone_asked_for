@@ -6,7 +6,15 @@ export const logger = {
   error: (...args: unknown[]) => console.error('[calendar]', ...args)
 }
 
-export const getApiUrl = (): string => localStorage.getItem('calendar.apiUrl') ?? 'http://localhost:3001'
+export const getApiUrl = (): string =>
+  localStorage.getItem('calendar.apiUrl') ??
+  (isAndroidEmulator()
+    ? 'http://10.0.2.2:3001'
+    : 'http://localhost:3001')
+
+function isAndroidEmulator(): boolean {
+  return typeof window !== 'undefined' && !!window.Capacitor && window.Capacitor.getPlatform() === 'android'
+}
 export const setApiUrl = (url: string): void => {
   localStorage.setItem('calendar.apiUrl', url)
 }
@@ -107,7 +115,8 @@ export const webApi = {
   },
   reminders: {
     create: (token: string, eventId: string, minutes: number) => call('POST', '/reminders', token, { eventId, minutes }),
-    delete: (token: string, id: string) => call('DELETE', `/reminders/${id}`, token)
+    delete: (token: string, id: string) => call('DELETE', `/reminders/${id}`, token),
+    upcoming: (token: string, days: number) => call('GET', `/reminders/upcoming?days=${days}`, token)
   },
   ical: {
     exportICal: async (token: string, calendarIds?: string[]) => {

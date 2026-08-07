@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { format } from 'date-fns'
 import { formatInTz } from '../utils/date'
 import type { Calendar, Event, EventOccurrence } from '@shared/types'
@@ -27,6 +28,14 @@ export default function EventQuickView({ x, y, occurrence, calendar, timeFormat,
       ? 'All day'
       : `${format(new Date(occurrence.start), 'MMM d')} – ${format(new Date(occurrence.end), 'MMM d')}`
     : `${format(new Date(occurrence.start), `${tf} · MMM d`)} – ${format(new Date(occurrence.end), tf)}`
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   return (
     <div

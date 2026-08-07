@@ -3,9 +3,11 @@ import ReactDOM from 'react-dom/client'
 import { useEffect, useState } from 'react'
 import App from '../src/App'
 import { webApi, startWebReminderEngine, getApiUrl, setApiUrl, isReachable } from './api'
+import { nativeNotificationsAvailable } from '../src/lib/platform'
+import { startNativeReminderEngine } from '../src/lib/notifications'
 import '../src/index.css'
 
-if ('Notification' in window && Notification.permission === 'default') {
+if (!nativeNotificationsAvailable() && 'Notification' in window && Notification.permission === 'default') {
   void Notification.requestPermission()
 }
 
@@ -71,4 +73,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>
 )
 
-startWebReminderEngine()
+if (nativeNotificationsAvailable()) startNativeReminderEngine()
+else startWebReminderEngine()

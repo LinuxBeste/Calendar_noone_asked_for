@@ -19,6 +19,7 @@ import {
   validateSearchQuery,
   capLimit,
   capDueWindow,
+  capUpcomingDays,
   validateRange,
   validateImportContent,
   validateReminderMinutes,
@@ -295,6 +296,12 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
     }
     await store.markReminderSent(req.params.id, new Date().toISOString())
     return { ok: true }
+  })
+  app.get('/reminders/upcoming', async (req: Query<{ days?: string }>) => {
+    const days = capUpcomingDays(req.query.days)
+    const access = await reminderAccess(services, req)
+    if (access.scope === 'system') throw new AuthError('Not allowed for system access')
+    return store.listUpcomingRemindersForUser(new Date().toISOString(), days * 24 * 3600 * 1000, access.userId)
   })
 
   // ---- info ----

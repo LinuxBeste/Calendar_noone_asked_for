@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { toast } from './toasts'
 import { SETTING_DEFS } from '@shared/settings'
+import { scheduleReconcile } from './lib/notifications'
 import type { Calendar, Event, EventOccurrence, User, ViewType, EventDetail, EventInput } from '@shared/types'
 
 export const DEFAULT_SETTINGS = {
@@ -199,6 +200,7 @@ export const useAuth = create<AuthState>((set, get) => ({
 interface CalendarState {
   view: ViewType
   date: Date
+  viewHistory: ViewType[]
   calendars: Calendar[]
   events: EventOccurrence[]
   trash: Event[]
@@ -207,6 +209,7 @@ interface CalendarState {
   lastRange: { from: string; to: string } | null
   publicCalendars: PublicCalendar[]
   setView(view: ViewType): void
+  backView(): boolean
   setDate(date: Date): void
   navigate(delta: number): void
   refreshCalendars(): Promise<void>
@@ -333,6 +336,7 @@ async function applyAction(action: HistoryAction): Promise<void> {
 export const useCalendar = create<CalendarState>((set, get) => ({
   view: DEFAULT_SETTINGS.defaultView,
   date: new Date(),
+  viewHistory: [],
   calendars: [],
   events: [],
   trash: [],
@@ -341,7 +345,16 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   lastRange: null,
   publicCalendars: loadPublicCalendars(),
   setView(view) {
-    set({ view })
+    const { view: current } = get()
+    if (current === view) return
+    set((s) => ({ view, viewHistory: [...s.viewHistory, current].slice(-20) }))
+  },
+  backView() {
+    const { viewHistory } = get()
+    if (viewHistory.length === 0) return false
+    const prev = viewHistory[viewHistory.length - 1]!
+    set({ view: prev, viewHistory: viewHistory.slice(0, -1) })
+    return true
   },
   setDate(date) {
     set({ date })
@@ -387,6 +400,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     ])
     const merged = [...(events ?? []), ...publicBatches.flat()]
     set((s) => ({ events: merged, lastRange: { from, to } }))
+    scheduleReconcile()
     return merged
   },
   async refreshVisible() {

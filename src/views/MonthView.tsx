@@ -3,6 +3,8 @@ import { format, isSameDay, isToday, isSameMonth } from 'date-fns'
 import { useCalendar, useAuth } from '../store'
 import { rangeStart, rangeEnd, toISO, iterateDays } from '../utils/date'
 import { holidaysBetween } from '../utils/holidays'
+import { attachPointerDrag } from '../lib/pointer-drag'
+import { isTouchDevice } from '../lib/platform'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
 import ContextMenu from '../components/ContextMenu'
@@ -30,6 +32,16 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
   const [confirming, setConfirming] = useState<{ event: Event; occurrence: string; occurrenceOnly: boolean } | null>(null)
   const [hover, setHover] = useState<{ occ: EventOccurrence; x: number; y: number; canEdit: boolean } | null>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [ghost, setGhost] = useState<{ id: string; title: string; x: number; y: number } | null>(null)
+  const suppressClickRef = useRef(false)
+
+  const consumeClick = (): boolean => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return true
+    }
+    return false
+  }
 
   useEffect(() => () => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current)
@@ -112,6 +124,71 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
     void refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z')
   }
 
+  const applyMonthDrop = (d: Date, id: string, allDay: boolean | undefined): void => {
+    if (!token) return
+    const occ = events.find((x) => x.event.id === id)
+    if (!occ) return
+    const ev = occ.event
+    const dayKey = format(d, 'yyyy-MM-dd')
+    if (allDay || ev.allDay) {
+      const dur = occ.end && occ.start
+        ? new Date(occ.end).getTime() - new Date(occ.start).getTime()
+        : 0
+      const after = { startDate: dayKey, endDate: dur > 0 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey }
+      const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
+      const finish = (): void => {
+        useCalendar.getState().pushHistory({ op: 'update', eventId: id, before: { startDate: occ.event.startDate, endDate: occ.event.endDate }, after })
+        void refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek)))
+      }
+      const fail = (err: unknown): void => toast(err instanceof Error ? err.message : 'Move failed', 'error')
+      if (ev.rrule) {
+        void window.calendarApi.events.updateOccurrence(token, id, sourceDay, after).then(finish).catch(fail)
+      } else {
+        void window.calendarApi.events.update(token, id, after).then(finish).catch(fail)
+      }
+    } else {
+      const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
+      const start = new Date(dayKey + 'T' + format(new Date(occ.start), 'HH:mm:ss'))
+      const after = { startsAt: start.toISOString(), endsAt: new Date(start.getTime() + dur).toISOString() }
+      const finish = (): void => {
+        useCalendar.getState().pushHistory({ op: 'update', eventId: id, before: { startsAt: occ.start, endsAt: occ.end }, after })
+        void refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek)))
+      }
+      const fail = (err: unknown): void => toast(err instanceof Error ? err.message : 'Move failed', 'error')
+      if (ev.rrule) {
+        const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
+        void window.calendarApi.events.updateOccurrence(token, id, sourceDay, after).then(finish).catch(fail)
+      } else {
+        void window.calendarApi.events.update(token, id, after).then(finish).catch(fail)
+      }
+    }
+  }
+
+  const startChipDrag = (e: React.PointerEvent, ev: Event, occ: EventOccurrence): void => {
+    if (e.pointerType !== 'touch') return
+    const chip = e.currentTarget as HTMLElement
+    attachPointerDrag(chip, e.pointerId, e.pointerType, e.clientX, e.clientY, {
+      onClaim() {
+        suppressClickRef.current = true
+      },
+      onMove(x, y) {
+        setGhost({ id: ev.id, title: ev.title, x, y })
+      },
+      onEnd(x, y) {
+        setGhost(null)
+        const el = document.elementFromPoint(x, y) as HTMLElement | null
+        const cell = el?.closest('[data-daykey]') as HTMLElement | null
+        if (!cell || !cell.dataset.daykey) return
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(cell.dataset.daykey)
+        if (!m) return
+        applyMonthDrop(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), ev.id, occ.allDay)
+      },
+      onCancel() {
+        setGhost(null)
+      }
+    })
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="grid grid-cols-7 text-center text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 py-1 shrink-0">
@@ -141,7 +218,11 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
           return (
             <div
               key={i}
-              onClick={() => setDialog({ date: d })}
+              data-daykey={key}
+              onClick={() => {
+                if (consumeClick()) return
+                setDialog({ date: d })
+              }}
               onDragOver={(e) => {
                 if (settings.monthDragDrop) e.preventDefault()
               }}
@@ -150,44 +231,9 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                 e.preventDefault()
                 e.stopPropagation()
                 const raw = e.dataTransfer.getData('application/x-cal-event')
-                if (!raw || !token) return
+                if (!raw) return
                 const { id, allDay } = JSON.parse(raw) as { id: string; allDay?: boolean }
-                const occ = events.find((x) => x.event.id === id)
-                if (!occ) return
-                const ev = occ.event
-                const dayKey = format(d, 'yyyy-MM-dd')
-                if (allDay || ev.allDay) {
-                  const dur = occ.end && occ.start
-                    ? new Date(occ.end).getTime() - new Date(occ.start).getTime()
-                    : 0
-                  const after = { startDate: dayKey, endDate: dur > 0 ? format(new Date(new Date(dayKey + 'T00:00:00').getTime() + dur), 'yyyy-MM-dd') : dayKey }
-                  const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
-                  const finish = (): void => {
-                    useCalendar.getState().pushHistory({ op: 'update', eventId: id, before: { startDate: occ.event.startDate, endDate: occ.event.endDate }, after })
-                    void refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek)))
-                  }
-                  const fail = (err: unknown): void => toast(err instanceof Error ? err.message : 'Move failed', 'error')
-                  if (ev.rrule) {
-                    void window.calendarApi.events.updateOccurrence(token, id, sourceDay, after).then(finish).catch(fail)
-                  } else {
-                    void window.calendarApi.events.update(token, id, after).then(finish).catch(fail)
-                  }
-                } else {
-                  const dur = new Date(occ.end).getTime() - new Date(occ.start).getTime()
-                  const start = new Date(dayKey + 'T' + format(new Date(occ.start), 'HH:mm:ss'))
-                  const after = { startsAt: start.toISOString(), endsAt: new Date(start.getTime() + dur).toISOString() }
-                  const finish = (): void => {
-                    useCalendar.getState().pushHistory({ op: 'update', eventId: id, before: { startsAt: occ.start, endsAt: occ.end }, after })
-                    void refreshEvents(toISO(rangeStart('month', date, settings.firstDayOfWeek)), toISO(rangeEnd('month', date, settings.firstDayOfWeek)))
-                  }
-                  const fail = (err: unknown): void => toast(err instanceof Error ? err.message : 'Move failed', 'error')
-                  if (ev.rrule) {
-                    const sourceDay = format(new Date(occ.start), 'yyyy-MM-dd')
-                    void window.calendarApi.events.updateOccurrence(token, id, sourceDay, after).then(finish).catch(fail)
-                  } else {
-                    void window.calendarApi.events.update(token, id, after).then(finish).catch(fail)
-                  }
-                }
+                applyMonthDrop(d, id, allDay)
               }}
               className={`border-b border-r border-gray-200 dark:border-gray-700 overflow-hidden cursor-pointer
                 ${(settings.monthWeekendShading && weekend) || holiday ? 'bg-gray-50 dark:bg-gray-800/60' : ''} ${selected ? 'ring-1 ring-inset ring-accent' : ''} ${settings.monthCompactWeekends && weekend ? 'p-0.5' : 'p-1'}`}
@@ -233,6 +279,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                       <button
                         key={ev.id + key}
                         onClick={(e) => {
+                          if (consumeClick()) return
                           e.stopPropagation()
                           setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
                         }}
@@ -244,11 +291,13 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                         }}
                         onMouseEnter={(e) => settings.monthHoverPreview && showHover(e.currentTarget, occ)}
                         onMouseLeave={hideHoverSoon}
-                        draggable={settings.monthDragDrop && (calendars.find((c) => c.id === ev.calendarId)?.role === 'owner' || calendars.find((c) => c.id === ev.calendarId)?.role === 'editor')}
+                        onPointerDown={(e) => startChipDrag(e, ev, occ)}
+                        draggable={!isTouchDevice() && settings.monthDragDrop && (calendars.find((c) => c.id === ev.calendarId)?.role === 'owner' || calendars.find((c) => c.id === ev.calendarId)?.role === 'editor')}
                         onDragStart={(e) => {
                           e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: occ.allDay }))
                           e.dataTransfer.effectAllowed = 'move'
                         }}
+                        style={{ touchAction: settings.monthDragDrop && (calendars.find((c) => c.id === ev.calendarId)?.role === 'owner' || calendars.find((c) => c.id === ev.calendarId)?.role === 'editor') ? 'none' : 'auto' }}
                         className="w-full flex items-center gap-1 text-[10px] px-1 py-px truncate hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded"
                         title={settings.showEventTooltips ? `${ev.title}${ev.location ? '\n' + ev.location : ''}` : undefined}
                       >
@@ -261,6 +310,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                     <button
                       key={ev.id + key}
                       onClick={(e) => {
+                        if (consumeClick()) return
                         e.stopPropagation()
                         setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
                       }}
@@ -272,7 +322,8 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                       }}
                       onMouseEnter={(e) => settings.monthHoverPreview && showHover(e.currentTarget, occ)}
                       onMouseLeave={hideHoverSoon}
-                      draggable={settings.monthDragDrop && (calendars.find((c) => c.id === ev.calendarId)?.role === 'owner' || calendars.find((c) => c.id === ev.calendarId)?.role === 'editor')}
+                      onPointerDown={(e) => startChipDrag(e, ev, occ)}
+                      draggable={!isTouchDevice() && settings.monthDragDrop && (calendars.find((c) => c.id === ev.calendarId)?.role === 'owner' || calendars.find((c) => c.id === ev.calendarId)?.role === 'editor')}
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: occ.allDay }))
                         e.dataTransfer.effectAllowed = 'move'
@@ -281,7 +332,8 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                       style={{
                         backgroundColor: settings.monthEventStyle === 'compact' ? 'transparent' : color + Math.round((settings.eventOpacity / 100) * 34).toString(16).padStart(2, '0'),
                         color,
-                        opacity: settings.monthEventStyle === 'compact' ? settings.eventOpacity / 100 : 1
+                        opacity: settings.monthEventStyle === 'compact' ? settings.eventOpacity / 100 : 1,
+                        touchAction: settings.monthDragDrop && (calendars.find((c) => c.id === ev.calendarId)?.role === 'owner' || calendars.find((c) => c.id === ev.calendarId)?.role === 'editor') ? 'none' : 'auto'
                       }}
                       title={settings.showEventTooltips ? `${ev.title}${ev.location ? '\n' + ev.location : ''}` : undefined}
                     >
@@ -417,6 +469,14 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
           onConfirm={confirmDelete}
           onClose={() => setConfirming(null)}
         />
+      )}
+      {ghost && (
+        <div
+          className="pointer-events-none fixed z-[60] max-w-[60vw] truncate rounded-md border border-accent bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-800 dark:text-gray-100 shadow-lg"
+          style={{ left: ghost.x + 10, top: ghost.y - 24 }}
+        >
+          {ghost.title}
+        </div>
       )}
     </div>
   )

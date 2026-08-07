@@ -24,6 +24,7 @@ export const LIMITS = {
   jsonMaxBytes: 20 * 1024 * 1024,
   rangeMaxDays: 365 * 25,
   dueWindowMax: 1440,
+  upcomingDaysMax: 60,
   eventDurationMaxMinutes: 365 * 24 * 60
 }
 
@@ -235,6 +236,10 @@ export function capLimit(limit: unknown): number | undefined {
 }
 export function capDueWindow(window: unknown): number {
   return Math.min(fromZod(dueWindowSchema)(Number(window ?? 5)) as number, LIMITS.dueWindowMax)
+}
+export function capUpcomingDays(days: unknown): number {
+  const n = fromZod(dueWindowSchema)(Number(days ?? 30)) as number
+  return Math.min(n, LIMITS.upcomingDaysMax)
 }
 export function validateReminderMinutes(minutes: unknown): number {
   return fromZod(reminderMinutesSchema)(Number(minutes)) as number

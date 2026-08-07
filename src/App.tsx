@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth, useCalendar } from './store'
+import { onAndroidBack, minimizeApp } from './lib/platform'
+import { bindSettingsProvider } from './lib/notifications'
 import LoginScreen from './components/LoginScreen'
 import AppShell from './components/AppShell'
 import Toasts from './components/Toasts'
@@ -7,6 +9,8 @@ import ErrorBoundary from './components/ErrorBoundary'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsDialog from './components/ShortcutsDialog'
 import SetupDialog from './components/SetupDialog'
+
+bindSettingsProvider(() => useCalendar.getState().settings)
 
 export default function App(): React.JSX.Element {
   const { booting, user, boot } = useAuth()
@@ -17,6 +21,23 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void boot()
   }, [boot])
+
+  useEffect(() => {
+    let dispose: (() => void) | null = null
+    void onAndroidBack(async () => {
+      const overlayOpen = (): boolean => !!document.querySelector('.fixed.inset-0')
+      if (overlayOpen()) {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+        await new Promise((r) => setTimeout(r, 60))
+        return
+      }
+      const wentBack = useCalendar.getState().backView()
+      if (!wentBack) await minimizeApp()
+    }).then((d) => {
+      dispose = d
+    })
+    return () => dispose?.()
+  }, [])
 
   useEffect(() => {
     if (user && localStorage.getItem('calendar.setupDone') !== '1') setSetupOpen(true)

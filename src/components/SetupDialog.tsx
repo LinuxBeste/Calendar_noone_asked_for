@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth, useCalendar, DEFAULT_SETTINGS } from '../store'
 import { HOLIDAY_COUNTRIES } from '../utils/holidays'
 
@@ -20,6 +20,14 @@ export default function SetupDialog({ onClose }: { onClose: () => void }): React
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   const isDark = (mode: string): boolean => mode === 'dark' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 

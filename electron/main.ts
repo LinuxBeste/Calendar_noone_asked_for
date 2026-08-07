@@ -250,6 +250,8 @@ function registerIpc(): void {
     api.createReminder(payload.token, payload.eventId, payload.minutes))
   ipcMain.handle('reminders:delete', (_e, payload: { token: string; id: string }) =>
     api.deleteReminder(payload.token, payload.id))
+  ipcMain.handle('reminders:upcoming', (_e, payload: { token: string; days: number }) =>
+    api.listUpcomingReminders(payload.token, payload.days))
 
   // ---- iCal / backup (dialogs stay in the main process) ----
   ipcMain.handle('export:ical', async (_e, payload: { token: string; calendarIds?: string[] }) => {

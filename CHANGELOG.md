@@ -8,6 +8,17 @@ All notable changes to this project are documented here. Format follows
 
 ### Added
 
+- **Android / mobile support** — touch drag & drop in week and month views
+  (drag-to-create via long-press, move/resize events, drop ghost), native
+  notifications via `@capacitor/local-notifications` (reminders fire even in
+  the background; new `GET /reminders/upcoming` endpoint), native share sheet
+  for public calendar links, hardware back button (closes dialogs → back to
+  previous view → minimize), emulator-friendly default API URL
+  (`http://10.0.2.2:3001`), and a responsive layout for phone → tablet →
+  desktop (sidebar drawer, stacking settings dialog, dynamic week column
+  widths, dynamic viewport height)
+- **Settings search** — search box in the settings dialog filters every
+  setting across all categories (both Electron and web/Android clients)
 - **ICS feed subscriptions** — subscribe to external `.ics` URLs; events are
   synced automatically (configurable interval, default 15 min), stored
   read-only, and editable API calls on feed events are rejected
@@ -29,6 +40,10 @@ All notable changes to this project are documented here. Format follows
 
 - `purgeEvent` referenced an undefined variable (`existing.calendarId`),
   which would have crashed on purge (caught by `tsc`)
+- Boolean settings in the settings dialog showed their name twice (the label
+  was rendered both as the row title and inside the checkbox control)
+- Settings dialog tabs now stack horizontally on narrow screens and the
+  dialog is scrollable on mobile
 
 ## [0.2.0] - 2026-08-07
 

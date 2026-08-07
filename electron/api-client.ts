@@ -155,6 +155,10 @@ class ApiClient {
     return this.call('DELETE', `/reminders/${id}`, token)
   }
 
+  async listUpcomingReminders(token: string, days: number): Promise<unknown> {
+    return this.call('GET', `/reminders/upcoming?days=${days}`, token)
+  }
+
   // ---- settings ----
   async getSetting(token: string, key: string): Promise<unknown> {
     return this.call('GET', `/settings/${encodeURIComponent(key)}`, token)

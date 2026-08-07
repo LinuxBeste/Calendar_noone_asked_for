@@ -32,6 +32,7 @@ export interface EventStore {
   deleteReminder(id: string): Promise<void>
   listDueReminders(now: string, lookAheadMinutes: number): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]>
   listDueRemindersForUser(now: string, lookAheadMinutes: number, userId: string): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]>
+  listUpcomingRemindersForUser(now: string, horizonMs: number, userId: string): Promise<{ id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[]>
   markReminderSent(id: string, at: string): Promise<void>
 
   // ---- recurrence exceptions ----

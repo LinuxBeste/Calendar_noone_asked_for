@@ -56,7 +56,8 @@ const api = {
   },
   reminders: {
     create: (token: string, eventId: string, minutes: number) => invoke('reminders:create', { token, eventId, minutes }),
-    delete: (token: string, id: string) => invoke('reminders:delete', { token, id })
+    delete: (token: string, id: string) => invoke('reminders:delete', { token, id }),
+    upcoming: (token: string, days: number) => invoke('reminders:upcoming', { token, days })
   },
   ical: {
     exportICal: (token: string, calendarIds?: string[]) => invoke('export:ical', { token, calendarIds }),

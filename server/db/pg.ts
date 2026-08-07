@@ -517,6 +517,39 @@ export class PgStore implements EventStore, AuthStore {
     return this.collectDue(rows, now, lookAheadMinutes)
   }
 
+  async listUpcomingRemindersForUser(now: string, horizonMs: number, userId: string): Promise<{ id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[]> {
+    const rows = await this.db
+      .select({
+        id: pgReminders.id,
+        eventId: pgReminders.eventId,
+        minutes: pgReminders.minutes,
+        startsAt: pgEvents.startsAt,
+        title: pgEvents.title,
+        calendarName: pgCalendars.name
+      })
+      .from(pgReminders)
+      .innerJoin(pgEvents, eq(pgReminders.eventId, pgEvents.id))
+      .innerJoin(pgCalendars, eq(pgEvents.calendarId, pgCalendars.id))
+      .leftJoin(pgCalendarShares, and(eq(pgCalendarShares.calendarId, pgEvents.calendarId), eq(pgCalendarShares.userId, userId)))
+      .where(and(isNull(pgReminders.sentAt), isNull(pgEvents.deletedAt), or(eq(pgCalendars.ownerId, userId), isNotNull(pgCalendarShares.userId))))
+    return this.collectUpcoming(rows, now, horizonMs)
+  }
+
+  private collectUpcoming(
+    rows: { id: string; eventId: string; minutes: number; startsAt: string | null; title: string; calendarName: string }[],
+    now: string,
+    horizonMs: number
+  ): { id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[] {
+    const due = new Date(now).getTime()
+    const list: { id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[] = []
+    for (const r of rows) {
+      if (!r.startsAt) continue
+      const t = new Date(r.startsAt).getTime() - r.minutes * 60000
+      if (t > due && t <= due + horizonMs) list.push({ id: r.id, eventId: r.eventId, minutes: r.minutes, startsAt: r.startsAt, title: r.title, calendarName: r.calendarName })
+    }
+    return list
+  }
+
   async markReminderSent(id: string, at: string): Promise<void> {
     await this.db.update(pgReminders).set({ sentAt: at }).where(eq(pgReminders.id, id))
   }
