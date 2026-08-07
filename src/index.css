@@ -32,3 +32,10 @@ body,
   from { transform: translateX(-100%); }
   to { transform: translateX(400%); }
 }
+
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  transition: none !important;
+  animation: none !important;
+}

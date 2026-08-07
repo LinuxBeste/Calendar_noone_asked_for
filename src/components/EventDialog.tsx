@@ -31,7 +31,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
   const [detail, setDetail] = useState<EventDetail | null>(null)
   const [title, setTitle] = useState(event?.title ?? template?.title ?? '')
   const [calendarId, setCalendarId] = useState(event?.calendarId ?? template?.calendarId ?? settings.defaultCalendarId)
-  const [allDay, setAllDay] = useState(event?.allDay ?? template?.allDay ?? false)
+  const [allDay, setAllDay] = useState(event?.allDay ?? template?.allDay ?? settings.defaultAllDay)
   const [startDate, setStartDate] = useState(() => {
     if (event?.startDate) return event.startDate
     if (defaultStart) return format(new Date(defaultStart), 'yyyy-MM-dd')
@@ -72,8 +72,8 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
   })
   const [description, setDescription] = useState(event?.description ?? template?.description ?? '')
   const [location, setLocation] = useState(event?.location ?? template?.location ?? '')
-  const [color, setColor] = useState(event?.color ?? template?.color ?? '')
-  const [busy, setBusy] = useState(event?.busy ?? template?.busy ?? true)
+  const [color, setColor] = useState(event?.color ?? template?.color ?? settings.defaultColor)
+  const [busy, setBusy] = useState(event?.busy ?? template?.busy ?? settings.defaultBusy !== 'free')
   const [repeat, setRepeat] = useState<'none' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'>(() => {
     const freq = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].find((f) => event?.rrule?.includes(`FREQ=${f}`))
     return freq ? (freq as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY') : 'none'

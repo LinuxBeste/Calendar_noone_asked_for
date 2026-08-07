@@ -33,8 +33,8 @@ const MAX_ZOOM = 4
 export default function WeekView({ date, days }: WeekViewProps): React.JSX.Element {
   const { events, calendars, refreshEvents, settings } = useCalendar()
   const { token } = useAuth()
-  const [zoom, setZoom] = useState(1)
-  const zoomRef = useRef(1)
+  const [zoom, setZoom] = useState(settings.defaultZoomPct / 100)
+  const zoomRef = useRef(settings.defaultZoomPct / 100)
   const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
   const [gridMenu, setGridMenu] = useState<{ x: number; y: number; date: Date } | null>(null)
@@ -56,9 +56,9 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     const el = scrollRef.current
     if (!el) return
     const fit = el.clientHeight / (1440 * BASE_PX_PER_MIN)
-    if (fit < zoomRef.current) setZoomClamped(fit)
-    el.scrollTop = settings.workingHoursStart * 60 * BASE_PX_PER_MIN * zoomRef.current - 32
-  }, [settings.workingHoursStart])
+    if (settings.fitDayToScreen && fit < zoomRef.current) setZoomClamped(fit)
+    if (settings.scrollToWorkingHours) el.scrollTop = settings.workingHoursStart * 60 * BASE_PX_PER_MIN * zoomRef.current - 32
+  }, [settings.workingHoursStart, settings.fitDayToScreen, settings.scrollToWorkingHours])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -112,6 +112,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     if (hoverTimer.current) clearTimeout(hoverTimer.current)
   }, [])
 
+  const snap = settings.snapInterval
+  const gutterWidth = settings.timeGutterWidth === 'narrow' ? 'w-8' : settings.timeGutterWidth === 'wide' ? 'w-16' : 'w-12'
   const dayColumns = useMemo(() => {
     const cols = [...iterateDays(from, to)]
     return settings.hideWeekends && days === 7 ? cols.filter((d) => d.getDay() !== 0 && d.getDay() !== 6) : cols
@@ -287,9 +289,10 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
       <div className="flex-1 flex flex-col min-h-0 overflow-x-auto">
+      {settings.showDayHeaders && (
       <div className="flex shrink-0 border-b border-gray-200 dark:border-gray-700">
-        <div className="w-12 shrink-0" />
-        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${dayColumns.length}, minmax(120px, 1fr))` }}>
+        <div className={`${gutterWidth} shrink-0`} />
+        <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${dayColumns.length}, minmax(${settings.dayColumnMinWidth}px, 1fr))` }}>
           {dayColumns.map((d, i) => {
             const key = format(d, 'yyyy-MM-dd')
             const weekend = d.getDay() === 0 || d.getDay() === 6
@@ -297,7 +300,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
             return (
               <div
                 key={i}
-                className={`border-l border-gray-200 dark:border-gray-700 py-1 text-center ${weekend || holiday ? 'bg-gray-50 dark:bg-gray-800/60' : ''}`}
+                className={`border-l border-gray-200 dark:border-gray-700 py-1 text-center ${(settings.weekendShading && weekend) || (settings.holidayShading && holiday) ? 'bg-gray-50 dark:bg-gray-800/60' : ''}`}
               >
                 <div className={`text-sm ${isToday(d) ? 'text-accent font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
                   {format(d, 'EEE')}
@@ -313,6 +316,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   {d.getDate()}
                 </div>
                 {holiday && <div className="text-[9px] leading-tight text-red-500 dark:text-red-400 truncate px-0.5" title={holiday}>{holiday}</div>}
+                {settings.showAllDayRow && (
                 <div className="mt-0.5 space-y-0.5">
                   {allDayEvents
                     .filter((occ) => occDaySpan(occ, d))
@@ -325,28 +329,30 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                         <button
                           key={ev.id + d.toISOString()}
                           onClick={() => setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })}
-                          draggable={editableFor(ev)}
+                          draggable={editableFor(ev) && settings.dragAndDropEnabled}
                           onDragStart={(e) => {
                             e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: true }))
                             e.dataTransfer.effectAllowed = 'move'
                           }}
                           className={`w-full text-left text-[11px] px-1 py-0.5 truncate rounded hover:shadow ${continues ? '' : 'rounded-r-full'}`}
                           style={{ backgroundColor: color + '22', color }}
-                          title={ev.title}
+                          title={settings.showEventTooltips ? ev.title : undefined}
                         >
                           {ev.title}
                         </button>
                       )
                     })}
                 </div>
+                )}
               </div>
             )
           })}
         </div>
       </div>
+      )}
 
       <div className="flex-1 flex overflow-y-auto relative" ref={scrollRef}>
-        <div className="w-12 shrink-0 relative">
+        <div className={`${gutterWidth} shrink-0 relative`}>
           {Array.from({ length: 24 }, (_, h) => (
             <div key={h} className="absolute right-2 -translate-y-1/2 text-[10px] text-gray-400" style={{ top: h * 60 * pxPerMin }}>
               {format(new Date(2000, 0, 1, h), settings.timeFormat === '12h' ? 'h a' : 'HH:mm')}
@@ -354,11 +360,12 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
           ))}
         </div>
 
-        <div className="flex-1 relative" style={{ display: 'grid', gridTemplateColumns: `repeat(${dayColumns.length}, minmax(120px, 1fr))` }}>
+        <div className="flex-1 relative" style={{ display: 'grid', gridTemplateColumns: `repeat(${dayColumns.length}, minmax(${settings.dayColumnMinWidth}px, 1fr))` }}>
           {Array.from({ length: 24 }, (_, h) => (
-            <div key={h} className="absolute left-0 right-0 border-t border-gray-200 dark:border-gray-700" style={{ top: h * 60 * pxPerMin }} />
+            <div key={h} className={`absolute left-0 right-0 border-t border-gray-200 dark:border-gray-700 ${settings.hourLineStyle === 'dashed' ? 'border-dashed' : ''}`} style={{ top: h * 60 * pxPerMin }} />
           ))}
-          {Array.from({ length: 24 }, (_, h) => (
+          {settings.showQuarterLines &&
+          Array.from({ length: 24 }, (_, h) => (
             <div key={h + 'q'} className="absolute left-0 right-0 border-t border-dashed border-gray-100 dark:border-gray-800" style={{ top: h * 60 * pxPerMin + pxPerMin * 30 }} />
           ))}
 
@@ -378,10 +385,10 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
             return (
               <div
                 key={i}
-                className={`relative border-l border-gray-200 dark:border-gray-700 cursor-pointer ${weekend || holiday ? 'bg-gray-100/50 dark:bg-gray-900/40' : ''}`}
+                className={`relative border-l border-gray-200 dark:border-gray-700 cursor-pointer ${(settings.weekendShading && weekend) || (settings.holidayShading && holiday) ? 'bg-gray-100/50 dark:bg-gray-900/40' : ''}`}
                 onClick={(e) => {
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / 15) * 15))
+                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / snap) * snap))
                   const start = new Date(d)
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
                   setDialog({ date: start })
@@ -389,7 +396,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                 onContextMenu={(e) => {
                   e.preventDefault()
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / 15) * 15))
+                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / snap) * snap))
                   const start = new Date(d)
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
                   setMenu(null)
@@ -402,7 +409,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   if (!raw) return
                   const { id, allDay } = JSON.parse(raw) as { id: string; allDay?: boolean }
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / 15) * 15))
+                  const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / snap) * snap))
                   const start = new Date(d)
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
                   const occ = events.find((x) => x.event.id === id)
@@ -466,7 +473,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       }}
                       onMouseEnter={(e) => showHover(e.currentTarget, p.occ)}
                       onMouseLeave={hideHoverSoon}
-                      draggable={editable}
+                      draggable={editable && settings.dragAndDropEnabled}
                       onDragStart={(e) => {
                         e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: p.event.id, allDay: false }))
                         e.dataTransfer.effectAllowed = 'move'
@@ -486,7 +493,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                         borderColor: 'rgba(255,255,255,0.6)',
                         zIndex: 10
                       }}
-                      title={`${p.event.title}\n${format(new Date(p.event.startsAt!), 'HH:mm')} – ${format(new Date(p.event.endsAt!), 'HH:mm')}${p.event.location ? '\n' + p.event.location : ''}${p.event.description ? '\n' + p.event.description : ''}`}
+                      title={settings.showEventTooltips ? `${p.event.title}\n${format(new Date(p.event.startsAt!), 'HH:mm')} – ${format(new Date(p.event.endsAt!), 'HH:mm')}${p.event.location ? '\n' + p.event.location : ''}${p.event.description ? '\n' + p.event.description : ''}` : undefined}
                     >
                       <div className="px-1.5 py-0.5 truncate font-medium pointer-events-none flex items-center gap-0.5">
                         {p.fromPrev && <span className="shrink-0">‹</span>}
@@ -494,9 +501,10 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                         {p.toNext && <span className="shrink-0">›</span>}
                       </div>
                       <div className="px-1.5 truncate opacity-90 pointer-events-none">
-                        {format(new Date(p.event.startsAt!), 'HH:mm')} – {format(new Date(p.event.endsAt!), 'HH:mm')}
+                        {format(new Date(p.event.startsAt!), 'HH:mm')}
+                        {settings.showEndTimesInWeek ? ` – ${format(new Date(p.event.endsAt!), 'HH:mm')}` : ''}
                       </div>
-                      {editable && (p.endMin - p.startMin) * pxPerMin > 28 && (
+                      {editable && settings.resizeEnabled && (p.endMin - p.startMin) * pxPerMin > 28 && (
                         <div
                           className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 bg-black/20"
                           onMouseDown={(e) => {
@@ -508,7 +516,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                             const onMove = (ev: MouseEvent): void => {
                               const dy = ev.clientY - startY
                               const newEnd = new Date(origEnd + dy / pxPerMin * 60000)
-                              newEnd.setMinutes(Math.round(newEnd.getMinutes() / 15) * 15)
+                              newEnd.setMinutes(Math.round(newEnd.getMinutes() / settings.snapInterval) * settings.snapInterval)
                               if (newEnd <= new Date(p.event.startsAt!)) return
                               void resizeEvent(p.event, newEnd)
                             }
@@ -528,7 +536,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
             )
           })}
 
-          {dayColumns.some((d) => isSameDay(d, now)) && (
+          {settings.showNowLine && dayColumns.some((d) => isSameDay(d, now)) && (
             <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: nowLine * pxPerMin }}>
               <div className="h-0.5 bg-red-500 relative">
                 <span className="absolute -left-1 -top-[3px] h-2 w-2 rounded-full bg-red-500" />

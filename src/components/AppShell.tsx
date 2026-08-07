@@ -68,12 +68,13 @@ export default function AppShell(): React.JSX.Element {
       void useCalendar.getState().refreshVisible()
     }
     window.addEventListener('focus', refresh)
-    const t = setInterval(refresh, 60_000)
+    const minutes = settings.autoRefreshMinutes
+    const t = minutes > 0 ? setInterval(refresh, minutes * 60_000) : null
     return () => {
       window.removeEventListener('focus', refresh)
-      clearInterval(t)
+      if (t) clearInterval(t)
     }
-  }, [])
+  }, [settings.autoRefreshMinutes])
 
   useEffect(() => {
     if (!token) return
@@ -94,6 +95,11 @@ export default function AppShell(): React.JSX.Element {
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [settings.darkMode, settings.accentColor])
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${settings.fontScale}%`
+    document.documentElement.classList.toggle('reduce-motion', settings.reduceMotion)
+  }, [settings.fontScale, settings.reduceMotion])
 
   useEffect(() => {
     if (!token) return
@@ -174,7 +180,7 @@ export default function AppShell(): React.JSX.Element {
         </div>
       )}
       <div className="flex-1 flex overflow-hidden">
-        <NavRail />
+        {settings.compactSidebar && <NavRail />}
         <Sidebar open={sidebarOpen} narrow={narrow} onClose={() => setSidebarOpen(false)} />
         <main className="flex-1 flex min-w-0 overflow-hidden">
           {view === 'month' && <MonthView date={date} />}

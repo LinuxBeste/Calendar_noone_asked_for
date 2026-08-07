@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { CalendarInput, EventInput, ShareInput, ViewType } from '@shared/types'
+import { SETTING_DEFS } from '@shared/settings'
 
 /** Server-side input validation (Zod). All failures reject with a 400-status error. */
 export class ValidationError extends Error {
@@ -152,27 +153,44 @@ const eventPatchSchema = z
 // ---- sharing ----
 const shareSchema = z.object({ email: emailSchema, role: z.enum(['viewer', 'editor']) })
 
-// ---- settings whitelist ----
-const settingSchemas: Record<string, z.ZodType<unknown>> = {
+// ---- settings whitelist (derived from the shared catalog) ----
+const settingOverrides: Record<string, z.ZodType<unknown>> = {
   firstDayOfWeek: z.union([z.literal(0), z.literal(1)]),
-  timeFormat: z.enum(['24h', '12h']),
   defaultView: viewsSchema,
-  workingHoursStart: z.number().int().min(0).max(24),
-  workingHoursEnd: z.number().int().min(0).max(24),
-  defaultEventDuration: z.number().int().min(5).max(1440),
   timezone: z.string().refine((tz) => Intl.supportedValuesOf('timeZone').includes(tz), 'Invalid timezone'),
-  darkMode: z.enum(['light', 'dark', 'auto']),
-  showWeekNumbers: z.boolean(),
-  defaultReminderMinutes: z.union([z.literal(0), z.literal(5), z.literal(10), z.literal(30), z.literal(60), z.literal(1440)]),
-  defaultCalendarId: z.string().max(64),
   secondaryTimezone: z.string().max(40),
-  hideWeekends: z.boolean(),
-  showHolidays: z.boolean(),
+  defaultCalendarId: z.string().max(64),
   holidaysCountry: z.string().max(4),
   accentColor: colorSchema,
-  agendaRangeDays: z.number().int().min(1).max(90),
-  monthMaxEvents: z.number().int().min(1).max(10)
+  defaultReminderMinutes: z.union([z.literal(0), z.literal(5), z.literal(10), z.literal(30), z.literal(60), z.literal(1440)])
 }
+
+function schemaForDef(def: (typeof SETTING_DEFS)[number]): z.ZodType<unknown> {
+  const override = settingOverrides[def.key]
+  if (override) return override
+  switch (def.type) {
+    case 'boolean':
+      return z.boolean()
+    case 'number':
+      return z.number().int().min(def.min ?? 0).max(def.max ?? 1_000_000)
+    case 'color':
+      return colorSchema
+    case 'select': {
+      const values = (def.options ?? []).map((o) => o.value)
+      if (values.length > 0) {
+        if (typeof def.defaultValue === 'number') {
+          return z.union(values.map((v) => z.literal(Number(v))) as [z.ZodLiteral<number>, ...z.ZodLiteral<number>[]])
+        }
+        return z.enum(values as [string, ...string[]])
+      }
+      return z.string().max(64)
+    }
+    default:
+      return z.string().max(def.max ?? 200)
+  }
+}
+
+const settingSchemas: Record<string, z.ZodType<unknown>> = Object.fromEntries(SETTING_DEFS.map((def) => [def.key, schemaForDef(def)]))
 
 // ---- misc ----
 const rangeSchema = z
