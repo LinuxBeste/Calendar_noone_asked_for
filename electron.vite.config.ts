@@ -31,7 +31,7 @@ export default defineConfig({
   renderer: {
     root: 'src',
     plugins: [react()],
-    define: { __APP_VERSION__: JSON.stringify(version) },
+    define: { __APP_VERSION__: JSON.stringify(version), __DEMO__: 'false' },
     resolve: {
       alias: { '@shared': resolve(__dirname, 'shared') }
     },

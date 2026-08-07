@@ -21,6 +21,7 @@
     "server:watch": "tsx watch server/index.ts",
     "rebuild:node": "npm rebuild better-sqlite3",
     "build:web": "vite build -c vite.web.config.ts",
+    "build:demo": "vite build -c vite.web.config.ts --mode demo",
     "dev:web": "vite -c vite.web.config.ts",
     "build:android": "npm run build:web && npx cap sync android",
     "android:run": "npm run build:android && npx cap open android",

@@ -108,11 +108,11 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Build web client
-        run: npm run build:web
+        run: npm run build:demo
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web/dist
+          path: web/dist-demo
       - id: deployment
         uses: actions/deploy-pages@v4
 

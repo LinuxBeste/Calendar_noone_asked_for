@@ -5,9 +5,19 @@ import App from '../src/App'
 import { webApi, startWebReminderEngine, getApiUrl, setApiUrl, isReachable } from './api'
 import { nativeNotificationsAvailable } from '../src/lib/platform'
 import { startNativeReminderEngine } from '../src/lib/notifications'
+import { createDemoApi } from './demo-api'
+import { DEMO_TOKEN } from './demo-data'
 import '../src/index.css'
 
-if (!nativeNotificationsAvailable() && 'Notification' in window && Notification.permission === 'default') {
+if (__DEMO__) {
+  window.calendarApi = createDemoApi()
+  if (!localStorage.getItem('calendar.token')) localStorage.setItem('calendar.token', DEMO_TOKEN)
+  localStorage.setItem('calendar.setupDone', '1')
+} else {
+  window.calendarApi = webApi
+}
+
+if (!__DEMO__ && !nativeNotificationsAvailable() && 'Notification' in window && Notification.permission === 'default') {
   void Notification.requestPermission()
 }
 
@@ -96,15 +106,19 @@ function ConnectionGate({ children }: { children: React.ReactNode }): React.JSX.
   )
 }
 
-window.calendarApi = webApi
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConnectionGate>
+    {__DEMO__ ? (
       <App />
-    </ConnectionGate>
+    ) : (
+      <ConnectionGate>
+        <App />
+      </ConnectionGate>
+    )}
   </React.StrictMode>
 )
 
-if (nativeNotificationsAvailable()) startNativeReminderEngine()
+if (__DEMO__) {
+  /* demo mode: no reminder engines, data is local */
+} else if (nativeNotificationsAvailable()) startNativeReminderEngine()
 else startWebReminderEngine()
