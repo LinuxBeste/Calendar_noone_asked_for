@@ -19,10 +19,16 @@ jobs:
         include:
           - os: windows-latest
             script: dist:win
+            upload: release/*.exe
+            updateFile: release/latest*.yml
           - os: macos-latest
             script: dist:mac
+            upload: release/*.dmg
+            updateFile: release/latest*.yml
           - os: ubuntu-latest
             script: dist:linux
+            upload: release/*.AppImage
+            updateFile: release/latest*.yml
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +42,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: installers-${{ matrix.os }}
-          path: release/**
+          path: |
+            ${{ matrix.upload }}
+            ${{ matrix.updateFile }}
           if-no-files-found: error
 
   build-android:
@@ -86,9 +94,6 @@ jobs:
   deploy-web:
     name: Live web (GitHub Pages)
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -118,9 +123,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: android-apk
-          path: release/android
+          path: release
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          files: release/**
+          files: |
+            release/*.AppImage
+            release/*.exe
+            release/*.dmg
+            release/*.apk
+            release/latest*.yml
           generate_release_notes: true
