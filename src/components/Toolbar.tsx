@@ -38,6 +38,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [quickAddText, setQuickAddText] = useState('')
   const [moreOpen, setMoreOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   const [findFreeOpen, setFindFreeOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
@@ -46,6 +47,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
   const [quickAddError, setQuickAddError] = useState<string | null>(null)
   const quickAddRef = useRef<HTMLInputElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
+  const accountRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handler = (): void => setNewEventOpen(true)
@@ -70,6 +72,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
   useEffect(() => {
     const outside = (e: MouseEvent): void => {
       if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false)
+      if (accountRef.current && !accountRef.current.contains(e.target as Node)) setAccountOpen(false)
     }
     window.addEventListener('mousedown', outside)
     return () => window.removeEventListener('mousedown', outside)
@@ -359,26 +362,42 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
             </div>
           )}
         </div>
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
-          title="Settings"
-          aria-label="Settings"
-        >
-          <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
-            <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.61 3.61 0 0 1 8.4 12c0-1.98 1.62-3.6 3.6-3.6s3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
-          </svg>
-        </button>
-        <div className="relative group">
-          <button className="w-8 h-8 rounded-full bg-accent text-white text-sm font-medium flex items-center justify-center">
+        <div className="relative" ref={accountRef}>
+          <button
+            onClick={() => setAccountOpen((o) => !o)}
+            className="w-8 h-8 rounded-full bg-accent text-white text-sm font-medium flex items-center justify-center hover:opacity-90"
+            title="Account menu"
+            aria-label="Account menu"
+          >
             {user?.name?.[0]?.toUpperCase() ?? '?'}
           </button>
-          <div className="absolute right-0 top-10 hidden group-hover:block z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 w-44">
-            <p className="px-3 py-1 text-sm text-gray-700 dark:text-gray-200 truncate">{user?.email}</p>
-            <button onClick={() => void logout()} className="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-              Sign out
-            </button>
-          </div>
+          {accountOpen && (
+            <div className="absolute right-0 top-10 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 w-44">
+              <p className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 truncate">{user?.email}</p>
+              <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
+              <button
+                onClick={() => {
+                  setAccountOpen(false)
+                  setSettingsOpen(true)
+                }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-400" fill="currentColor">
+                  <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.61 3.61 0 0 1 8.4 12c0-1.98 1.62-3.6 3.6-3.6s3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                </svg>
+                Settings
+              </button>
+              <button
+                onClick={() => void logout()}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
+                  <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5v-1l-5-2zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+                </svg>
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
