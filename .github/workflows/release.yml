@@ -149,10 +149,17 @@ jobs:
     needs: [build-installers, build-android, docker]
     steps:
       - uses: actions/checkout@v4
+      - name: Extract changelog for this release
+        run: awk '/^## \[Unreleased\]/{f=1; next} /^## \[/{f=0} f' CHANGELOG.md > /tmp/changelog.md
       - name: Compose release notes
         run: |
           {
             echo '## Calendar No One Asked For ${{ github.ref_name }}'
+            echo ''
+            echo '### What is new'
+            echo '```markdown'
+            cat /tmp/changelog.md
+            echo '```'
             echo ''
             echo '### Live version (web)'
             echo 'Try it in the browser — no install, no account, seeded demo data:'

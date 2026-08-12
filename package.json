@@ -1,6 +1,6 @@
 {
   "name": "calendar-noone-asked-for",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "Offline desktop Google Calendar clone",
   "desktopName": "calendar-noone-asked-for",
   "author": {
@@ -44,15 +44,17 @@
     ],
     "win": {
       "target": [
-        {
-          "target": "nsis",
-          "artifactName": "${productName}-${version}-windows-${arch}-installer.${ext}"
-        },
-        {
-          "target": "portable",
-          "artifactName": "${productName}-${version}-windows-${arch}-portable.${ext}"
-        }
-      ]
+        "nsis",
+        "portable"
+      ],
+      "nsis": {
+        "artifactName": "${productName}-${version}-windows-${arch}-installer.${ext}"
+      },
+      "portable": {
+        "artifactName": "${productName}-${version}-windows-${arch}-portable.${ext}"
+      },
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     },
     "nsis": {
       "oneClick": false,
@@ -60,28 +62,28 @@
     },
     "mac": {
       "target": [
-        {
-          "target": "dmg",
-          "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
-        },
-        {
-          "target": "zip",
-          "artifactName": "${productName}-${version}-mac-${arch}-portable.${ext}"
-        }
+        "dmg",
+        "zip"
       ],
+      "dmg": {
+        "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+      },
+      "zip": {
+        "artifactName": "${productName}-${version}-mac-${arch}-portable.${ext}"
+      },
       "category": "public.app-category.productivity"
     },
     "linux": {
       "target": [
-        {
-          "target": "deb",
-          "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
-        },
-        {
-          "target": "AppImage",
-          "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
-        }
+        "deb",
+        "AppImage"
       ],
+      "deb": {
+        "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+      },
+      "appImage": {
+        "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+      },
       "category": "Utility",
       "syncDesktopName": true
     },
