@@ -6,6 +6,14 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Live downloads page** — `downloads.html` on GitHub Pages lists the
+  current platform's installer first and resolves the latest version from the
+  GitHub API on every visit: Windows installer/portable, macOS `.dmg`/`.zip`,
+  Linux `.AppImage`/`.tar.gz`, Android `.apk`, with a fallback link to the
+  releases page.
+
 ### Fixed
 
 - **Service worker could serve stale assets** — the cache was never

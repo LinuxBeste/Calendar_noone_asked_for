@@ -143,6 +143,9 @@ offline once loaded. The sidebar share dialog shows QR codes for public links
 npm run build:demo   # demo build to web/dist-demo/ (what the demo pages host)
 ```
 
+Installers for every platform always point to the latest release:
+https://linuxbeste.github.io/Calendar_noone_asked_for/downloads.html
+
 ## Testing
 
 ```bash

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1a73e8" />
+    <title>Downloads - Calendar (no one asked for)</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: #f8f9fa; color: #202124; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+      header { width: 100%; background: #1a73e8; color: #fff; padding: 24px 16px; text-align: center; }
+      header h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+      header p { font-size: 14px; opacity: 0.9; }
+      main { width: 100%; max-width: 720px; padding: 24px 16px; flex: 1; }
+      .platform { display: flex; align-items: center; gap: 16px; background: #fff; border: 1px solid #dadce0; border-radius: 12px; padding: 18px; margin-bottom: 12px; }
+      .platform .badge { width: 44px; height: 44px; border-radius: 10px; color: #fff; font-weight: 700; font-size: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+      .platform h2 { font-size: 16px; margin-bottom: 2px; }
+      .platform p { font-size: 13px; color: #5f6368; margin-bottom: 10px; }
+      a.btn { display: inline-block; background: #1a73e8; color: #fff; text-decoration: none; font-size: 14px; font-weight: 500; padding: 8px 16px; border-radius: 8px; margin-right: 8px; }
+      a.btn:hover { background: #1765cc; }
+      a.btn.alt { background: #f1f3f4; color: #1a73e8; }
+      a.btn[disabled] { opacity: 0.4; pointer-events: none; }
+      .meta { text-align: center; font-size: 13px; color: #5f6368; margin-top: 20px; }
+      .meta a { color: #1a73e8; }
+      #err { display: none; text-align: center; padding: 12px; background: #fce8e6; color: #c5221f; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+      footer { width: 100%; padding: 16px; text-align: center; font-size: 13px; color: #5f6368; border-top: 1px solid #dadce0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Download Calendar (no one asked for)</h1>
+      <p>Desktop + mobile installers, always the latest version</p>
+    </header>
+    <main>
+      <div id="err"></div>
+      <div id="list"></div>
+      <p class="meta" id="meta"></p>
+      <p class="meta">
+        Prefer the browser? Use the <a href="./">live demo</a> — no install, no account.<br />
+        All releases &amp; sources: <a href="https://github.com/LinuxBeste/Calendar_noone_asked_for/releases" target="_blank" rel="noopener">github.com/LinuxBeste/Calendar_noone_asked_for</a>
+      </p>
+    </main>
+    <footer>Offline-first calendar · Electron · React · TypeScript</footer>
+    <script>
+      const PLATFORMS = [
+        { id: 'windows', name: 'Windows', badge: 'W', color: '#0078d4', match: /win/i, files: [{ needle: '.exe', label: 'Installer (.exe)' }, { needle: '.zip', label: 'Portable (.zip)' }] },
+        { id: 'mac', name: 'macOS', badge: 'M', color: '#5f6368', match: /mac/i, files: [{ needle: '.dmg', label: 'Disk image (.dmg)' }, { needle: 'mac-arm64.zip', label: 'Portable (.zip)' }] },
+        { id: 'linux', name: 'Linux', badge: 'L', color: '#f29900', match: /linux/i, files: [{ needle: '.AppImage', label: 'AppImage' }, { needle: '.tar.gz', label: 'Portable (.tar.gz)' }] },
+        { id: 'android', name: 'Android', badge: 'A', color: '#34a853', match: /android/i, files: [{ needle: '.apk', label: 'APK (.apk)' }] }
+      ]
+      const $ = (t) => document.createElement(t)
+      const el = document.getElementById('list')
+      const errEl = document.getElementById('err')
+      const metaEl = document.getElementById('meta')
+
+      function showPlatform(plat) {
+        const row = $('div')
+        row.className = 'platform'
+        const badge = $('div')
+        badge.className = 'badge'
+        badge.style.background = plat.color
+        badge.textContent = plat.badge
+        const box = $('div'); box.style.flex = '1'
+        const h = $('h2'); h.textContent = plat.name
+        const p = $('p'); p.textContent = plat.pending
+        box.append(h, p)
+        row.append(badge, box)
+        el.append(row)
+        return { row, p }
+      }
+
+      async function main() {
+        let release
+        try {
+          const res = await fetch('https://api.github.com/repos/LinuxBeste/Calendar_noone_asked_for/releases/latest')
+          if (!res.ok) throw new Error('http ' + res.status)
+          release = await res.json()
+        } catch {
+          errEl.style.display = 'block'
+          errEl.textContent = 'Could not load the latest release. Visit the releases page instead:'
+          const a = $('a'); a.href = 'https://github.com/LinuxBeste/Calendar_noone_asked_for/releases/latest'; a.textContent = 'github releases'; a.target = '_blank'; a.rel = 'noopener'
+          errEl.append(' ', a)
+        }
+
+        const ua = navigator.userAgent
+        for (const plat of PLATFORMS) {
+          const { row, p } = showPlatform(plat)
+          if (!release) continue
+          const assets = release.assets || []
+          const found = plat.files.map((f) => {
+            const asset = assets.find((a) => a.name.endsWith(f.needle) && (plat.id === 'android' || a.name.includes(plat.id)))
+            return asset ? { ...f, url: asset.browser_download_url } : null
+          }).filter(Boolean)
+          p.textContent = found.length ? '' : 'No installer for this platform in the latest release.'
+          for (const f of found) {
+            const btn = $('a')
+            btn.className = 'btn' + (ua.match(plat.match) ? '' : ' alt')
+            btn.href = f.url
+            btn.textContent = f.label
+            btn.title = 'Latest release: ' + release.tag_name
+            row.append(btn)
+          }
+          row.style.borderColor = ua.match(plat.match) ? '#1a73e8' : '#dadce0'
+          if (ua.match(plat.match)) row.style.boxShadow = '0 0 0 2px rgba(26,115,232,0.15)'
+        }
+        if (release) {
+          metaEl.textContent = 'Latest release: ' + release.tag_name + ' · ' + new Date(release.published_at).toLocaleDateString() + ' · ' + (release.name || '')
+        }
+      }
+      main()
+    </script>
+  </body>
+</html>
