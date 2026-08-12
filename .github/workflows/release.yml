@@ -142,6 +142,39 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-installers, build-android, docker]
     steps:
+      - uses: actions/checkout@v4
+      - name: Extract changelog for this release
+        run: awk '/^## \[Unreleased\]/{f=1; next} /^## \[/{f=0} f' CHANGELOG.md > /tmp/changelog.md
+      - name: Compose release notes
+        run: |
+          {
+            echo '## Calendar No One Asked For ${{ github.ref_name }}'
+            echo ''
+            echo '### Live version (web)'
+            echo 'Try it in the browser — no install, no account, seeded demo data:'
+            echo ''
+            echo 'https://linuxbeste.github.io/Calendar_noone_asked_for/'
+            echo ''
+            echo '### Docker image'
+            echo '```'
+            echo 'docker pull ghcr.io/linuxbeste/calendar_noone_asked_for:latest'
+            echo 'docker run -p 3001:3001 -v calendar-data:/data -e CALENDAR_API_KEY=your-secret ghcr.io/linuxbeste/calendar_noone_asked_for:latest'
+            echo '```'
+            echo '- Web client + API at http://localhost:3001'
+            echo '- Data is stored in the `calendar-data` volume'
+            echo '- Point the web app at a different server via Settings → API URL'
+            echo ''
+            echo '### Installers'
+            echo '- Windows: `.exe` (NSIS installer) or `.zip` (portable, no install)'
+            echo '- macOS: `.dmg` or `.zip` (portable)'
+            echo '- Linux: `.AppImage` or `.tar.gz` (portable)'
+            echo '- Android: `.apk` (debug build)'
+            echo ''
+            echo '### Changelog'
+            echo '```markdown'
+            cat /tmp/changelog.md
+            echo '```'
+          } > /tmp/release-body.md
       - uses: actions/download-artifact@v4
         with:
           pattern: installers-*
@@ -162,26 +195,4 @@ jobs:
             release/*.zip
             release/*.tar.gz
             release/latest*.yml
-          body: |
-            ## Calendar No One Asked For ${{ github.ref_name }}
-
-            ### Live version (web)
-            Try it in the browser: https://linuxbeste.github.io/Calendar_noone_asked_for/
-
-            ### Docker image
-            ```
-            docker pull ghcr.io/linuxbeste/calendar_noone_asked_for:latest
-            docker run -p 3001:3001 -v calendar-data:/data -e CALENDAR_API_KEY=your-secret ghcr.io/linuxbeste/calendar_noone_asked_for:latest
-            ```
-            - Web client + API at http://localhost:3001
-            - Data is stored in the `calendar-data` volume
-            - Point the web app at a different server via Settings → API URL
-
-            ### Installers
-            - Windows: `.exe` (NSIS installer) or `.zip` (portable, no install)
-            - macOS: `.dmg` or `.zip` (portable)
-            - Linux: `.AppImage` or `.tar.gz` (portable)
-
-            ### Mobile
-            - Android: `.apk` (debug build)
-          generate_release_notes: true
+          body_path: /tmp/release-body.md
