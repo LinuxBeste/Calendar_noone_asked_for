@@ -1,6 +1,6 @@
 {
   "name": "calendar-noone-asked-for",
-  "version": "0.5.9",
+  "version": "0.5.10",
   "description": "Offline desktop Google Calendar clone",
   "desktopName": "calendar-noone-asked-for",
   "author": {
@@ -46,17 +46,10 @@
       "target": [
         "nsis",
         "portable"
-      ],
-      "nsis": {
-        "artifactName": "${productName}-${version}-windows-${arch}-installer.${ext}"
-      },
-      "portable": {
-        "artifactName": "${productName}-${version}-windows-${arch}-portable.${ext}"
-      },
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      ]
     },
     "nsis": {
+      "artifactName": "${productName}-${version}-windows-${arch}-installer.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
@@ -65,12 +58,7 @@
         "dmg",
         "zip"
       ],
-      "dmg": {
-        "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
-      },
-      "zip": {
-        "artifactName": "${productName}-${version}-mac-${arch}-portable.${ext}"
-      },
+      "artifactName": "${productName}-${version}-mac-${arch}-portable.${ext}",
       "category": "public.app-category.productivity"
     },
     "linux": {
@@ -78,12 +66,7 @@
         "deb",
         "AppImage"
       ],
-      "deb": {
-        "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
-      },
-      "appImage": {
-        "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
-      },
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
       "category": "Utility",
       "syncDesktopName": true
     },
@@ -91,6 +74,12 @@
       "provider": "github",
       "owner": "LinuxBeste",
       "repo": "Calendar_noone_asked_for"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-windows-${arch}-portable.${ext}"
+    },
+    "dmg": {
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
     }
   },
   "dependencies": {
