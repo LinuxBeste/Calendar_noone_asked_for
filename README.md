@@ -9,6 +9,8 @@ An offline-first desktop Google Calendar clone built with Electron, React, and T
 - **Recurrence**: daily/weekly/monthly/yearly rules (RRULE), intervals, end dates, "this event / this and following / all events" edit modes, single-occurrence exceptions, series split
 - **Calendars**: unlimited calendars, colors, show/hide, share with other users (viewer/editor roles)
 - **Live sync**: WebSocket push so all clients update instantly, filtered per user/calendar
+- **Upcoming-event notifications**: notify before events (configurable window), besides the classic reminders — native on desktop/Android, JS engine in the browser
+- **QR share links**: show a QR code for a calendar's public link to open on your phone
 - **Settings**: 124 settings across 10 categories (views, appearance, agenda, month, events, notifications, privacy, …) with a shared server-validated catalog
 - **Multi-user**: local accounts with scrypt password hashing, session tokens
 - **ICS feeds**: subscribe to external .ics URLs; events sync automatically and are read-only
@@ -128,6 +130,18 @@ Point the app at your backend (`http://10.0.2.2:3001` is the default on the
 Android emulator, or enter your computer's LAN IP from a device — the
 connection screen and Settings → API URL both work). Cleartext HTTP is enabled
 for local backends.
+
+### Live demo (no backend needed)
+
+https://linuxbeste.github.io/Calendar_noone_asked_for/ runs the web client in
+a browser-only demo mode: seeded calendars and events, no login, everything
+resets on reload. The web client is also a PWA — install it and it works
+offline once loaded. The sidebar share dialog shows QR codes for public links
+("Scan to open on your phone").
+
+```bash
+npm run build:demo   # demo build to web/dist-demo/ (what the demo pages host)
+```
 
 ## Testing
 

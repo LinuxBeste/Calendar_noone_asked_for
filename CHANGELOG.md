@@ -35,11 +35,30 @@ All notable changes to this project are documented here. Format follows
   30), daily SQLite backups with rotation (`CALENDAR_BACKUPS_DIR`,
   `CALENDAR_BACKUP_KEEP`), auth rate limiting (10 attempts / 5 min)
 - **Client unit tests** — quick-add parser and event-template suites (Vitest)
+- **Offline demo mode** — no-login demo build (seeded calendars and events,
+  reset on reload) deployed to GitHub Pages; demo banner shown in-app
+- **PWA** — web app is installable and runs offline once loaded
+  (`manifest.webmanifest`, service worker, generated icons)
+- **First-run tour** — five-step onboarding overlay (demo mode only)
+- **Upcoming-event notifications** — the app natively notifies before events
+  (configurable window), on top of existing full-day reminders; web engine
+  checks while the tab runs, honoring silent hours
+- **QR share links** — sidebar share dialog shows a QR code per public link
+  ("Scan to open on your phone")
+- **Material icons** — app icons (incl. Android launcher/splash) regenerated
+  from the Material "event" glyph with a consistent blue `#1a73e8` background
+- **CI check job** — typecheck + unit tests gate all release artifacts
+- **Version display** — app version shown in the settings dialog footer and on
+  the connection screen
 
 ### Fixed
 
 - `purgeEvent` referenced an undefined variable (`existing.calendarId`),
   which would have crashed on purge (caught by `tsc`)
+- Connection screen now shows validation and per-state error messages
+- Settings/tour setup only triggers when creating a new account, not on login
+- Toolbar wraps on narrow screens and the search results dropdown is no longer
+  clipped
 - Boolean settings in the settings dialog showed their name twice (the label
   was rendered both as the row title and inside the checkbox control)
 - Settings dialog tabs now stack horizontally on narrow screens and the
