@@ -143,8 +143,6 @@ jobs:
     needs: [build-installers, build-android, docker]
     steps:
       - uses: actions/checkout@v4
-      - name: Extract changelog for this release
-        run: awk '/^## \[Unreleased\]/{f=1; next} /^## \[/{f=0} f' CHANGELOG.md > /tmp/changelog.md
       - name: Compose release notes
         run: |
           {
@@ -155,6 +153,19 @@ jobs:
             echo ''
             echo 'https://linuxbeste.github.io/Calendar_noone_asked_for/'
             echo ''
+            echo '### Downloads'
+            echo 'Always the latest version, one click per platform:'
+            echo ''
+            echo 'https://linuxbeste.github.io/Calendar_noone_asked_for/downloads.html'
+            echo '- Windows: `.exe` (NSIS installer) or `.zip` (portable, no install)'
+            echo '- macOS: `.dmg` or `.zip` (portable)'
+            echo '- Linux: `.AppImage` or `.tar.gz` (portable)'
+            echo '- Android: `.apk` (debug build)'
+            echo ''
+            echo '### Deployment'
+            echo 'This release is deployed to GitHub Pages automatically (live demo above).'
+            echo 'Deployment history: repo Settings → Pages → Recent deployments.'
+            echo ''
             echo '### Docker image'
             echo '```'
             echo 'docker pull ghcr.io/linuxbeste/calendar_noone_asked_for:latest'
@@ -164,19 +175,9 @@ jobs:
             echo '- Data is stored in the `calendar-data` volume'
             echo '- Point the web app at a different server via Settings → API URL'
             echo ''
-            echo '### Installers'
-            echo 'Always the latest version, one click per platform:'
-            echo ''
-            echo 'https://linuxbeste.github.io/Calendar_noone_asked_for/downloads.html'
-            echo ''
-            echo '- Windows: `.exe` (NSIS installer) or `.zip` (portable, no install)'
-            echo '- macOS: `.dmg` or `.zip` (portable)'
-            echo '- Linux: `.AppImage` or `.tar.gz` (portable)'
-            echo '- Android: `.apk` (debug build)'
-            echo ''
-            echo '### Changelog'
+            echo '### Full changelog (CHANGELOG.md)'
             echo '```markdown'
-            cat /tmp/changelog.md
+            cat CHANGELOG.md
             echo '```'
           } > /tmp/release-body.md
       - uses: actions/download-artifact@v4
