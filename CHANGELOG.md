@@ -6,6 +6,15 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI / Pages deploys could fail on `npm install`** — installing the
+  dependency tree downloads the Electron binary on every job, and a socket
+  hang-up on the download killed the GitHub Pages deploy and CI runs.
+  Jobs that don't package Electron now skip the binary download
+  (`ELECTRON_SKIP_BINARY_DOWNLOAD=1`); installer jobs retry `npm install`
+  once.
+
 ### Added
 
 - **Live downloads page** — `downloads.html` on GitHub Pages lists the

@@ -15,6 +15,8 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - name: Typecheck
         run: npm run typecheck
 
@@ -28,6 +30,8 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - name: Unit tests
         run: npm test
 
@@ -41,6 +45,8 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - name: Build desktop app
         run: npm run build
 
@@ -54,5 +60,7 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - name: Build web client
         run: npm run build:web

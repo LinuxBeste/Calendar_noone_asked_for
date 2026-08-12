@@ -1,6 +1,7 @@
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package.json ./
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 RUN npm install
 COPY . .
 RUN npm run build:web && npm prune --omit=dev
