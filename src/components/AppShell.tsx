@@ -165,6 +165,11 @@ export default function AppShell(): React.JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
+      {__DEMO__ && (
+        <div className="shrink-0 px-3 py-1 text-center text-xs bg-gradient-to-r from-accent/15 via-accent/25 to-accent/15 text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
+          📅 Live demo — everything runs locally in your browser and resets on reload. No account needed.
+        </div>
+      )}
       <Toolbar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
       {dragOver && (
         <div className="pointer-events-none fixed inset-0 z-[80] bg-accent/20 border-4 border-dashed border-accent flex items-center justify-center">

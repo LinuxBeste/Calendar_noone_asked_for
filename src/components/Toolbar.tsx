@@ -228,7 +228,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
         ))}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 relative">
         <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus-within:ring-2 focus-within:ring-accent w-56">
           <span className="text-sm leading-none">⚡</span>
           <input
@@ -253,7 +253,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
           )}
         </div>
         {quickAddOpen && quickAddText && (
-          <p className="absolute top-14 right-40 hidden lg:block text-xs bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 px-3 py-1.5 rounded-lg shadow-lg">
+          <p className="absolute top-12 right-0 hidden lg:block text-xs bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 px-3 py-1.5 rounded-lg shadow-lg">
             {quickAddError ?? 'Press Enter to create the event'}
           </p>
         )}

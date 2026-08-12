@@ -9,6 +9,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsDialog from './components/ShortcutsDialog'
 import SetupDialog from './components/SetupDialog'
+import TourOverlay from './components/TourOverlay'
 
 bindSettingsProvider(() => useCalendar.getState().settings)
 
@@ -17,6 +18,7 @@ export default function App(): React.JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [setupOpen, setSetupOpen] = useState(false)
+  const [tourOpen, setTourOpen] = useState(() => __DEMO__ && localStorage.getItem('calendar.tourDone') !== '1')
 
   useEffect(() => {
     void boot()
@@ -123,6 +125,14 @@ export default function App(): React.JSX.Element {
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
       {helpOpen && <ShortcutsDialog onClose={() => setHelpOpen(false)} />}
       {setupOpen && <SetupDialog onClose={() => setSetupOpen(false)} />}
+      {tourOpen && (
+        <TourOverlay
+          onClose={() => {
+            localStorage.setItem('calendar.tourDone', '1')
+            setTourOpen(false)
+          }}
+        />
+      )}
     </ErrorBoundary>
   )
 }

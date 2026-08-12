@@ -17,6 +17,12 @@ if (__DEMO__) {
   window.calendarApi = webApi
 }
 
+if ('serviceWorker' in navigator && location.protocol.startsWith('https')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => undefined)
+  })
+}
+
 if (!__DEMO__ && !nativeNotificationsAvailable() && 'Notification' in window && Notification.permission === 'default') {
   void Notification.requestPermission()
 }

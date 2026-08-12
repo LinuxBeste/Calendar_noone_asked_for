@@ -1,4 +1,5 @@
 import type { CalendarInput, EventInput, ShareInput, FeedInput } from '@shared/types'
+import { useCalendar } from '../src/store'
 
 export const logger = {
   info: (...args: unknown[]) => console.info('[calendar]', ...args),
@@ -232,12 +233,51 @@ export function startWebReminderEngine(): void {
         }
         await call('POST', `/reminders/${r.id}/sent`, token)
       }
+      await checkUpcoming(token)
     } catch (err) {
       logger.warn('reminder check failed:', err)
     } finally {
       running = false
     }
   }
+
+  const checkUpcoming = async (token: string): Promise<void> => {
+    const s = useCalendar.getState().settings
+    if (!s.notifyUpcomingEvents || s.notifyUpcomingWindow < 5) return
+    const winMs = s.notifyUpcomingWindow * 60000
+    const from = new Date().toISOString()
+    const to = new Date(Date.now() + winMs).toISOString()
+    const occurrences = (await call('GET', `/events/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, token)) as Array<{
+      start: string
+      event: { id: string; title: string }
+    }>
+    let stored: string[] = []
+    try {
+      stored = JSON.parse(localStorage.getItem('calendar.notifiedUpcoming') ?? '[]') as string[]
+    } catch {
+      stored = []
+    }
+    const set = new Set(stored)
+    for (const occ of occurrences) {
+      const startMs = new Date(occ.start).getTime()
+      if (startMs <= Date.now()) continue
+      const key = `${occ.event.id}|${occ.start}`
+      if (set.has(key)) continue
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(occ.event.title, {
+          body: `Starting at ${new Date(startMs).toLocaleTimeString()}`
+        })
+      }
+      set.add(key)
+    }
+    const cutoff = Date.now() - 48 * 60 * 60 * 1000
+    const kept = [...set].filter((k) => {
+      const ts = k.split('|')[1]
+      return ts ? new Date(ts).getTime() > cutoff : true
+    })
+    localStorage.setItem('calendar.notifiedUpcoming', JSON.stringify(kept))
+  }
+
   void check()
   setInterval(() => void check(), 30_000)
 }

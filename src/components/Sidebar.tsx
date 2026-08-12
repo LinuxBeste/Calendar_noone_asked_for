@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import QRCode from 'qrcode'
 import { useAuth, useCalendar } from '../store'
 import { toast } from '../toasts'
 import { nativeShare } from '../lib/platform'
@@ -396,6 +397,7 @@ function LinkDialog({ calendar, onClose }: { calendar: Calendar; onClose: () => 
   const { token } = useAuth()
   const [links, setLinks] = useState<{ token: string; createdAt: string }[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [qrs, setQrs] = useState<Record<string, string>>({})
 
   const load = async (): Promise<void> => {
     if (!token) return
@@ -405,6 +407,25 @@ function LinkDialog({ calendar, onClose }: { calendar: Calendar; onClose: () => 
   useEffect(() => {
     void load()
   }, [])
+
+  useEffect(() => {
+    void (async () => {
+      const next: Record<string, string> = {}
+      for (const l of links) {
+        if (qrs[l.token]) continue
+        try {
+          next[l.token] = await QRCode.toDataURL(`${API_BASE()}/public/${l.token}`, {
+            width: 180,
+            margin: 1,
+            color: { dark: '#000000ff', light: '#ffffffff' }
+          })
+        } catch {
+          // QR generation failed — skip
+        }
+      }
+      if (Object.keys(next).length > 0) setQrs((q) => ({ ...q, ...next }))
+    })()
+  }, [links])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -449,19 +470,27 @@ function LinkDialog({ calendar, onClose }: { calendar: Calendar; onClose: () => 
         <p className="text-sm text-gray-500 mb-4">Anyone with the link can view this calendar — no account needed. You can also subscribe to it in any calendar app via the .ics URL.</p>
 
         {links.map((l) => (
-          <div key={l.token} className="flex items-center gap-2 mb-2">
-            <code className="flex-1 text-xs px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 truncate" title={`${API_BASE()}/public/${l.token}`}>
-              {API_BASE()}/public/{l.token}
-            </code>
-            <button onClick={() => copy(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">
-              Copy
-            </button>
-            <button onClick={() => void share(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">
-              Share
-            </button>
-            <button onClick={() => void revoke(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
-              Revoke
-            </button>
+          <div key={l.token} className="mb-3">
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 truncate" title={`${API_BASE()}/public/${l.token}`}>
+                {API_BASE()}/public/{l.token}
+              </code>
+              <button onClick={() => copy(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">
+                Copy
+              </button>
+              <button onClick={() => void share(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">
+                Share
+              </button>
+              <button onClick={() => void revoke(l.token)} className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
+                Revoke
+              </button>
+            </div>
+            {qrs[l.token] && (
+              <div className="mt-2 flex flex-col items-center gap-1">
+                <img src={qrs[l.token]} alt={`QR code for ${calendar.name} share link`} className="w-32 h-32 rounded-lg border border-gray-200 dark:border-gray-600 bg-white p-1" />
+                <p className="text-[10px] text-gray-400">Scan to open on your phone</p>
+              </div>
+            )}
           </div>
         ))}
 

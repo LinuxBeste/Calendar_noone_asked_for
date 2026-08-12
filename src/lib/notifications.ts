@@ -73,6 +73,40 @@ export async function reconcileLocalNotifications(): Promise<void> {
         at
       })
     }
+    if (settings.notifyUpcomingEvents && settings.notifyUpcomingWindow >= 5) {
+      const winMs = settings.notifyUpcomingWindow * 60000
+      const now = new Date()
+      const from = now.toISOString()
+      const to = new Date(now.getTime() + winMs).toISOString()
+      try {
+        const occurrences = (await window.calendarApi.events.listOccurrences(token, from, to)) as Array<{
+          start: string
+          event: { id: string; calendarId: string; title: string }
+        }>
+        const calNames = new Map<string, string>()
+        for (const occ of occurrences) {
+          const startMs = new Date(occ.start).getTime()
+          if (startMs <= Date.now()) continue
+          const fireAt = new Date(Math.max(startMs - winMs, Date.now()))
+          if (inSilentHours(settings, fireAt)) continue
+          if (!calNames.has(occ.event.calendarId)) {
+            try {
+              const cals = (await window.calendarApi.calendars.list(token)) as Array<{ id: string; name: string }>
+              for (const c of cals) calNames.set(c.id, c.name)
+            } catch {
+              // calendar list unavailable — fall back to generic label
+            }
+          }
+          desired.set(reminderNotificationId(`upcoming:${occ.event.id}:${occ.start}`, occ.start), {
+            title: occ.event.title,
+            body: `Starts at ${new Date(startMs).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} · ${calNames.get(occ.event.calendarId) ?? 'Calendar'}`,
+            at: fireAt
+          })
+        }
+      } catch {
+        // occurrence fetch failed — reminders above are still valid
+      }
+    }
     const pending = await pendingLocalNotificationIds()
     const toCancel = pending.filter((id) => !desired.has(id))
     const toAdd = [...desired.entries()].filter(([id]) => !pending.includes(id))
@@ -102,13 +136,17 @@ type SettingsLike = {
   silentHoursEnabled: boolean
   silentHoursStart: number
   silentHoursEnd: number
+  notifyUpcomingEvents: boolean
+  notifyUpcomingWindow: number
 }
 
 let useCalendarState: () => SettingsLike = () => ({
   notificationsEnabled: true,
   silentHoursEnabled: false,
   silentHoursStart: 22,
-  silentHoursEnd: 7
+  silentHoursEnd: 7,
+  notifyUpcomingEvents: false,
+  notifyUpcomingWindow: 30
 })
 
 export function bindSettingsProvider(provider: () => SettingsLike): void {

@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   return {
     root: 'web',
     base: './',
+    publicDir: 'static',
     plugins: [react()],
     define: {
       __APP_VERSION__: JSON.stringify(version),
