@@ -163,7 +163,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   booting: true,
   async boot() {
-    const token = get().token
+    const token = get().token ?? localStorage.getItem('calendar.token')
     if (!token) {
       set({ booting: false })
       return

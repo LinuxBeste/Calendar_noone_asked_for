@@ -6,6 +6,14 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Demo live version didn't load** — the auth store reads the session token at
+  module load, before demo mode seeds it, so `boot()` never restored a session
+  and the demo dropped visitors onto the sign-in screen instead of the seeded
+  calendar. `boot()` now falls back to re-reading the token from
+  `localStorage`, so the live demo auto-logs-in.
+
 ### Added
 
 - **Android / mobile support** — touch drag & drop in week and month views
