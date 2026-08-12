@@ -8,6 +8,11 @@ All notable changes to this project are documented here. Format follows
 
 ### Fixed
 
+- **Service worker could serve stale assets** — the cache was never
+  version-bumped (`calendar-v1`) and the fetch handler answered with the
+  cached copy first, so returning visitors could be served an older app
+  build. Cache is now `calendar-v2` (old caches purged on activate) and all
+  requests are network-first with cache as offline fallback.
 - **Demo live version didn't load** — the auth store reads the session token at
   module load, before demo mode seeds it, so `boot()` never restored a session
   and the demo dropped visitors onto the sign-in screen instead of the seeded

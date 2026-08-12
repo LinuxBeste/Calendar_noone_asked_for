@@ -1,4 +1,4 @@
-const CACHE = 'calendar-v1'
+const CACHE = 'calendar-v2'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -26,8 +26,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((res) => {
-          const copy = res.clone()
-          caches.open(CACHE).then((cache) => cache.put('./index.html', copy))
+          caches.open(CACHE).then((cache) => cache.put('./index.html', res.clone()))
           return res
         })
         .catch(async () => (await caches.match('./index.html')) || Response.error())
@@ -36,17 +35,14 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetched = fetch(event.request)
-        .then((res) => {
-          if (res.ok) {
-            const copy = res.clone()
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy))
-          }
-          return res
-        })
-        .catch(() => cached || Response.error())
-      return cached || fetched
-    })
+    fetch(event.request)
+      .then((res) => {
+        if (res.ok) {
+          const copy = res.clone()
+          caches.open(CACHE).then((cache) => cache.put(event.request, copy))
+        }
+        return res
+      })
+      .catch(async () => (await caches.match(event.request)) || Response.error())
   )
 })
