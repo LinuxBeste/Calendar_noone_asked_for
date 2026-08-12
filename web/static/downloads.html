@@ -12,7 +12,7 @@
       header h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
       header p { font-size: 14px; opacity: 0.9; }
       main { width: 100%; max-width: 720px; padding: 24px 16px; flex: 1; }
-      .platform { display: flex; align-items: center; gap: 16px; background: #fff; border: 1px solid #dadce0; border-radius: 12px; padding: 18px; margin-bottom: 12px; }
+      .platform { display: flex; align-items: flex-start; gap: 16px; background: #fff; border: 1px solid #dadce0; border-radius: 12px; padding: 18px; margin-bottom: 12px; }
       .platform .badge { width: 44px; height: 44px; border-radius: 10px; color: #fff; font-weight: 700; font-size: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
       .platform h2 { font-size: 16px; margin-bottom: 2px; }
       .platform p { font-size: 13px; color: #5f6368; margin-bottom: 10px; }
@@ -60,13 +60,13 @@
         badge.className = 'badge'
         badge.style.background = plat.color
         badge.textContent = plat.badge
-        const box = $('div'); box.style.flex = '1'
+        const box = $('div'); box.style.flex = '1'; box.style.display = 'flex'; box.style.flexDirection = 'column'
         const h = $('h2'); h.textContent = plat.name
         const p = $('p'); p.textContent = plat.pending
         box.append(h, p)
         row.append(badge, box)
         el.append(row)
-        return { row, p }
+        return { row, box, p }
       }
 
       async function main() {
@@ -84,7 +84,7 @@
 
         const ua = navigator.userAgent
         for (const plat of PLATFORMS) {
-          const { row, p } = showPlatform(plat)
+          const { row, box, p } = showPlatform(plat)
           if (!release) continue
           const assets = release.assets || []
           const found = plat.files.map((f) => {
@@ -98,7 +98,7 @@
             btn.href = f.url
             btn.textContent = f.label
             btn.title = 'Latest release: ' + release.tag_name
-            row.append(btn)
+            box.append(btn)
           }
           row.style.borderColor = ua.match(plat.match) ? '#1a73e8' : '#dadce0'
           if (ua.match(plat.match)) row.style.boxShadow = '0 0 0 2px rgba(26,115,232,0.15)'
