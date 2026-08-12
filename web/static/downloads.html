@@ -43,9 +43,9 @@
     <footer>Offline-first calendar · Electron · React · TypeScript</footer>
     <script>
       const PLATFORMS = [
-        { id: 'windows', name: 'Windows', badge: 'W', color: '#0078d4', match: /win/i, files: [{ needle: '.exe', label: 'Installer (.exe)' }, { needle: '.zip', label: 'Portable (.zip)' }] },
-        { id: 'mac', name: 'macOS', badge: 'M', color: '#5f6368', match: /mac/i, files: [{ needle: '.dmg', label: 'Disk image (.dmg)' }, { needle: 'mac-arm64.zip', label: 'Portable (.zip)' }] },
-        { id: 'linux', name: 'Linux', badge: 'L', color: '#f29900', match: /linux/i, files: [{ needle: '.AppImage', label: 'AppImage' }, { needle: '.tar.gz', label: 'Portable (.tar.gz)' }] },
+        { id: 'windows', name: 'Windows', badge: 'W', color: '#0078d4', match: /win/i, files: [{ needle: '-installer.exe', label: 'Installer (.exe)' }, { needle: '-portable.exe', label: 'Portable (.exe)' }] },
+        { id: 'mac', name: 'macOS', badge: 'M', color: '#5f6368', match: /mac/i, files: [{ needle: '.dmg', label: 'Disk image (.dmg)' }, { needle: '-portable.zip', label: 'Portable (.zip)' }] },
+        { id: 'linux', name: 'Linux', badge: 'L', color: '#f29900', match: /linux/i, files: [{ needle: '.deb', label: 'Installer (.deb)' }, { needle: '.AppImage', label: 'Portable (AppImage)' }] },
         { id: 'android', name: 'Android', badge: 'A', color: '#34a853', match: /android/i, files: [{ needle: '.apk', label: 'APK (.apk)' }] }
       ]
       const $ = (t) => document.createElement(t)

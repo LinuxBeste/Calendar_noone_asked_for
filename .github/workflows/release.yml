@@ -160,13 +160,13 @@ jobs:
             echo 'https://linuxbeste.github.io/Calendar_noone_asked_for/'
             echo ''
             echo '### Downloads'
-            echo 'Always the latest version, one click per platform:'
+            echo 'One click per platform, always the latest version:'
             echo ''
             echo 'https://linuxbeste.github.io/Calendar_noone_asked_for/downloads.html'
-            echo '- Windows: `.exe` (NSIS installer) or `.zip` (portable, no install)'
-            echo '- macOS: `.dmg` or `.zip` (portable)'
-            echo '- Linux: `.AppImage` or `.tar.gz` (portable)'
-            echo '- Android: `.apk` (debug build)'
+            echo '- Windows: installer `.exe` + portable `.exe`'
+            echo '- macOS: `.dmg` + portable `.zip`'
+            echo '- Linux: installer `.deb` + portable `.AppImage`'
+            echo '- Android: `.apk`'
             echo ''
             echo '### Deployment'
             echo 'This release is deployed to GitHub Pages automatically (live demo above).'
@@ -180,11 +180,6 @@ jobs:
             echo '- Web client + API at http://localhost:3001'
             echo '- Data is stored in the `calendar-data` volume'
             echo '- Point the web app at a different server via Settings → API URL'
-            echo ''
-            echo '### Full changelog (CHANGELOG.md)'
-            echo '```markdown'
-            cat CHANGELOG.md
-            echo '```'
           } > /tmp/release-body.md
       - uses: actions/download-artifact@v4
         with:
@@ -200,10 +195,10 @@ jobs:
         with:
           files: |
             release/*.AppImage
+            release/*.deb
             release/*.exe
             release/*.dmg
             release/*.apk
             release/*.zip
-            release/*.tar.gz
             release/latest*.yml
           body_path: /tmp/release-body.md
