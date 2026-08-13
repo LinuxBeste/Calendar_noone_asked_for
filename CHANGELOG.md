@@ -9,7 +9,7 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 
 ### Added
 
-- **Auto-updates on every platform** —
+- **Auto-updates on every platform**- —
   - Android: the app checks GitHub once per day (silently, throttled) and
     shows a notification ("Update available — open Settings to install") plus
     a Settings → Updates panel with a manual "Check for updates" button; the

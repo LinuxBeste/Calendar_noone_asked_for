@@ -94,6 +94,56 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    if (!window.matchMedia('(pointer: coarse)').matches) return
+    const pointers = new Map<number, { x: number; y: number }>()
+    let pinchStart = 0
+    let pinchZoomStart = 1
+    const dist = (a: { x: number; y: number }, b: { x: number; y: number }): number => Math.hypot(a.x - b.x, a.y - b.y)
+    const onDown = (e: PointerEvent): void => {
+      if (e.pointerType !== 'touch') return
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()] as [{ x: number; y: number }, { x: number; y: number }]
+        pinchStart = dist(a, b)
+        pinchZoomStart = zoomRef.current
+      }
+    }
+    const onMove = (e: PointerEvent): void => {
+      if (e.pointerType !== 'touch' || !pointers.has(e.pointerId)) return
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pointers.size !== 2 || pinchStart === 0) return
+      e.preventDefault()
+      const [a, b] = [...pointers.values()] as [{ x: number; y: number }, { x: number; y: number }]
+      const d = dist(a, b)
+      if (d < 20) return
+      const z1 = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinchZoomStart * (d / pinchStart)))
+      if (z1 === zoomRef.current) return
+      const rect = el.getBoundingClientRect()
+      const my = (a.y + b.y) / 2
+      const minutes = (my - rect.top + el.scrollTop) / (BASE_PX_PER_MIN * pinchZoomStart)
+      zoomRef.current = z1
+      setZoom(z1)
+      el.scrollTop = minutes * (BASE_PX_PER_MIN * z1) - (my - rect.top)
+    }
+    const onUp = (e: PointerEvent): void => {
+      pointers.delete(e.pointerId)
+      if (pointers.size < 2) pinchStart = 0
+    }
+    el.addEventListener('pointerdown', onDown)
+    el.addEventListener('pointermove', onMove)
+    el.addEventListener('pointerup', onUp)
+    el.addEventListener('pointercancel', onUp)
+    return () => {
+      el.removeEventListener('pointerdown', onDown)
+      el.removeEventListener('pointermove', onMove)
+      el.removeEventListener('pointerup', onUp)
+      el.removeEventListener('pointercancel', onUp)
+    }
+  }, [])
+
   const zoomBy = (factor: number): void => {
     const el = scrollRef.current
     if (!el) return
@@ -486,7 +536,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       </div>
       )}
 
-      <div className="flex-1 flex overflow-y-auto relative" ref={scrollRef}>
+      <div className="flex-1 flex overflow-y-auto relative" ref={scrollRef} style={{ touchAction: 'pan-y' }}>
         <div className={`${gutterWidth} shrink-0 relative`}>
           {Array.from({ length: 24 }, (_, h) => (
             <div key={h} className="absolute right-2 -translate-y-1/2 text-[10px] text-gray-400" style={{ top: h * 60 * pxPerMin }}>
@@ -705,7 +755,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       </div>
       </div>
 
-      <div className="absolute bottom-3 right-3 z-30 flex items-center gap-0.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-800/95 shadow-md px-1 py-0.5 select-none">
+      <div className="absolute bottom-24 sm:bottom-3 right-3 z-30 flex items-center gap-0.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-800/95 shadow-md px-1 py-0.5 select-none">
         <button
           onClick={() => zoomBy(0.8)}
           title="Zoom out (Ctrl+wheel)"
