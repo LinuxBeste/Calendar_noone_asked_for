@@ -9,6 +9,11 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 
 ### Fixed
 
+- **Agenda view could freeze the whole tab** — `from`/`to` were recreated on
+  every render, so the refresh effect re-ran after every event fetch, which
+  updated the store, which re-rendered — an endless loop that locked up the
+  renderer (Agenda view only; other views memoized their range). The range is
+  now memoized like the other views.
 - **CI / Pages deploys could fail on `npm install`** — installing the
   dependency tree downloads the Electron binary on every job, and a socket
   hang-up on the download killed the GitHub Pages deploy and CI runs.

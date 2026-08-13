@@ -9,7 +9,7 @@ interface YearViewProps {
 }
 
 export default function YearView({ date }: YearViewProps): React.JSX.Element {
-  const { events, calendars, refreshEvents, settings, setDate, setView } = useCalendar()
+  const { events, calendars, refreshEvents, settings, setDate, setView, visibleCalendars } = useCalendar()
   const { token } = useAuth()
   const [selected, setSelected] = useState(date)
 
@@ -22,11 +22,11 @@ export default function YearView({ date }: YearViewProps): React.JSX.Element {
     for (let m = 0; m < 12; m++) {
       const first = new Date(date.getFullYear(), m, 1)
       const days = [...iterateDays(new Date(date.getFullYear(), m, 1), new Date(date.getFullYear(), m + 1, 0))]
-      const evs = events.filter((e) => e.start.startsWith(`${date.getFullYear()}-${String(m + 1).padStart(2, '0')}`))
+      const evs = events.filter((e) => visibleCalendars[e.event.calendarId] !== false && e.start.startsWith(`${date.getFullYear()}-${String(m + 1).padStart(2, '0')}`))
       out.push({ name: format(first, 'MMMM'), days, events: evs })
     }
     return out
-  }, [events, date])
+  }, [events, date, visibleCalendars])
 
   const calendarById = useMemo(() => new Map(calendars.map((c) => [c.id, c])), [calendars])
 

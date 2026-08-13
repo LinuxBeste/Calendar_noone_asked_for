@@ -33,7 +33,7 @@ const MIN_ZOOM = 0.2
 const MAX_ZOOM = 4
 
 export default function WeekView({ date, days }: WeekViewProps): React.JSX.Element {
-  const { events, calendars, refreshEvents, settings } = useCalendar()
+  const { events, calendars, refreshEvents, settings, visibleCalendars } = useCalendar()
   const { token } = useAuth()
   const [zoom, setZoom] = useState(settings.defaultZoomPct / 100)
   const zoomRef = useRef(settings.defaultZoomPct / 100)
@@ -143,6 +143,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       byDay.set(key, [...(byDay.get(key) ?? []), item])
     }
     for (const occ of events) {
+      if (visibleCalendars[occ.event.calendarId] === false) continue
       if (occ.allDay || differenceInCalendarDays(new Date(occ.end), new Date(occ.start)) >= 2) {
         allDay.push(occ)
         if (occ.allDay) continue
@@ -166,50 +167,46 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       }
     }
     return { byDay, allDayEvents: allDay }
-  }, [events])
+  }, [events, visibleCalendars])
 
   const calendarById = useMemo(() => new Map(calendars.map((c) => [c.id, c])), [calendars])
 
   const positioned = useMemo(() => {
     const result = new Map<string, Positioned[]>()
     for (const [dayKey, evs] of byDay) {
-      const timed = evs.filter((o) => o.occ.start && o.occ.end)
-      const clusters: { occ: EventOccurrence; fromPrev: boolean; toNext: boolean }[][] = []
-      for (const item of timed) {
-        const s = new Date(item.occ.start).getTime()
-        const e = new Date(item.occ.end).getTime()
-        let placed = false
-        for (const cluster of clusters) {
-          const overlaps = cluster.some((other) => {
-            const os = new Date(other.occ.start).getTime()
-            const oe = new Date(other.occ.end).getTime()
-            return s < oe && e > os
-          })
-          if (!overlaps) {
-            cluster.push(item)
-            placed = true
-            break
-          }
-        }
-        if (!placed) clusters.push([item])
-      }
+      const timed = evs
+        .filter((o) => o.occ.start && o.occ.end)
+        .map((item) => ({
+          item,
+          start: new Date(item.occ.start).getTime(),
+          end: new Date(item.occ.end).getTime()
+        }))
+        .sort((a, b) => a.start - b.start || a.end - b.end)
+      const active: { item: { occ: EventOccurrence; fromPrev: boolean; toNext: boolean }; end: number; col: number; cols: number }[] = []
       const positioned: Positioned[] = []
-      for (const cluster of clusters) {
-        const n = cluster.length
-        cluster.forEach((item, i) => {
-          positioned.push({
-            event: item.occ.event,
-            occ: item.occ,
-            fromPrev: item.fromPrev,
-            toNext: item.toNext,
-            startMin: new Date(item.occ.start).getHours() * 60 + new Date(item.occ.start).getMinutes(),
-            endMin: new Date(item.occ.end).getHours() * 60 + new Date(item.occ.end).getMinutes(),
-            col: i,
-            cols: n
-          })
+      for (const { item, start, end } of timed) {
+        for (let i = active.length - 1; i >= 0; i--) {
+          const a = active[i]
+          if (a && a.end <= start) active.splice(i, 1)
+        }
+        const taken = new Set(active.map((a) => a.col))
+        let col = 0
+        while (taken.has(col)) col += 1
+        const groupSize = active.length + 1
+        for (const a of active) a.cols = Math.max(a.cols, groupSize)
+        positioned.push({
+          event: item.occ.event,
+          occ: item.occ,
+          fromPrev: item.fromPrev,
+          toNext: item.toNext,
+          startMin: new Date(item.occ.start).getHours() * 60 + new Date(item.occ.start).getMinutes(),
+          endMin: new Date(item.occ.end).getHours() * 60 + new Date(item.occ.end).getMinutes(),
+          col,
+          cols: Math.max(groupSize, col + 1)
         })
+        active.push({ item, end, col, cols: Math.max(groupSize, col + 1) })
       }
-      result.set(dayKey, positioned.sort((a, b) => a.startMin - b.startMin))
+      result.set(dayKey, positioned.sort((a, b) => a.startMin - b.startMin || a.col - b.col))
     }
     return result
   }, [byDay])

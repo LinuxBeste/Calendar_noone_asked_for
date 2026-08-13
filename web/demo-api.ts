@@ -333,6 +333,7 @@ export function createDemoApi(): CalendarApi {
           .map((e) => ({ ...e }))
       },
       listOccurrences: async (_t, from, to, calendarIds?): Promise<EventOccurrence[]> => {
+        if (calendarIds && calendarIds.length === 0) return []
         const r = clampRange(new Date(from).getTime(), new Date(to).getTime())
         const out: EventOccurrence[] = []
         for (const ev of state.events) {

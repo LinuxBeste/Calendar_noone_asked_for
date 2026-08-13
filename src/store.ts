@@ -386,12 +386,14 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   async refreshEvents(from, to) {
     const token = useAuth.getState().token
     if (!token) return [] as EventOccurrence[]
-    const visible = Object.entries(get().visibleCalendars)
+    const state = get()
+    const visible = Object.entries(state.visibleCalendars)
       .filter(([, v]) => v)
       .map(([id]) => id)
+    const hasVisibilityState = Object.keys(state.visibleCalendars).length > 0
     const publics = get().publicCalendars
     const [events, ...publicBatches] = await Promise.all([
-      window.calendarApi.events.listOccurrences(token, from, to, visible.length ? visible : undefined) as Promise<EventOccurrence[]>,
+      window.calendarApi.events.listOccurrences(token, from, to, hasVisibilityState ? visible : undefined) as Promise<EventOccurrence[]>,
       ...publics.map((pc, i) =>
         (window.calendarApi.public.getOccurrences(pc.token, from, to) as Promise<EventOccurrence[]>).catch(() => [] as EventOccurrence[])
           .then((occs) => occs.map((occ) => ({
@@ -459,6 +461,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   },
   toggleCalendar(id) {
     set((s) => ({ visibleCalendars: { ...s.visibleCalendars, [id]: !s.visibleCalendars[id] } }))
+    void get().refreshVisible()
   },
   addPublicCalendar(input) {
     set((s) => {

@@ -12,13 +12,13 @@ interface AgendaViewProps {
 }
 
 export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.Element {
-  const { events, calendars, refreshEvents, settings } = useCalendar()
+  const { events, calendars, refreshEvents, settings, visibleCalendars } = useCalendar()
   const { token } = useAuth()
   const [dialog, setDialog] = useState<{ event?: Event; occurrence?: string } | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  const from = rangeStart('day', date, settings.firstDayOfWeek)
-  const to = new Date(from.getTime() + days * 86400000)
+  const from = useMemo(() => rangeStart('day', date, settings.firstDayOfWeek), [date, settings.firstDayOfWeek])
+  const to = useMemo(() => new Date(from.getTime() + days * 86400000), [from, days])
 
   useEffect(() => {
     void refreshEvents(toISO(from), toISO(to))
@@ -32,6 +32,7 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
   const byDay = useMemo(() => {
     const map = new Map<string, EventOccurrence[]>()
     for (const occ of events) {
+      if (visibleCalendars[occ.event.calendarId] === false) continue
       const first = format(new Date(occ.start), 'yyyy-MM-dd')
       const last = format(new Date(occ.end), 'yyyy-MM-dd')
       let d = new Date(first + 'T00:00:00')
@@ -52,7 +53,7 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
       })
     }
     return map
-  }, [events, settings.agendaSortOrder])
+  }, [events, settings.agendaSortOrder, visibleCalendars])
 
   const calendarById = useMemo(() => new Map(calendars.map((c) => [c.id, c])), [calendars])
 

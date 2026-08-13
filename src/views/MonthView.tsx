@@ -24,7 +24,7 @@ interface MoreMenu {
 }
 
 export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
-  const { events, calendars, refreshEvents, settings } = useCalendar()
+  const { events, calendars, refreshEvents, settings, visibleCalendars } = useCalendar()
   const { token } = useAuth()
   const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string } | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
@@ -59,6 +59,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
     const days = [...iterateDays(from, to)]
     const byDay = new Map<string, EventOccurrence[]>()
     for (const occ of events) {
+      if (visibleCalendars[occ.event.calendarId] === false) continue
       const first = occ.allDay ? occ.start.slice(0, 10) : format(new Date(occ.start), 'yyyy-MM-dd')
       const last = occ.allDay ? occ.end.slice(0, 10) : first
       if (!first) continue
@@ -72,7 +73,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
     }
     for (const list of byDay.values()) list.sort((a, b) => (a.allDay ? -1 : 1))
     return { days, byDay }
-  }, [events, date, settings.firstDayOfWeek])
+  }, [events, date, settings.firstDayOfWeek, visibleCalendars])
 
   const holidays = useMemo(() => {
     if (!settings.monthShowHolidays) return new Map<string, string>()
