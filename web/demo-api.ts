@@ -431,7 +431,8 @@ export function createDemoApi(): CalendarApi {
       }
     },
     updates: {
-      subscribe: (): (() => void) => () => undefined
+      subscribe: (): (() => void) => () => undefined,
+      checkNow: async (): Promise<{ available: boolean; version: null; error: string }> => ({ available: false, version: null, error: 'Not available in the demo' })
     },
     appInfo: async (): Promise<{ name: string; version: string }> => ({ name: 'Calendar Demo', version: __APP_VERSION__ })
   }

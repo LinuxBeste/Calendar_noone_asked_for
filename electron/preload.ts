@@ -77,7 +77,8 @@ const api = {
       return () => {
         ipcRenderer.removeListener('ws:message', listener)
       }
-    }
+    },
+    checkNow: () => invoke('updates:check-now', {})
   },
   appInfo: () => invoke('app:info', {})
 }

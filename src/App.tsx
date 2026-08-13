@@ -3,6 +3,7 @@ import { useAuth, useCalendar } from './store'
 import { onAndroidBack, minimizeApp } from './lib/platform'
 import { bindSettingsProvider } from './lib/notifications'
 import { toast } from './toasts'
+import { compareVersions, fetchLatestRelease, isInstalled } from './updater'
 import LoginScreen from './components/LoginScreen'
 import AppShell from './components/AppShell'
 import Toasts from './components/Toasts'
@@ -70,6 +71,23 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     if (user && localStorage.getItem('calendar.setupDone') !== '1') setSetupOpen(true)
   }, [user])
+
+  useEffect(() => {
+    if (__DEMO__ || !isInstalled()) return
+    const last = Number(localStorage.getItem('calendar.updateCheckAt') ?? 0)
+    if (Date.now() - last < 24 * 60 * 60 * 1000) return
+    const t = window.setTimeout(() => {
+      localStorage.setItem('calendar.updateCheckAt', String(Date.now()))
+      void fetchLatestRelease()
+        .then((info) => {
+          if (compareVersions(info.version, __APP_VERSION__) > 0) {
+            toast(`Update available: v${info.version} — open Settings to install`, 'info')
+          }
+        })
+        .catch(() => undefined)
+    }, 15_000)
+    return () => clearTimeout(t)
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {

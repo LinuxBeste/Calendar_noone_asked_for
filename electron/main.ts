@@ -121,6 +121,13 @@ function createTray(): void {
     Menu.buildFromTemplate([
       { label: 'Open Calendar', click: showWindow },
       { type: 'separator' },
+      {
+        label: 'Check for updates…',
+        click: () => {
+          void autoUpdater.checkForUpdates().catch((err: Error) => console.error('[updater] check failed:', err.message))
+        }
+      },
+      { type: 'separator' },
       { label: 'Quit', click: () => { quitting = true; app.quit() } }
     ])
   )
@@ -285,6 +292,17 @@ function registerIpc(): void {
     const content = await readFile(res.filePaths[0]!, 'utf8')
     const count = await api.importJson(payload.token, content)
     return { canceled: false, count }
+  })
+
+  // ---- updates ----
+  ipcMain.handle('updates:check-now', async (): Promise<{ available: boolean; version: string | null; error?: string }> => {
+    if (!app.isPackaged) return { available: false, version: null, error: 'Updates are only available in installed copies.' }
+    try {
+      const result = await autoUpdater.checkForUpdates()
+      return { available: !!result, version: result?.updateInfo.version ?? null }
+    } catch (err) {
+      return { available: false, version: null, error: err instanceof Error ? err.message : 'Update check failed' }
+    }
   })
 
   // ---- storage info ----

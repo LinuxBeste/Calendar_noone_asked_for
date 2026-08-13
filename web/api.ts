@@ -263,6 +263,7 @@ export const webApi = {
     }
   },
   updates: {
+    checkNow: async (): Promise<{ available: boolean; version: null; error: string }> => ({ available: false, version: null, error: 'Managed in Settings' }),
     subscribe(cb: (message: string) => void): () => void {
       let socket: WebSocket | null = null
       let stopped = false

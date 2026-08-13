@@ -9,6 +9,21 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 
 ### Added
 
+- **Auto-updates on every platform** —
+  - Android: the app checks GitHub once per day (silently, throttled) and
+    shows a notification ("Update available — open Settings to install") plus
+    a Settings → Updates panel with a manual "Check for updates" button; the
+    download opens in the system browser and installs like any APK.
+  - Desktop (Windows/macOS/Linux): a "Check for updates…" entry in the tray
+    menu and an Updates panel in Settings that triggers the built-in updater
+    with the usual download/restart confirmation dialogs.
+  - The web demo is always served as the latest version, so it needs no
+    updater itself.
+
+## [0.6.5] - 2026-08-13
+
+### Added
+
 - **Offline mode for installed clients (Android, desktop)** — the app keeps a
   local cache of events, calendars, trash and settings. When the server can't
   be reached it no longer blocks on a connection screen: the app opens with

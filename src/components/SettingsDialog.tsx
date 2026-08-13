@@ -3,6 +3,7 @@ import { useAuth, useCalendar, DEFAULT_SETTINGS } from '../store'
 import { HOLIDAY_COUNTRIES } from '../utils/holidays'
 import { ACCENT_PRESETS, applyTheme, isDarkMode } from '../utils/theme'
 import { SETTING_CATEGORIES, SETTING_DEFS, type SettingDef } from '@shared/settings'
+import { compareVersions, fetchLatestRelease, isElectron, openUpdateDownload, type UpdateInfo } from '../updater'
 
 const TIMEZONES: string[] = Intl.supportedValuesOf('timeZone')
 
@@ -22,6 +23,46 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
   const [error, setError] = useState<string | null>(null)
   const [serverUrl, setServerUrl] = useState(() => localStorage.getItem('calendar.apiUrl') ?? '')
   const [serverSaved, setServerSaved] = useState(false)
+  const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'uptodate' | 'available'>('idle')
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [updateError, setUpdateError] = useState<string | null>(null)
+
+  const checkUpdates = async (): Promise<void> => {
+    setUpdateState('checking')
+    setUpdateError(null)
+    try {
+      if (isElectron()) {
+        const res = (await window.calendarApi.updates.checkNow()) as { available: boolean; version: string | null; error?: string }
+        if (res.error) throw new Error(res.error)
+        if (res.available) {
+          setUpdateInfo({ version: res.version ?? '', pageUrl: '', apkUrl: '' })
+          setUpdateState('available')
+        } else {
+          setUpdateState('uptodate')
+        }
+        return
+      }
+      const info = await fetchLatestRelease()
+      if (compareVersions(info.version, __APP_VERSION__) > 0) {
+        setUpdateInfo(info)
+        setUpdateState('available')
+      } else {
+        setUpdateState('uptodate')
+      }
+    } catch (err) {
+      setUpdateState('idle')
+      setUpdateError(err instanceof Error ? err.message : 'Update check failed')
+    }
+  }
+
+  const downloadUpdate = async (): Promise<void> => {
+    if (isElectron() || !updateInfo) return
+    try {
+      await openUpdateDownload(updateInfo)
+    } catch {
+      setUpdateError('Could not open the download — get it from the GitHub releases page instead.')
+    }
+  }
 
   useEffect(() => {
     if (!token) return
@@ -211,6 +252,40 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
           </div>
           <div className="flex-1 overflow-y-auto p-4 md:p-6">
             {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
+            {!__DEMO__ && (
+              <div className="mb-5 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
+                <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-1">Updates</h3>
+                <p className={hint}>
+                  Installed: <span className="text-accent">v{__APP_VERSION__}</span>
+                </p>
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  <button
+                    onClick={() => void checkUpdates()}
+                    disabled={updateState === 'checking'}
+                    className="px-4 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+                  >
+                    {updateState === 'checking' ? 'Checking…' : 'Check for updates'}
+                  </button>
+                  {updateState === 'available' && updateInfo && (
+                    <button
+                      onClick={() => void downloadUpdate()}
+                      className="px-4 py-1.5 text-sm rounded-lg bg-accent hover:bg-accent-hover text-white"
+                    >
+                      {isElectron() ? `Update to v${updateInfo.version}` : `Download v${updateInfo.version}`}
+                    </button>
+                  )}
+                </div>
+                {updateState === 'uptodate' && <p className={hint + ' mt-2'}>You're up to date.</p>}
+                {updateState === 'available' && (
+                  <p className={hint + ' mt-2'}>
+                    {isElectron()
+                      ? 'A dialog in your app will guide you through the download and install.'
+                      : 'The download opens in your browser — install the APK from there.'}
+                  </p>
+                )}
+                {updateError && <p className="text-xs text-red-600 dark:text-red-400 mt-2">{updateError}</p>}
+              </div>
+            )}
             {!__DEMO__ && (
               <div className="mb-5 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
                 <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-1">Server</h3>
