@@ -1,4 +1,4 @@
-# Calendar (no one asked for)
+# Calendar
 
 An offline-first desktop Google Calendar clone built with Electron, React, and TypeScript. Multi-user login, calendar sharing, recurring events with exception handling, reminders with system notifications, iCal import/export, and a plugin-ready architecture.
 

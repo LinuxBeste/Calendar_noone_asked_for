@@ -63,12 +63,12 @@ export function serializeICal(events: Array<{ ev: Event; reminders: Reminder[] }
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Calendar-Noone-Asked-For//EN',
+    'PRODID:-//Calendar//EN',
     'CALSCALE:GREGORIAN'
   ]
   for (const { ev, reminders } of events) {
     lines.push('BEGIN:VEVENT')
-    lines.push(`UID:${ev.id}@calendar-noone-asked-for`)
+    lines.push(`UID:${ev.id}@calendar`)
     lines.push('DTSTAMP:19700101T000000Z')
     lines.push(`SUMMARY:${ESCAPE(ev.title)}`)
     if (ev.description) lines.push(`DESCRIPTION:${ESCAPE(ev.description)}`)

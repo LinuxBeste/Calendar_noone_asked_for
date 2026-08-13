@@ -155,7 +155,7 @@ jobs:
       - name: Compose release notes
         run: |
           {
-            echo '## Calendar No One Asked For ${{ github.ref_name }}'
+            echo '## Calendar v${{ github.ref_name }}'
             echo ''
             echo '### What is new'
             echo '```markdown'

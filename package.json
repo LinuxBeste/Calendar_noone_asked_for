@@ -1,8 +1,8 @@
 {
-  "name": "calendar-noone-asked-for",
+  "name": "calendar",
   "version": "0.6.0",
   "description": "Offline desktop Google Calendar clone",
-  "desktopName": "calendar-noone-asked-for",
+  "desktopName": "calendar",
   "author": {
     "name": "LinuxBeste",
     "email": "linuxbeste@users.noreply.github.com"
@@ -31,8 +31,8 @@
     "dist:linux": "electron-vite build && electron-builder --linux -p never"
   },
   "build": {
-    "appId": "dev.linuxbeste.calendar-noone-asked-for",
-    "productName": "Calendar No One Asked For",
+    "appId": "dev.linuxbeste.calendar",
+    "productName": "Calendar",
     "directories": {
       "output": "release"
     },
