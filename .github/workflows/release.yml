@@ -53,7 +53,7 @@ jobs:
             script: dist:linux
             upload: |
               release/*.AppImage
-              release/*.tar.gz
+              release/*.deb
             updateFile: release/latest*.yml
     runs-on: ${{ matrix.os }}
     steps:

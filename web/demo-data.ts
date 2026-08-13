@@ -61,8 +61,8 @@ function at(days: number, hour: number, minute = 0): string {
   return d.toISOString()
 }
 
-function atDuration(days: number, hour: number, minute: number, minutes: number): { start: string; end: string } {
-  return { start: at(days, hour, minute), end: at(days, hour, minute + minutes) }
+function atDuration(days: number, hour: number, minute: number, minutes: number): { startsAt: string; endsAt: string } {
+  return { startsAt: at(days, hour, minute), endsAt: at(days, hour, minute + minutes) }
 }
 
 function allDay(days: number, count = 1): { startDate: string; endDate: string } {

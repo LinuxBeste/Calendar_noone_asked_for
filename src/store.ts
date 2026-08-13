@@ -170,7 +170,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
     try {
       const user = (await window.calendarApi.auth.validate(token)) as User | null
-      if (user) set({ user, booting: false })
+      if (user) set({ token, user, booting: false })
       else {
         localStorage.removeItem('calendar.token')
         set({ token: null, booting: false })

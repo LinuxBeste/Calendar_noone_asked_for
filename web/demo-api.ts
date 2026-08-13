@@ -66,6 +66,7 @@ const startOfUtcDay = (ts: number): number => {
 /** Expand an event's occurrence start timestamps within [from, to]. */
 function expandStarts(event: Event, from: number, to: number): number[] {
   const base = eventStartMs(event)
+  if (!Number.isFinite(base)) return []
   const rule = parseRrule(event.rrule)
   if (!rule) return base >= from && base <= to ? [base] : []
   const baseDay = startOfUtcDay(base)
@@ -78,6 +79,7 @@ function expandStarts(event: Event, from: number, to: number): number[] {
   if (rule.freq === 'DAILY') {
     for (let i = 0; i * rule.interval * DAY + baseDay <= to + DAY; i++) {
       const ts = baseDay + i * rule.interval * DAY
+      if (!Number.isFinite(ts)) break
       consider(ts)
       if (ts > to) break
     }
@@ -86,7 +88,7 @@ function expandStarts(event: Event, from: number, to: number): number[] {
     const week0 = baseDay - new Date(baseDay).getUTCDay() * DAY
     for (let w = 0; ; w++) {
       const ws = week0 + w * rule.interval * 7 * DAY
-      if (ws > to + 7 * DAY) break
+      if (!Number.isFinite(ws) || ws > to + 7 * DAY) break
       for (const d of days) consider(ws + d * DAY)
     }
   } else {
@@ -100,7 +102,7 @@ function expandStarts(event: Event, from: number, to: number): number[] {
       const mm = ((monthIdx % 12) + 12) % 12
       const last = new Date(Date.UTC(y, mm + 1, 0)).getUTCDate()
       const ts = Date.UTC(y, mm, Math.min(bday, last), bd.getUTCHours(), bd.getUTCMinutes())
-      if (ts > to) break
+      if (!Number.isFinite(ts) || ts > to) break
       consider(ts)
     }
   }

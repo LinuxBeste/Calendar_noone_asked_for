@@ -20,7 +20,7 @@ All notable changes to this project are documented here. Format follows
 - **Live downloads page** — `downloads.html` on GitHub Pages lists the
   current platform's installer first and resolves the latest version from the
   GitHub API on every visit: Windows installer/portable, macOS `.dmg`/`.zip`,
-  Linux `.AppImage`/`.tar.gz`, Android `.apk`, with a fallback link to the
+  Linux `.deb`/`.AppImage`, Android `.apk`, with a fallback link to the
   releases page.
 
 ### Fixed
@@ -35,6 +35,17 @@ All notable changes to this project are documented here. Format follows
   and the demo dropped visitors onto the sign-in screen instead of the seeded
   calendar. `boot()` now falls back to re-reading the token from
   `localStorage`, so the live demo auto-logs-in.
+- **Demo could freeze the whole tab** — the recurring demo events were seeded
+  with `start`/`end` instead of `startsAt`/`endsAt`, so every recurrence had an
+  invalid start date; expanding them produced `NaN` week starts and the
+  WEEKLY/MONTHLY expansion loops never terminated, hanging the page on
+  returning visits (only a fresh visit worked, with no events shown at all).
+  Seed data now uses the correct keys and the expansion loops bail out on
+  non-finite values.
+- **Linux `.deb` missing from releases** — the installer job built the `.deb`
+  but the workflow uploaded the no-longer-produced `.tar.gz` instead, so the
+  Linux package never reached the release. The upload pattern now ships
+  `.AppImage` + `.deb`.
 
 ### Added
 
