@@ -9,7 +9,11 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 
 ### Added
 
-- **Auto-updates on every platform**- —
+- **Pinch-to-zoom on the week view for phones** — spread two fingers to zoom
+  in (max 200%), pinch together to zoom back out; a stale gesture can no
+  longer swallow your scroll afterwards. The +/− controls now sit above the
+  "New event" button instead of hidden underneath it.
+- **Auto-updates on every platform** —
   - Android: the app checks GitHub once per day (silently, throttled) and
     shows a notification ("Update available — open Settings to install") plus
     a Settings → Updates panel with a manual "Check for updates" button; the
