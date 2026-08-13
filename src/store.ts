@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { toast } from './toasts'
 import { SETTING_DEFS } from '@shared/settings'
 import { scheduleReconcile } from './lib/notifications'
+import { loadCache, saveCache, useConnection } from './offline'
 import type { Calendar, Event, EventOccurrence, User, ViewType, EventDetail, EventInput } from '@shared/types'
 
 export const DEFAULT_SETTINGS = {
@@ -160,7 +161,13 @@ interface AuthState {
 
 export const useAuth = create<AuthState>((set, get) => ({
   token: localStorage.getItem('calendar.token'),
-  user: null,
+  user: (() => {
+    try {
+      return JSON.parse(localStorage.getItem('calendar.user') ?? 'null') as User | null
+    } catch {
+      return null
+    }
+  })(),
   booting: true,
   async boot() {
     const token = get().token ?? localStorage.getItem('calendar.token')
@@ -173,21 +180,40 @@ export const useAuth = create<AuthState>((set, get) => ({
       if (user) set({ token, user, booting: false })
       else {
         localStorage.removeItem('calendar.token')
+        localStorage.removeItem('calendar.user')
         set({ token: null, booting: false })
       }
-    } catch {
-      set({ token: null, user: null, booting: false })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : ''
+      const offline = msg.startsWith('Backend') || useConnection.getState().online === false
+      if (offline && localStorage.getItem('calendar.token')) {
+        const cached = (() => {
+          try {
+            return JSON.parse(localStorage.getItem('calendar.user') ?? 'null') as User | null
+          } catch {
+            return null
+          }
+        })()
+        set({ token, user: cached, booting: false })
+        useConnection.getState().setOnline(false)
+      } else {
+        localStorage.removeItem('calendar.token')
+        localStorage.removeItem('calendar.user')
+        set({ token: null, user: null, booting: false })
+      }
     }
   },
   async login(email, password) {
     const result = (await window.calendarApi.auth.login(email, password)) as { token: string; user: User }
     localStorage.setItem('calendar.token', result.token)
+    localStorage.setItem('calendar.user', JSON.stringify(result.user))
     localStorage.setItem('calendar.setupDone', '1')
     set({ token: result.token, user: result.user })
   },
   async register(email, name, password) {
     const result = (await window.calendarApi.auth.register(email, name, password)) as { token: string; user: User }
     localStorage.setItem('calendar.token', result.token)
+    localStorage.setItem('calendar.user', JSON.stringify(result.user))
     localStorage.removeItem('calendar.setupDone')
     set({ token: result.token, user: result.user })
   },
@@ -195,6 +221,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     const { token } = get()
     if (token) await window.calendarApi.auth.logout(token).catch(() => undefined)
     localStorage.removeItem('calendar.token')
+    localStorage.removeItem('calendar.user')
     set({ token: null, user: null })
   }
 }))
@@ -339,11 +366,11 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   view: DEFAULT_SETTINGS.defaultView,
   date: new Date(),
   viewHistory: [],
-  calendars: [],
-  events: [],
-  trash: [],
+  calendars: loadCache()?.calendars ?? [],
+  events: loadCache()?.events ?? [],
+  trash: loadCache()?.trash ?? [],
   visibleCalendars: {},
-  settings: DEFAULT_SETTINGS,
+  settings: { ...DEFAULT_SETTINGS, ...(loadCache()?.settings as Partial<typeof DEFAULT_SETTINGS> | undefined) },
   lastRange: null,
   publicCalendars: loadPublicCalendars(),
   setView(view) {
@@ -376,6 +403,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     if (!token) return
     try {
       const calendars = (await window.calendarApi.calendars.list(token)) as Calendar[]
+      saveCache({ calendars })
       set((s) => {
         const visibleCalendars = { ...s.visibleCalendars }
         for (const c of calendars) {
@@ -409,6 +437,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
       ])
       const merged = [...(events ?? []), ...publicBatches.flat()]
       set((s) => ({ events: merged, lastRange: { from, to } }))
+      saveCache({ events: merged })
       scheduleReconcile()
       return merged
     } catch (err) {
@@ -450,6 +479,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     try {
       const trash = (await window.calendarApi.events.trash(token)) as Event[]
       set({ trash: trash ?? [] })
+      saveCache({ trash: trash ?? [] })
     } catch {
       set({ trash: [] })
     }
@@ -500,6 +530,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   },
   setSettings(patch) {
     set((s) => ({ settings: { ...s.settings, ...patch } }))
+    saveCache({ settings: { ...useCalendar.getState().settings, ...patch } })
   },
   history: [],
   historyIndex: 0,

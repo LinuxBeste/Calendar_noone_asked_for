@@ -81,9 +81,13 @@ export default function AppShell(): React.JSX.Element {
     if (!token) return
     void (async () => {
       const loaded: Record<string, unknown> = {}
-      for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof typeof DEFAULT_SETTINGS)[]) {
-        const value = await window.calendarApi.settings.get(token, key)
-        if (value !== undefined) loaded[key] = value
+      try {
+        for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof typeof DEFAULT_SETTINGS)[]) {
+          const value = await window.calendarApi.settings.get(token, key)
+          if (value !== undefined) loaded[key] = value
+        }
+      } catch {
+        // offline — keep the cached settings
       }
       if (Object.keys(loaded).length > 0) setSettings(loaded as Partial<typeof DEFAULT_SETTINGS>)
     })()

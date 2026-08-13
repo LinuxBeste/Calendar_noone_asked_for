@@ -1,5 +1,7 @@
 import type { CalendarInput, EventInput, ShareInput, FeedInput } from '@shared/types'
 import { useCalendar } from '../src/store'
+import { enqueueOp, clearQueue, loadQueue, useConnection, type QueuedOp } from '../src/offline'
+import { toast } from '../src/toasts'
 
 export const logger = {
   info: (...args: unknown[]) => console.info('[calendar]', ...args),
@@ -21,11 +23,101 @@ export const setApiUrl = (url: string): void => {
 }
 export const isReachable = async (): Promise<boolean> => {
   try {
-    const res = await fetch(`${getApiUrl()}/info`)
+    const res = await fetch(`${getApiUrl()}/info`, { signal: AbortSignal.timeout(4000) })
     return res.ok
   } catch {
     return false
   }
+}
+
+function offline<T>(op: string, payload: unknown, result: T): Promise<T> {
+  enqueueOp(op, payload)
+  useConnection.getState().setOnline(false)
+  toast('Saved offline — will sync when back online', 'info')
+  return Promise.resolve(result)
+}
+
+/** Play back queued mutations against the server. Returns how many succeeded. */
+export async function flushQueue(): Promise<number> {
+  const token = localStorage.getItem('calendar.token')
+  const ops = loadQueue()
+  if (!token || ops.length === 0) return 0
+  const queue = [...ops]
+  let done = 0
+  for (const op of queue) {
+    try {
+      await replayOp(token, op)
+      done++
+    } catch (err) {
+      logger.warn('queue replay stopped:', err)
+      const remaining = loadQueue()
+      clearQueue()
+      for (const r of remaining) enqueueOp(r.op, r.payload)
+      return done
+    }
+  }
+  clearQueue()
+  return done
+}
+
+async function replayOp(token: string, op: QueuedOp): Promise<void> {
+  const p = op.payload as { eventId?: string; input?: EventInput; occurrence?: string; key?: string; value?: unknown }
+  switch (op.op) {
+    case 'event.create':
+      await call('POST', '/events', token, p.input)
+      break
+    case 'event.update':
+      await call('PUT', `/events/${encodeURIComponent(p.eventId ?? '')}`, token, p.input)
+      break
+    case 'event.delete':
+      await call('DELETE', `/events/${encodeURIComponent(p.eventId ?? '')}`, token)
+      break
+    case 'event.occurrence.update':
+      await call('PUT', `/events/${encodeURIComponent(p.eventId ?? '')}/occurrences/${encodeURIComponent(p.occurrence ?? '')}`, token, p.input)
+      break
+    case 'event.occurrence.delete':
+      await call('DELETE', `/events/${encodeURIComponent(p.eventId ?? '')}/occurrences/${encodeURIComponent(p.occurrence ?? '')}`, token)
+      break
+    case 'event.split':
+      await call('POST', `/events/${encodeURIComponent(p.eventId ?? '')}/split/${encodeURIComponent(p.occurrence ?? '')}`, token, p.input)
+      break
+    case 'settings.set':
+      await call('PUT', `/settings/${encodeURIComponent(String(p.key ?? ''))}`, token, { value: p.value })
+      break
+    default:
+      logger.warn('unknown queued op:', op.op)
+  }
+}
+
+let watchTimer: ReturnType<typeof setInterval> | null = null
+
+/** Probe the backend now; on success flush queued changes and refresh all data. */
+export async function checkConnectionNow(): Promise<boolean> {
+  const online = await isReachable()
+  useConnection.getState().setOnline(online)
+  if (!online) return false
+  const flushed = await flushQueue().catch(() => 0)
+  const s = useCalendar.getState()
+  await s.refreshCalendars().catch(() => undefined)
+  await s.refreshVisible().catch(() => undefined)
+  await s.refreshTrash().catch(() => undefined)
+  if (flushed > 0) toast(`${flushed} offline change${flushed === 1 ? '' : 's'} synced`)
+  return true
+}
+
+/** Polls the backend while offline and syncs the moment it is back. */
+export function startConnectionWatch(): void {
+  const onNetwork = (): void => {
+    if (navigator.onLine) void checkConnectionNow()
+    else useConnection.getState().setOnline(false)
+  }
+  window.addEventListener('online', onNetwork)
+  window.addEventListener('offline', onNetwork)
+  if (watchTimer) clearInterval(watchTimer)
+  watchTimer = setInterval(() => {
+    if (useConnection.getState().online || navigator.onLine) void checkConnectionNow()
+  }, 8000)
+  void checkConnectionNow()
 }
 
 function download(name: string, content: string, type: string): void {
@@ -88,9 +180,18 @@ export const webApi = {
       return call('GET', `/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${q}`, token)
     },
     get: (token: string, id: string) => call('GET', `/events/${id}`, token),
-    create: (token: string, input: EventInput) => call('POST', '/events', token, input),
-    update: (token: string, id: string, input: Partial<EventInput>) => call('PUT', `/events/${id}`, token, input),
-    delete: (token: string, id: string) => call('DELETE', `/events/${id}`, token),
+    create: (token: string, input: EventInput) => {
+      if (!useConnection.getState().online) return offline('event.create', { input }, { id: `offline-${Date.now()}` })
+      return call('POST', '/events', token, input)
+    },
+    update: (token: string, id: string, input: Partial<EventInput>) => {
+      if (!useConnection.getState().online) return offline('event.update', { eventId: id, input }, undefined)
+      return call('PUT', `/events/${id}`, token, input)
+    },
+    delete: (token: string, id: string) => {
+      if (!useConnection.getState().online) return offline('event.delete', { eventId: id }, undefined)
+      return call('DELETE', `/events/${id}`, token)
+    },
     trash: (token: string) => call('GET', '/events/trash', token),
     restore: (token: string, id: string) => call('POST', `/events/${id}/restore`, token),
     purge: (token: string, id: string) => call('DELETE', `/events/${id}/forever`, token),
@@ -107,12 +208,18 @@ export const webApi = {
     },
     occurrences: (token: string, eventId: string, from: string, to: string) =>
       call('GET', `/events/${eventId}/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, token),
-    updateOccurrence: (token: string, eventId: string, occurrence: string, input: Partial<EventInput>) =>
-      call('PUT', `/events/${eventId}/occurrences/${encodeURIComponent(occurrence)}`, token, input),
-    deleteOccurrence: (token: string, eventId: string, occurrence: string) =>
-      call('DELETE', `/events/${eventId}/occurrences/${encodeURIComponent(occurrence)}`, token),
-    splitSeries: (token: string, eventId: string, occurrence: string, input: Partial<EventInput>) =>
-      call('POST', `/events/${eventId}/split/${encodeURIComponent(occurrence)}`, token, input)
+    updateOccurrence: (token: string, eventId: string, occurrence: string, input: Partial<EventInput>) => {
+      if (!useConnection.getState().online) return offline('event.occurrence.update', { eventId, occurrence, input }, undefined)
+      return call('PUT', `/events/${eventId}/occurrences/${encodeURIComponent(occurrence)}`, token, input)
+    },
+    deleteOccurrence: (token: string, eventId: string, occurrence: string) => {
+      if (!useConnection.getState().online) return offline('event.occurrence.delete', { eventId, occurrence }, undefined)
+      return call('DELETE', `/events/${eventId}/occurrences/${encodeURIComponent(occurrence)}`, token)
+    },
+    splitSeries: (token: string, eventId: string, occurrence: string, input: Partial<EventInput>) => {
+      if (!useConnection.getState().online) return offline('event.split', { eventId, occurrence, input }, undefined)
+      return call('POST', `/events/${eventId}/split/${encodeURIComponent(occurrence)}`, token, input)
+    }
   },
   reminders: {
     create: (token: string, eventId: string, minutes: number) => call('POST', '/reminders', token, { eventId, minutes }),
@@ -150,7 +257,10 @@ export const webApi = {
   },
   settings: {
     get: (token: string, key: string) => call('GET', `/settings/${encodeURIComponent(key)}`, token),
-    set: (token: string, key: string, value: unknown) => call('PUT', `/settings/${encodeURIComponent(key)}`, token, { value })
+    set: (token: string, key: string, value: unknown) => {
+      if (!useConnection.getState().online) return offline('settings.set', { key, value }, undefined)
+      return call('PUT', `/settings/${encodeURIComponent(key)}`, token, { value })
+    }
   },
   updates: {
     subscribe(cb: (message: string) => void): () => void {
@@ -193,9 +303,12 @@ async function call(method: string, path: string, token: string | null, body?: u
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(8000)
     })
   } catch (err) {
+    useConnection.getState().setOnline(false)
+    if (err instanceof DOMException && err.name === 'TimeoutError') throw new Error(`Backend timed out at ${getApiUrl()}`)
     throw new Error(`Backend unreachable at ${getApiUrl()} (${err instanceof Error ? err.message : 'network error'})`)
   }
   if (!res.ok) {

@@ -6,6 +6,7 @@ import { toast } from './toasts'
 import LoginScreen from './components/LoginScreen'
 import AppShell from './components/AppShell'
 import Toasts from './components/Toasts'
+import OfflineBanner from './components/OfflineBanner'
 import ErrorBoundary from './components/ErrorBoundary'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsDialog from './components/ShortcutsDialog'
@@ -142,9 +143,15 @@ export default function App(): React.JSX.Element {
     )
   }
 
-  if (!user) return <LoginScreen />
+  if (!user) return (
+    <>
+      <OfflineBanner />
+      <LoginScreen />
+    </>
+  )
   return (
     <ErrorBoundary>
+      <OfflineBanner />
       <AppShell />
       <Toasts />
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
