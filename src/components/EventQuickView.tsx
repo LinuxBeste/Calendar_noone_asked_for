@@ -39,7 +39,7 @@ export default function EventQuickView({ x, y, occurrence, calendar, timeFormat,
 
   return (
     <div
-      className="fixed z-[55] w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
+      className="animate-pop-in fixed z-[55] w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
       style={{ left: x, top: y }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

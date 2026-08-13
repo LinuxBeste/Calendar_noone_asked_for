@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useAuth, useCalendar } from './store'
 import { onAndroidBack, minimizeApp } from './lib/platform'
 import { bindSettingsProvider } from './lib/notifications'
+import './lib/plugin-smart-tags'
+import './lib/plugin-daily-quote'
 import { toast } from './toasts'
 import { compareVersions, fetchLatestRelease, isInstalled } from './updater'
 import LoginScreen from './components/LoginScreen'
@@ -54,10 +56,11 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     let dispose: (() => void) | null = null
     void onAndroidBack(async () => {
-      const overlayOpen = (): boolean => !!document.querySelector('.fixed.inset-0')
-      if (overlayOpen()) {
+      const overlay = document.querySelector<HTMLElement>('.fixed.inset-0')
+      if (overlay) {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
-        await new Promise((r) => setTimeout(r, 60))
+        await new Promise((r) => setTimeout(r, 120))
+        if (document.querySelector('.fixed.inset-0') === overlay) overlay.click()
         return
       }
       const wentBack = useCalendar.getState().backView()
@@ -119,6 +122,7 @@ export default function App(): React.JSX.Element {
           break
         case 't':
           cal.setDate(new Date())
+          if (cal.view !== cal.settings.defaultView) cal.setView(cal.settings.defaultView)
           break
         case 'd':
           cal.setView('day')

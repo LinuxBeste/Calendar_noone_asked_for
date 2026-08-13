@@ -1,6 +1,6 @@
 {
   "name": "calendar",
-  "version": "0.6.6",
+  "version": "0.6.8",
   "description": "Offline desktop Google Calendar clone",
   "desktopName": "calendar",
   "author": {
@@ -83,6 +83,7 @@
     }
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
     "@capacitor/browser": "^8.0.4",
     "@fastify/cors": "^11.3.0",
     "@fastify/static": "^10.1.2",

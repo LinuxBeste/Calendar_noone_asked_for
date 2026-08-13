@@ -10,6 +10,7 @@ import EventDialog from '../components/EventDialog'
 import ContextMenu from '../components/ContextMenu'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EventQuickView from '../components/EventQuickView'
+import { decorateEvent } from '../lib/plugins'
 import { toast } from '../toasts'
 
 interface WeekViewProps {
@@ -43,6 +44,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const [gridMenu, setGridMenu] = useState<{ x: number; y: number; date: Date } | null>(null)
   const [confirming, setConfirming] = useState<{ event: Event; occurrence: string; occurrenceOnly: boolean } | null>(null)
   const [hover, setHover] = useState<{ occ: EventOccurrence; x: number; y: number; canEdit: boolean } | null>(null)
+  const [preview, setPreview] = useState<{ occ: EventOccurrence; x: number; y: number; canEdit: boolean } | null>(null)
   const [now, setNow] = useState(new Date())
   const scrollRef = useRef<HTMLDivElement>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -301,9 +303,25 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     hoverTimer.current = setTimeout(() => setHover(null), 150)
   }
 
+  const openPreview = (el: HTMLElement, occ: EventOccurrence): void => {
+    const rect = el.getBoundingClientRect()
+    const panelW = 288
+    const panelH = 240
+    const x = Math.min(rect.left, window.innerWidth - panelW - 8)
+    const y = rect.bottom + 8 + panelH > window.innerHeight ? Math.max(8, rect.top - panelH - 8) : rect.bottom + 8
+    setHover(null)
+    setPreview({
+      occ,
+      x,
+      y,
+      canEdit: calendars.find((c) => c.id === occ.event.calendarId)?.role === 'owner' || calendars.find((c) => c.id === occ.event.calendarId)?.role === 'editor'
+    })
+  }
+
   const requestDelete = (event: Event, occurrence: string, occurrenceOnly: boolean): void => {
     setMenu(null)
     setHover(null)
+    setPreview(null)
     setConfirming({ event, occurrence, occurrenceOnly })
   }
 
@@ -368,6 +386,34 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const editableFor = (ev: Event): boolean => {
     const role = calendars.find((c) => c.id === ev.calendarId)?.role
     return role === 'owner' || role === 'editor'
+  }
+
+  const resizeAllDayEvent = (ev: Event, newEnd: Date, sourceDay: string): void => {
+    if (!token) return
+    const newEndKey = format(newEnd, 'yyyy-MM-dd')
+    const occ = events.find((o) => o.event.id === ev.id)
+    const push = useCalendar.getState().pushHistory
+    const finish = (): void => {
+      void refreshEvents(toISO(from), toISO(to))
+    }
+    const fail = (err: unknown): void => toast(err instanceof Error ? err.message : 'Resize failed', 'error')
+    if (ev.rrule) {
+      void window.calendarApi.events
+        .updateOccurrence(token, ev.id, sourceDay, { startDate: format(new Date(occ?.start ?? ev.startsAt ?? sourceDay + 'T00:00:00'), 'yyyy-MM-dd'), endDate: newEndKey, allDay: true })
+        .then(() => {
+          push({ op: 'occurrence', eventId: ev.id, occurrence: sourceDay, before: { endDate: occ?.end.slice(0, 10) }, after: { endDate: newEndKey, allDay: true } })
+          finish()
+        })
+        .catch(fail)
+    } else {
+      void window.calendarApi.events
+        .update(token, ev.id, { endDate: newEndKey })
+        .then(() => {
+          push({ op: 'update', eventId: ev.id, before: { endDate: occ?.end.slice(0, 10) }, after: { endDate: newEndKey } })
+          finish()
+        })
+        .catch(fail)
+    }
   }
 
   const applyAllDayMove = (ev: Event, occ: EventOccurrence, day: Date): void => {
@@ -520,26 +566,71 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       const ev = occ.event
                       const cal = calendarById.get(ev.calendarId)
                       const color = ev.color ?? cal?.color ?? '#1a73e8'
+                      const deco = decorateEvent(ev)
                       const continues = new Date(occ.end) > new Date(d.getTime() + 86400000 - 1)
                       const barAlpha = Math.round((settings.eventOpacity / 100) * 34).toString(16).padStart(2, '0')
+                      const editable = editableFor(ev)
                       return (
                         <button
                           key={ev.id + d.toISOString()}
-                          onClick={() => {
+                          onClick={(e) => {
                             if (consumeClick()) return
-                            setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+                            openPreview(e.currentTarget as HTMLElement, occ)
+                          }}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setPreview(null)
+                            setMenu({ x: e.clientX, y: e.clientY, event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
                           }}
                           onPointerDown={(e) => startChipDrag(e, ev, occ, true)}
-                          draggable={!isTouchDevice() && editableFor(ev) && settings.dragAndDropEnabled}
+                          draggable={!isTouchDevice() && editable && settings.dragAndDropEnabled}
                           onDragStart={(e) => {
                             e.dataTransfer.setData('application/x-cal-event', JSON.stringify({ id: ev.id, allDay: true }))
                             e.dataTransfer.effectAllowed = 'move'
                           }}
-                          style={{ backgroundColor: color + barAlpha, color, touchAction: editableFor(ev) && settings.dragAndDropEnabled ? 'none' : 'auto' }}
-                          className={`w-full text-left text-[11px] px-1 py-0.5 truncate rounded hover:shadow ${continues ? '' : 'rounded-r-full'}`}
+                          style={{ backgroundColor: color + barAlpha, color, touchAction: editable && settings.dragAndDropEnabled ? 'none' : 'auto', boxShadow: deco.tint ? `inset 3px 0 0 ${deco.tint}` : undefined }}
+                          className={`relative w-full text-left text-[11px] px-1 py-0.5 truncate rounded hover:shadow ${continues ? '' : 'rounded-r-full'}`}
                           title={settings.showEventTooltips ? ev.title : undefined}
                         >
-                          {ev.title}
+                          {deco.icon ? deco.icon + ' ' : ''}{ev.title}
+                          {editable && settings.resizeEnabled && (
+                            <span
+                              className="absolute bottom-0 left-2 right-2 h-2 cursor-ns-resize bg-black/15 hover:bg-black/30 rounded-b"
+                              onPointerDown={(e) => {
+                                e.stopPropagation()
+                                e.preventDefault()
+                                const chipEl = (e.currentTarget as HTMLElement).closest('button')
+                                if (!chipEl) return
+                                const startY = e.clientY
+                                const day = new Date(d)
+                                const occStart = new Date(occ.start)
+                                const sourceDay = format(occStart, 'yyyy-MM-dd')
+                                const session = attachPointerDrag(e.currentTarget as HTMLElement, e.pointerId, e.pointerType, e.clientX, e.clientY, {
+                                  onClaim() {
+                                    suppressClickRef.current = true
+                                  },
+                                  onMove(_x, y) {
+                                    const dy = y - startY
+                                    const deltaDays = Math.round(dy / 28)
+                                    const end = new Date(new Date(occStart.getTime() + 86400000 - 1))
+                                    end.setHours(23, 59, 59, 999)
+                                    const newEnd = new Date(end)
+                                    newEnd.setDate(end.getDate() + deltaDays)
+                                    if (newEnd <= occStart) return
+                                    void resizeAllDayEvent(ev, newEnd, sourceDay)
+                                  },
+                                  onEnd() {
+                                    dragSessions.current.delete('resize-all-' + ev.id)
+                                  },
+                                  onCancel() {
+                                    dragSessions.current.delete('resize-all-' + ev.id)
+                                  }
+                                })
+                                dragSessions.current.set('resize-all-' + ev.id, session)
+                              }}
+                            />
+                          )}
                         </button>
                       )
                     })}
@@ -670,6 +761,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   const color = p.event.color ?? cal?.color ?? '#1a73e8'
                   const editable = editableFor(p.event)
                   const free = p.event.busy === false
+                  const deco = decorateEvent(p.event)
                   const alphaHex = Math.round((settings.eventOpacity / 100) * 230).toString(16).padStart(2, '0')
                   const freeAlphaHex = Math.round((settings.eventOpacity / 100) * 140).toString(16).padStart(2, '0')
                   return (
@@ -678,7 +770,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                       onClick={(e) => {
                         if (consumeClick()) return
                         e.stopPropagation()
-                        setDialog({ event: p.event, occurrence: key })
+                        openPreview(e.currentTarget, p.occ)
                       }}
                       onContextMenu={(e) => {
                         e.preventDefault()
@@ -703,18 +795,18 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                         width: `calc(${100 / p.cols}% - 4px)`,
                         backgroundColor: free ? color + freeAlphaHex : color + alphaHex,
                         color: '#fff',
-                        boxShadow: free ? `inset 0 0 0 1px ${color}` : undefined,
                         borderStyle: free ? 'dashed' : undefined,
                         borderWidth: free ? 1 : undefined,
                         borderColor: 'rgba(255,255,255,0.6)',
                         touchAction: editable && settings.dragAndDropEnabled ? 'none' : 'auto',
+                        boxShadow: deco.tint && p.event.busy !== false ? `inset 4px 0 0 ${deco.tint}` : free ? `inset 0 0 0 1px ${color}` : undefined,
                         zIndex: 10
                       }}
                       title={settings.showEventTooltips ? `${p.event.title}\n${format(new Date(p.event.startsAt!), 'HH:mm')} – ${format(new Date(p.event.endsAt!), 'HH:mm')}${p.event.location ? '\n' + p.event.location : ''}${p.event.description ? '\n' + p.event.description : ''}` : undefined}
                     >
                       <div className="px-1.5 py-0.5 truncate font-medium pointer-events-none flex items-center gap-0.5">
                         {p.fromPrev && <span className="shrink-0">‹</span>}
-                        <span className="flex-1 truncate">{p.event.icon ? p.event.icon + ' ' : ''}{p.event.title}</span>
+                        <span className="flex-1 truncate">{(deco.icon ?? p.event.icon ?? '') ? (deco.icon ?? p.event.icon ?? '') + ' ' : ''}{p.event.title}</span>
                         {p.toNext && <span className="shrink-0">›</span>}
                       </div>
                       <div className="px-1.5 truncate opacity-90 pointer-events-none">
@@ -856,6 +948,31 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
           }}
           onMouseLeave={hideHoverSoon}
         />
+      )}
+      {preview && (
+        <>
+          <div className="fixed inset-0 z-[54]" onClick={() => setPreview(null)} />
+          <EventQuickView
+            x={preview.x}
+            y={preview.y}
+            occurrence={preview.occ}
+            calendar={calendarById.get(preview.occ.event.calendarId)}
+            timeFormat={settings.timeFormat}
+            canEdit={preview.canEdit}
+            onEdit={() => {
+              const occ = preview.occ
+              setPreview(null)
+              setDialog({ event: occ.event, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+            }}
+            onDelete={() => requestDelete(preview.occ.event, format(new Date(preview.occ.start), 'yyyy-MM-dd'), !!preview.occ.event.rrule)}
+            onDuplicate={() => {
+              const ev = preview.occ.event
+              setPreview(null)
+              void useCalendar.getState().duplicateEvent(ev, preview.occ)
+            }}
+            onClose={() => setPreview(null)}
+          />
+        </>
       )}
       {confirming && (
         <ConfirmDialog

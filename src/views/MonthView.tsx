@@ -10,6 +10,7 @@ import EventDialog from '../components/EventDialog'
 import ContextMenu from '../components/ContextMenu'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EventQuickView from '../components/EventQuickView'
+import { decorateEvent } from '../lib/plugins'
 import { toast } from '../toasts'
 
 interface MonthViewProps {
@@ -31,6 +32,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
   const [moreMenu, setMoreMenu] = useState<MoreMenu | null>(null)
   const [confirming, setConfirming] = useState<{ event: Event; occurrence: string; occurrenceOnly: boolean } | null>(null)
   const [hover, setHover] = useState<{ occ: EventOccurrence; x: number; y: number; canEdit: boolean } | null>(null)
+  const [preview, setPreview] = useState<{ occ: EventOccurrence; x: number; y: number; canEdit: boolean } | null>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [ghost, setGhost] = useState<{ id: string; title: string; x: number; y: number } | null>(null)
   const suppressClickRef = useRef(false)
@@ -104,10 +106,27 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
     hoverTimer.current = setTimeout(() => setHover(null), 150)
   }
 
+  const openPreview = (el: HTMLElement, occ: EventOccurrence, e: { stopPropagation(): void }): void => {
+    e.stopPropagation()
+    const rect = el.getBoundingClientRect()
+    const panelW = 288
+    const panelH = 240
+    const x = Math.min(rect.left, window.innerWidth - panelW - 8)
+    const y = rect.bottom + 8 + panelH > window.innerHeight ? Math.max(8, rect.top - panelH - 8) : rect.bottom + 8
+    setHover(null)
+    setPreview({
+      occ,
+      x,
+      y,
+      canEdit: calendars.find((c) => c.id === occ.event.calendarId)?.role === 'owner' || calendars.find((c) => c.id === occ.event.calendarId)?.role === 'editor'
+    })
+  }
+
   const requestDelete = (event: Event, occurrence: string, occurrenceOnly: boolean): void => {
     setMenu(null)
     setMoreMenu(null)
     setHover(null)
+    setPreview(null)
     setConfirming({ event, occurrence, occurrenceOnly })
   }
 
@@ -274,6 +293,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                   const ev = occ.event
                   const cal = calendarById.get(ev.calendarId)
                   const color = ev.color ?? cal?.color ?? '#1a73e8'
+                  const deco = decorateEvent(ev)
                   const continues = new Date(occ.end) > new Date(d.getTime() + 86400000 - 1)
                   if (settings.monthEventStyle === 'dot') {
                     return (
@@ -281,13 +301,13 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                         key={ev.id + key}
                         onClick={(e) => {
                           if (consumeClick()) return
-                          e.stopPropagation()
-                          setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+                          openPreview(e.currentTarget, occ, e)
                         }}
                         onContextMenu={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
                           setHover(null)
+                          setPreview(null)
                           setMenu({ x: e.clientX, y: e.clientY, event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
                         }}
                         onMouseEnter={(e) => settings.monthHoverPreview && showHover(e.currentTarget, occ)}
@@ -303,7 +323,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                         title={settings.showEventTooltips ? `${ev.title}${ev.location ? '\n' + ev.location : ''}` : undefined}
                       >
                         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                        <span className="truncate text-gray-700 dark:text-gray-200">{ev.title}</span>
+                        <span className="truncate text-gray-700 dark:text-gray-200">{(deco.icon ?? ev.icon ?? '') ? (deco.icon ?? ev.icon ?? '') + ' ' : ''}{ev.title}</span>
                       </button>
                     )
                   }
@@ -312,13 +332,13 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                       key={ev.id + key}
                       onClick={(e) => {
                         if (consumeClick()) return
-                        e.stopPropagation()
-                        setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+                        openPreview(e.currentTarget, occ, e)
                       }}
                       onContextMenu={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
                         setHover(null)
+                        setPreview(null)
                         setMenu({ x: e.clientX, y: e.clientY, event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
                       }}
                       onMouseEnter={(e) => settings.monthHoverPreview && showHover(e.currentTarget, occ)}
@@ -334,12 +354,13 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
                         backgroundColor: settings.monthEventStyle === 'compact' ? 'transparent' : color + Math.round((settings.eventOpacity / 100) * 34).toString(16).padStart(2, '0'),
                         color,
                         opacity: settings.monthEventStyle === 'compact' ? settings.eventOpacity / 100 : 1,
+                        boxShadow: deco.tint && settings.monthEventStyle !== 'compact' ? `inset 3px 0 0 ${deco.tint}` : undefined,
                         touchAction: settings.monthDragDrop && (calendars.find((c) => c.id === ev.calendarId)?.role === 'owner' || calendars.find((c) => c.id === ev.calendarId)?.role === 'editor') ? 'none' : 'auto'
                       }}
                       title={settings.showEventTooltips ? `${ev.title}${ev.location ? '\n' + ev.location : ''}` : undefined}
                     >
                       {settings.monthShowEventTime && !occ.allDay ? format(new Date(occ.start), 'H:mm') + ' ' : ''}
-                      {ev.icon ? ev.icon + ' ' : ''}{ev.title}
+                      {(deco.icon ?? ev.icon ?? '') ? (deco.icon ?? ev.icon ?? '') + ' ' : ''}{ev.title}
                     </button>
                   )
                 })}
@@ -461,6 +482,31 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
           }}
           onMouseLeave={hideHoverSoon}
         />
+      )}
+      {preview && (
+        <>
+          <div className="fixed inset-0 z-[54]" onClick={() => setPreview(null)} />
+          <EventQuickView
+            x={preview.x}
+            y={preview.y}
+            occurrence={preview.occ}
+            calendar={calendarById.get(preview.occ.event.calendarId)}
+            timeFormat={settings.timeFormat}
+            canEdit={preview.canEdit}
+            onEdit={() => {
+              const occ = preview.occ
+              setPreview(null)
+              setDialog({ event: occ.event, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+            }}
+            onDelete={() => requestDelete(preview.occ.event, format(new Date(preview.occ.start), 'yyyy-MM-dd'), !!preview.occ.event.rrule)}
+            onDuplicate={() => {
+              const ev = preview.occ.event
+              setPreview(null)
+              void useCalendar.getState().duplicateEvent(ev, preview.occ)
+            }}
+            onClose={() => setPreview(null)}
+          />
+        </>
       )}
       {confirming && (
         <ConfirmDialog

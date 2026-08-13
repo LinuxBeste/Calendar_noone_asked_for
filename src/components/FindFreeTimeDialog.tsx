@@ -75,7 +75,7 @@ export default function FindFreeTimeDialog({ onClose }: { onClose: () => void })
 
   return (
     <div className="fixed inset-0 z-[70] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[94dvh] sm:max-h-[80vh]">
+      <div className="animate-dialog-in bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[94dvh] sm:max-h-[80vh]">
         <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">Find free time</h2>
           <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400" aria-label="Close">

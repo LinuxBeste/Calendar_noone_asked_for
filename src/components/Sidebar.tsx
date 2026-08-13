@@ -4,6 +4,7 @@ import { useAuth, useCalendar } from '../store'
 import { toast } from '../toasts'
 import { nativeShare } from '../lib/platform'
 import MiniCalendar from './MiniCalendar'
+import { enabledWidgets, usePlugins } from '../lib/plugins'
 import ContextMenu from './ContextMenu'
 import ConfirmDialog from './ConfirmDialog'
 import TrashDialog from './TrashDialog'
@@ -25,6 +26,8 @@ interface SidebarProps {
 export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.JSX.Element | null {
   const { calendars, visibleCalendars, toggleCalendar, settings, trash, publicCalendars, addPublicCalendar, removePublicCalendar } = useCalendar()
   const { token, user } = useAuth()
+  const enabledPlugins = usePlugins((s) => s.enabled)
+  const widgets = enabledWidgets()
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState('#1a73e8')
@@ -177,6 +180,12 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
       <div className="mt-2">
         <MiniCalendar weekStartsOn={settings.firstDayOfWeek} />
       </div>
+
+      {widgets.map((p) => (
+        <div key={p.id} className="mt-2 animate-fade-in">
+          {p.renderWidget?.()}
+        </div>
+      ))}
 
       <div className="mt-2 px-4">
         <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">My calendars</h3>

@@ -29,6 +29,7 @@ import {
   validateId,
   LIMITS
 } from './validation'
+import { PLUGIN_CATALOG, isPluginId } from '@shared/plugins'
 import { RateLimitError, createRateLimiter } from './rate-limit'
 
 export interface Services {
@@ -261,6 +262,22 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
       const validated = validateSetting(req.params.key, req.body.value)
       return store.setSetting(`user:${uid}:${validated.key}`, validated.value)
     }))
+
+  // ---- plugins ----
+  app.get('/plugins', async () => ({ plugins: PLUGIN_CATALOG }))
+  app.get('/plugins/:id/state', async (req: Params<{ id: string }>) => {
+    const id = req.params.id
+    if (!isPluginId(id)) throw new ValidationError('Unknown plugin')
+    return withUser(services, req, (uid) => store.getPluginState(id, uid))
+  })
+  app.put('/plugins/:id/state', async (req: Req<{ Body: { enabled?: boolean; data?: Record<string, unknown> }; Params: { id: string } }>) => {
+    const id = req.params.id
+    if (!isPluginId(id)) throw new ValidationError('Unknown plugin')
+    const { enabled, data } = req.body ?? {}
+    if (enabled !== undefined && typeof enabled !== 'boolean') throw new ValidationError('enabled must be a boolean')
+    if (data !== undefined && (typeof data !== 'object' || data === null || Array.isArray(data))) throw new ValidationError('data must be an object')
+    return withUser(services, req, (uid) => store.setPluginState(id, uid, { enabled, data }))
+  })
 
   // ---- import / export ----
   app.get('/export/ical', async (req: Query<{ calendarIds?: string }>) => {

@@ -167,6 +167,14 @@ class ApiClient {
     await this.call('PUT', `/settings/${encodeURIComponent(key)}`, token, { value })
   }
 
+  // ---- plugins ----
+  async getPluginState(token: string, pluginId: string): Promise<unknown> {
+    return this.call('GET', `/plugins/${encodeURIComponent(pluginId)}/state`, token)
+  }
+  async setPluginState(token: string, pluginId: string, patch: { enabled?: boolean; data?: Record<string, unknown> }): Promise<void> {
+    await this.call('PUT', `/plugins/${encodeURIComponent(pluginId)}/state`, token, patch)
+  }
+
   // ---- import / export ----
   async exportICal(token: string, calendarIds?: string[]): Promise<string> {
     const q = calendarIds?.length ? `?calendarIds=${calendarIds.join(',')}` : ''

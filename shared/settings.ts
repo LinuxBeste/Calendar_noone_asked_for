@@ -1,6 +1,6 @@
 /** Declarative settings catalog — single source of truth for the client UI, defaults and server validation. */
 
-export type SettingCategoryId = 'general' | 'appearance' | 'views' | 'month' | 'agenda' | 'events' | 'notifications' | 'language' | 'privacy' | 'advanced'
+export type SettingCategoryId = 'general' | 'appearance' | 'views' | 'month' | 'agenda' | 'events' | 'notifications' | 'language' | 'privacy' | 'advanced' | 'plugins'
 
 export interface SettingOption {
   value: string
@@ -32,7 +32,8 @@ export const SETTING_CATEGORIES: { id: SettingCategoryId; label: string }[] = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'language', label: 'Language & Region' },
   { id: 'privacy', label: 'Privacy & Sharing' },
-  { id: 'advanced', label: 'Advanced' }
+  { id: 'advanced', label: 'Advanced' },
+  { id: 'plugins', label: 'Plugins' }
 ]
 
 export const SETTING_DEFS: SettingDef[] = [
@@ -106,7 +107,7 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: 'workingHoursStart', label: 'Working hours start', hint: 'Your typical working window', category: 'views', type: 'number', min: 0, max: 23, defaultValue: 9 },
   { key: 'workingHoursEnd', label: 'Working hours end', category: 'views', type: 'number', min: 1, max: 24, defaultValue: 17 },
   { key: 'hideWeekends', label: 'Hide weekends', hint: 'Show a 5-day week in Week view', category: 'views', type: 'boolean', defaultValue: false },
-  { key: 'showWeekNumbers', label: 'Show week numbers', hint: 'In week headers', category: 'views', type: 'boolean', defaultValue: false },
+  { key: 'showWeekNumbers', label: 'Show week numbers', hint: 'In week headers', category: 'views', type: 'boolean', defaultValue: true },
   { key: 'scrollToWorkingHours', label: 'Scroll to working hours', hint: 'On opening day/week view', category: 'views', type: 'boolean', defaultValue: true },
   { key: 'fitDayToScreen', label: 'Fit day to screen', hint: 'Zoom out if the day is taller than the window', category: 'views', type: 'boolean', defaultValue: true },
   { key: 'defaultZoomPct', label: 'Default zoom (%)', hint: 'Time scale when opening day/week view', category: 'views', type: 'number', min: 50, max: 300, step: 10, defaultValue: 100 },
@@ -135,7 +136,7 @@ export const SETTING_DEFS: SettingDef[] = [
   // ---- Month ----
   { key: 'monthMaxEvents', label: 'Events per cell', hint: 'Max events shown before "+n more"', category: 'month', type: 'number', min: 1, max: 10, defaultValue: 3 },
   { key: 'monthShowHolidays', label: 'Show holidays in month view', category: 'month', type: 'boolean', defaultValue: false },
-  { key: 'monthShowWeekNumbers', label: 'Show week numbers', category: 'month', type: 'boolean', defaultValue: false },
+  { key: 'monthShowWeekNumbers', label: 'Show week numbers', category: 'month', type: 'boolean', defaultValue: true },
   { key: 'monthWeekendShading', label: 'Shade weekends', category: 'month', type: 'boolean', defaultValue: true },
   { key: 'monthTrailingDays', label: 'Show trailing days', hint: 'Days from adjacent months', category: 'month', type: 'boolean', defaultValue: true },
   { key: 'monthEventStyle', label: 'Event style', category: 'month', type: 'select', options: [

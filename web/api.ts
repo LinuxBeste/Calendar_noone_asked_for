@@ -84,6 +84,9 @@ async function replayOp(token: string, op: QueuedOp): Promise<void> {
     case 'settings.set':
       await call('PUT', `/settings/${encodeURIComponent(String(p.key ?? ''))}`, token, { value: p.value })
       break
+    case 'plugins.set-state':
+      await call('PUT', `/plugins/${encodeURIComponent(String((p as { pluginId?: string }).pluginId ?? ''))}/state`, token, (p as { patch?: Record<string, unknown> }).patch)
+      break
     default:
       logger.warn('unknown queued op:', op.op)
   }
@@ -260,6 +263,13 @@ export const webApi = {
     set: (token: string, key: string, value: unknown) => {
       if (!useConnection.getState().online) return offline('settings.set', { key, value }, undefined)
       return call('PUT', `/settings/${encodeURIComponent(key)}`, token, { value })
+    }
+  },
+  plugins: {
+    getState: (token: string, pluginId: string) => call('GET', `/plugins/${encodeURIComponent(pluginId)}/state`, token),
+    setState: (token: string, pluginId: string, patch: { enabled?: boolean; data?: Record<string, unknown> }) => {
+      if (!useConnection.getState().online) return offline('plugins.set-state', { pluginId, patch }, undefined)
+      return call('PUT', `/plugins/${encodeURIComponent(pluginId)}/state`, token, patch)
     }
   },
   updates: {

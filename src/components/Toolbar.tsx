@@ -13,6 +13,7 @@ import StatsDialog from './StatsDialog'
 import { useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { toast } from '../toasts'
+import CommandPalette from './CommandPalette'
 
 const VIEWS: { id: ViewType; label: string; key: string }[] = [
   { id: 'day', label: 'Day', key: 'd' },
@@ -33,6 +34,8 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
   const canRedo = useCalendar((s) => s.canRedo())
   const undo = useCalendar((s) => s.undo)
   const redo = useCalendar((s) => s.redo)
+  const canBack = useCalendar((s) => s.viewHistory.length > 0)
+  const backView = useCalendar((s) => s.backView)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [newEventOpen, setNewEventOpen] = useState(false)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
@@ -42,6 +45,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
   const [findFreeOpen, setFindFreeOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const [templates, setTemplates] = useState<EventTemplate[]>([])
   const [templateEvent, setTemplateEvent] = useState<EventTemplate | null>(null)
   const [quickAddError, setQuickAddError] = useState<string | null>(null)
@@ -132,6 +136,27 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
         </svg>
       </button>
 
+      <button
+        onClick={() => backView()}
+        disabled={!canBack}
+        className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 disabled:opacity-30 disabled:hover:bg-transparent shrink-0"
+        title="Back"
+        aria-label="Back"
+      >
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
+      </button>
+
+      <button
+        onClick={() => setPaletteOpen(true)}
+        className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 shrink-0"
+        title="Search & commands (Ctrl+K)"
+        aria-label="Search and commands"
+      >
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
+          <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+        </svg>
+      </button>
+
       <h1 className="font-medium text-gray-800 dark:text-gray-100 mr-1 text-lg">
         <svg viewBox="0 0 24 24" className="w-6 h-6 inline mr-1 text-accent" fill="currentColor">
           <path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10z" />
@@ -172,8 +197,11 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
       </div>
 
       <button
-        onClick={() => setView(settings.defaultView)}
-        className="px-2 sm:px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 shrink-0"
+        onClick={() => {
+          setDate(new Date())
+          if (view !== settings.defaultView) setView(settings.defaultView)
+        }}
+        className="px-2 sm:px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 shrink-0 active:scale-95 transition-transform"
         title="Today (t)"
       >
         Today
@@ -406,6 +434,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
       {findFreeOpen && <FindFreeTimeDialog onClose={() => setFindFreeOpen(false)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       {statsOpen && <StatsDialog onClose={() => setStatsOpen(false)} />}
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
       {templateEvent && (
         <EventDialog
           template={templateEvent.input}

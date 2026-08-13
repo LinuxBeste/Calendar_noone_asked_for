@@ -5,6 +5,9 @@ import { rangeStart, rangeEnd, toISO, iterateDays, isoWeekNumber } from '../util
 import { holidaysBetween } from '../utils/holidays'
 import type { Event, EventOccurrence } from '@shared/types'
 import EventDialog from '../components/EventDialog'
+import EventQuickView from '../components/EventQuickView'
+import { decorateEvent } from '../lib/plugins'
+import { toast } from '../toasts'
 
 interface AgendaViewProps {
   date: Date
@@ -15,6 +18,7 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
   const { events, calendars, refreshEvents, settings, visibleCalendars } = useCalendar()
   const { token } = useAuth()
   const [dialog, setDialog] = useState<{ event?: Event; occurrence?: string } | null>(null)
+  const [preview, setPreview] = useState<{ occ: EventOccurrence; x: number; y: number; canEdit: boolean } | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const from = useMemo(() => rangeStart('day', date, settings.firstDayOfWeek), [date, settings.firstDayOfWeek])
@@ -100,7 +104,7 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
         const shown = limited ? dayEvents.slice(0, max) : dayEvents
         const holiday = holidays.get(key)
         return (
-          <div key={key} className="px-6 py-3">
+          <div key={key} className="px-6 py-3 animate-fade-up" style={{ animationDelay: `${Math.min(idx, 10) * 25}ms` }}>
             {settings.agendaShowWeekdayHeader && (
               <div className="flex items-center gap-2 mb-2">
                 <span className={`text-sm font-medium ${isToday(item.date) ? 'text-accent' : 'text-gray-800 dark:text-gray-100'}`}>
@@ -124,7 +128,19 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
                 return (
                   <button
                     key={ev.id + key}
-                    onClick={() => setDialog({ event: ev, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })}
+                    onClick={(e) => {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      const panelW = 288
+                      const panelH = 240
+                      const x = Math.min(rect.left, window.innerWidth - panelW - 8)
+                      const y = rect.bottom + 8 + panelH > window.innerHeight ? Math.max(8, rect.top - panelH - 8) : rect.bottom + 8
+                      setPreview({
+                        occ,
+                        x,
+                        y,
+                        canEdit: calendars.find((c) => c.id === ev.calendarId)?.role === 'owner' || calendars.find((c) => c.id === ev.calendarId)?.role === 'editor'
+                      })
+                    }}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-left ${isPast ? 'opacity-45' : ''}`}
                   >
                     <span className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: color }} />
@@ -132,7 +148,7 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
                       <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0">{timeText}</span>
                     )}
                     <span className="flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
-                      {settings.agendaShowIcons && ev.icon ? ev.icon + ' ' : ''}{ev.title}
+                      {settings.agendaShowIcons && (decorateEvent(ev).icon ?? ev.icon) ? (decorateEvent(ev).icon ?? ev.icon) + ' ' : ''}{ev.title}
                       {settings.agendaShowLocation && ev.location && <span className="text-gray-400"> · {ev.location}</span>}
                     </span>
                     <span className="text-xs text-gray-400 shrink-0">{cal?.name}</span>
@@ -158,6 +174,42 @@ export default function AgendaView({ date, days }: AgendaViewProps): React.JSX.E
         </div>
       )}
       {dialog && <EventDialog event={dialog.event} occurrence={dialog.occurrence} onClose={() => setDialog(null)} />}
+      {preview && (
+        <>
+          <div className="fixed inset-0 z-[54]" onClick={() => setPreview(null)} />
+          <EventQuickView
+            x={preview.x}
+            y={preview.y}
+            occurrence={preview.occ}
+            calendar={calendarById.get(preview.occ.event.calendarId)}
+            timeFormat={settings.timeFormat}
+            canEdit={preview.canEdit}
+            onEdit={() => {
+              const occ = preview.occ
+              setPreview(null)
+              setDialog({ event: occ.event, occurrence: format(new Date(occ.start), 'yyyy-MM-dd') })
+            }}
+            onDelete={() => {
+              const occ = preview.occ
+              setPreview(null)
+              void window.calendarApi.events
+                .delete(token!, occ.event.id)
+                .then(() => {
+                  useCalendar.getState().pushHistory({ op: 'delete', eventId: occ.event.id, deletedEvent: occ.event })
+                  toast('Event deleted')
+                  void refreshEvents(toISO(from), toISO(to))
+                })
+                .catch((err: unknown) => toast(err instanceof Error ? err.message : 'Delete failed', 'error'))
+            }}
+            onDuplicate={() => {
+              const occ = preview.occ
+              setPreview(null)
+              void useCalendar.getState().duplicateEvent(occ.event, occ)
+            }}
+            onClose={() => setPreview(null)}
+          />
+        </>
+      )}
     </div>
   )
 }

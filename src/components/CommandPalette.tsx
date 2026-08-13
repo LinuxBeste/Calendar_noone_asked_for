@@ -182,9 +182,10 @@ export default function CommandPalette({ onClose }: { onClose: () => void }): Re
                         c.run()
                         onClose()
                       }}
-                      className={`w-full flex items-center justify-between px-4 py-2 text-sm text-left ${
+                      className={`animate-fade-up w-full flex items-center justify-between px-4 py-2 text-sm text-left ${
                         idx === active ? 'bg-accent/10 dark:bg-accent/25/30' : ''
                       }`}
+                      style={{ animationDelay: `${Math.min(idx, 10) * 20}ms` }}
                     >
                       <span className="text-gray-800 dark:text-gray-100">{c.label}</span>
                       {c.hint && <span className="text-xs text-gray-400">{c.hint}</span>}

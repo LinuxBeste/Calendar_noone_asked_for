@@ -63,7 +63,7 @@ export default function SetupDialog({ onClose }: { onClose: () => void }): React
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => undefined}>
-      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+      <div className="animate-dialog-in w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
         <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Welcome! Let&apos;s set things up</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">These preferences are saved to your account. You can change them anytime in Settings.</p>
 

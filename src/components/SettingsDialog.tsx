@@ -3,7 +3,10 @@ import { useAuth, useCalendar, DEFAULT_SETTINGS } from '../store'
 import { HOLIDAY_COUNTRIES } from '../utils/holidays'
 import { ACCENT_PRESETS, applyTheme, isDarkMode } from '../utils/theme'
 import { SETTING_CATEGORIES, SETTING_DEFS, type SettingDef } from '@shared/settings'
+import { PLUGIN_CATALOG } from '@shared/plugins'
 import { compareVersions, fetchLatestRelease, isElectron, openUpdateDownload, type UpdateInfo } from '../updater'
+import { scheduleReconcile } from '../lib/notifications'
+import PluginsTab from './PluginsTab'
 
 const TIMEZONES: string[] = Intl.supportedValuesOf('timeZone')
 
@@ -91,6 +94,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
       setSettings(draft)
       applyTheme(draft)
       onClose()
+      scheduleReconcile(1500)
       void refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -214,9 +218,19 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-[820px] sm:max-w-[94vw] h-[94dvh] sm:h-[600px] sm:max-h-[90vh] flex flex-col md:flex-row overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <aside className="md:w-48 md:shrink-0 md:border-r border-b md:border-b-0 border-gray-200 dark:border-gray-700 p-3 flex md:flex-col gap-1 bg-gray-50 dark:bg-gray-900/40 overflow-x-auto md:overflow-y-auto">
-          <h2 className="hidden md:block text-sm font-medium text-gray-900 dark:text-gray-100 px-3 py-2">Settings</h2>
+      <div className="animate-dialog-in bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-[820px] sm:max-w-[94vw] h-[94dvh] sm:h-[600px] sm:max-h-[90vh] flex flex-col md:flex-row overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <aside className="md:w-48 md:shrink-0 md:border-r border-b md:border-b-0 border-gray-200 dark:border-gray-700 p-3 flex md:flex-col gap-1 bg-gray-50 dark:bg-gray-900/40 overflow-x-auto md:overflow-y-auto shrink-0">
+          <h2 className="hidden md:flex items-center justify-between text-sm font-medium text-gray-900 dark:text-gray-100 px-3 py-2">
+            <span>Settings</span>
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+              title="Close"
+              aria-label="Close settings"
+            >
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.7l-1.41-1.41L9.18 12 2.89 5.71 4.3 4.29l6.29 6.3 6.3-6.3 1.41 1.42z" /></svg>
+            </button>
+          </h2>
           {SETTING_CATEGORIES.map((c) => (
             <button
               key={c.id}
@@ -232,7 +246,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
             >
               {c.label}
               <span className={`ml-auto text-[10px] px-1.5 rounded-full ${tab === c.id ? 'bg-white/20' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
-                {SETTING_DEFS.filter((d) => d.category === c.id).length}
+                {c.id === 'plugins' ? PLUGIN_CATALOG.length : SETTING_DEFS.filter((d) => d.category === c.id).length}
               </span>
             </button>
           ))}
@@ -240,17 +254,26 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
           <p className="hidden md:block text-[10px] text-gray-400 dark:text-gray-500 px-3">Signed in as {user?.email}</p>
         </aside>
 
-        <main className="flex-1 flex flex-col min-w-0">
-          <div className="p-4 md:p-6 pb-0">
+        <main className="flex-1 flex flex-col min-w-0 min-h-0">
+          <div className="flex items-center gap-2 p-4 md:p-6 pb-0">
+            <h3 className="md:hidden text-base font-medium text-gray-900 dark:text-gray-100 shrink-0">Settings</h3>
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search settings…"
-              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent"
+              className="w-full min-w-0 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent"
             />
+            <button
+              onClick={onClose}
+              className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 shrink-0"
+              title="Close"
+              aria-label="Close settings"
+            >
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.7l-1.41-1.41L9.18 12 2.89 5.71 4.3 4.29l6.29 6.3 6.3-6.3 1.41 1.42z" /></svg>
+            </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="flex-1 overflow-y-auto overscroll-contain p-4 md:p-6 min-h-0">
             {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
             {!__DEMO__ && (
               <div className="mb-5 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
@@ -334,6 +357,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
                 </p>
               </div>
             )}
+            {tab === 'plugins' && q.length === 0 && <PluginsTab token={token} />}
             {groups.map((g) => (
               <div key={g.category.id} className="mb-5">
                 {q.length > 0 && (

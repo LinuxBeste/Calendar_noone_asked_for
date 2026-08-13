@@ -311,6 +311,10 @@ function registerIpc(): void {
   // ---- settings ----
   ipcMain.handle('settings:get', (_e, payload: { token: string; key: string }) => api.getSetting(payload.token, payload.key))
   ipcMain.handle('settings:set', (_e, payload: { token: string; key: string; value: unknown }) => api.setSetting(payload.token, payload.key, payload.value))
+  ipcMain.handle('plugins:get-state', (_e, payload: { token: string; pluginId: string }) => api.getPluginState(payload.token, payload.pluginId))
+  ipcMain.handle('plugins:set-state', (_e, payload: { token: string; pluginId: string; patch: { enabled?: boolean; data?: Record<string, unknown> } }) =>
+    api.setPluginState(payload.token, payload.pluginId, payload.patch)
+  )
 }
 
 app.whenReady().then(async () => {

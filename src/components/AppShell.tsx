@@ -9,6 +9,7 @@ import MonthView from '../views/MonthView'
 import WeekView from '../views/WeekView'
 import YearView from '../views/YearView'
 import AgendaView from '../views/AgendaView'
+import { usePlugins } from '../lib/plugins'
 import { toast } from '../toasts'
 
 const NARROW_QUERY = '(max-width: 1023px)'
@@ -63,6 +64,10 @@ export default function AppShell(): React.JSX.Element {
   useEffect(() => {
     void refreshCalendars()
   }, [token, refreshCalendars])
+
+  useEffect(() => {
+    if (token) void usePlugins.getState().load(token)
+  }, [token])
 
   useEffect(() => {
     const refresh = (): void => {
@@ -193,11 +198,13 @@ export default function AppShell(): React.JSX.Element {
         {settings.compactSidebar && <NavRail />}
         <Sidebar open={sidebarOpen} narrow={narrow} onClose={() => setSidebarOpen(false)} />
         <main className="flex-1 flex min-w-0 overflow-hidden">
-          {view === 'month' && <MonthView date={date} />}
-          {view === 'week' && <WeekView date={date} days={7} />}
-          {view === 'day' && <WeekView date={date} days={1} />}
-          {view === 'year' && <YearView date={date} />}
-          {view === 'agenda' && <AgendaView date={date} days={settings.agendaRangeDays} />}
+          <div key={view} className="flex-1 flex min-w-0 overflow-hidden animate-view-in">
+            {view === 'month' && <MonthView date={date} />}
+            {view === 'week' && <WeekView date={date} days={7} />}
+            {view === 'day' && <WeekView date={date} days={1} />}
+            {view === 'year' && <YearView date={date} />}
+            {view === 'agenda' && <AgendaView date={date} days={settings.agendaRangeDays} />}
+          </div>
         </main>
       </div>
       <MobileNav />

@@ -59,6 +59,10 @@ export interface AuthStore {
   removeShare(calendarId: string, userId: string): Promise<void>
   getSetting<T>(key: string): Promise<T | undefined>
   setSetting<T>(key: string, value: T): Promise<void>
+
+  // ---- plugins ----
+  getPluginState(pluginId: string, userId: string): Promise<{ enabled: boolean; data: Record<string, unknown> }>
+  setPluginState(pluginId: string, userId: string, patch: { enabled?: boolean; data?: Record<string, unknown> }): Promise<void>
   listUsers(): Promise<User[]>
   /** Assigns any ownerless calendars (e.g. the seeded default) to the given user. */
   claimOwnerlessCalendars(userId: string): Promise<void>

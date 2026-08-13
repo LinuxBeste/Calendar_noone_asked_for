@@ -15,7 +15,8 @@ import {
   pgCalendarShares,
   pgSettings,
   pgIcalFeeds,
-  pgCalendarLinks
+  pgCalendarLinks,
+  pgPluginData
 } from './schema'
 
 type Db = NodePgDatabase
@@ -659,6 +660,42 @@ export class PgStore implements EventStore, AuthStore {
       .insert(pgSettings)
       .values({ key, value: JSON.stringify(value) })
       .onConflictDoUpdate({ target: pgSettings.key, set: { value: JSON.stringify(value) } })
+  }
+
+  // ---- plugins ----
+  async getPluginState(pluginId: string, userId: string): Promise<{ enabled: boolean; data: Record<string, unknown> }> {
+    const rows = await this.db
+      .select()
+      .from(pgPluginData)
+      .where(and(eq(pgPluginData.pluginId, pluginId), like(pgPluginData.key, `user:${userId}:%`)))
+      .limit(50)
+    const read = (key: string): string | undefined => rows.find((r) => r.key === `user:${userId}:${key}`)?.value
+    const enabled = read('enabled') === 'true'
+    let data: Record<string, unknown> = {}
+    const raw = read('data')
+    if (raw) {
+      try {
+        data = JSON.parse(raw) as Record<string, unknown>
+      } catch {
+        // ignore malformed payloads
+      }
+    }
+    return { enabled, data }
+  }
+
+  async setPluginState(pluginId: string, userId: string, patch: { enabled?: boolean; data?: Record<string, unknown> }): Promise<void> {
+    if (patch.enabled !== undefined) {
+      await this.db
+        .insert(pgPluginData)
+        .values({ pluginId, key: `user:${userId}:enabled`, value: patch.enabled ? 'true' : 'false' })
+        .onConflictDoUpdate({ target: [pgPluginData.pluginId, pgPluginData.key], set: { value: patch.enabled ? 'true' : 'false' } })
+    }
+    if (patch.data !== undefined) {
+      await this.db
+        .insert(pgPluginData)
+        .values({ pluginId, key: `user:${userId}:data`, value: JSON.stringify(patch.data) })
+        .onConflictDoUpdate({ target: [pgPluginData.pluginId, pgPluginData.key], set: { value: JSON.stringify(patch.data) } })
+    }
   }
 
   async claimOwnerlessCalendars(userId: string): Promise<void> {

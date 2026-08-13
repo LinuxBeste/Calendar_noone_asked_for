@@ -434,6 +434,15 @@ export function createDemoApi(): CalendarApi {
       subscribe: (): (() => void) => () => undefined,
       checkNow: async (): Promise<{ available: boolean; version: null; error: string }> => ({ available: false, version: null, error: 'Not available in the demo' })
     },
-    appInfo: async (): Promise<{ name: string; version: string }> => ({ name: 'Calendar Demo', version: __APP_VERSION__ })
+    appInfo: async (): Promise<{ name: string; version: string }> => ({ name: 'Calendar Demo', version: __APP_VERSION__ }),
+    plugins: {
+      getState: async (token: string): Promise<Record<string, unknown>> => {
+        if (token !== DEMO_TOKEN) throw new Error('Ungültiges Token')
+        return {}
+      },
+      setState: async (token: string): Promise<void> => {
+        if (token !== DEMO_TOKEN) throw new Error('Ungültiges Token')
+      }
+    }
   }
 }

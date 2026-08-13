@@ -60,7 +60,7 @@ export default function StatsDialog({ onClose }: { onClose: () => void }): React
 
   return (
     <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+      <div className="animate-dialog-in bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
         <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">Calendar stats</h2>
           <div className="flex items-center gap-2">

@@ -4,7 +4,7 @@ import { eq, and, or, gt, lt, gte, lte, isNull, isNotNull, desc, sql, like } fro
 import { randomUUID } from 'crypto'
 import type { EventStore, AuthStore } from './storage'
 import type { Calendar, Event, EventDetail, EventInput, CalendarInput, User, Session, EventException, Reminder, ICalFeed, CalendarLink } from '@shared/types'
-import { calendars, events, eventExceptions, attendees, reminders, settings, users, sessions, calendarShares, icalFeeds, calendarLinks } from './schema'
+import { calendars, events, eventExceptions, attendees, reminders, settings, users, sessions, calendarShares, icalFeeds, calendarLinks, pluginData } from './schema'
 
 type Db = BetterSQLite3Database
 
@@ -674,6 +674,44 @@ export class SqliteStore implements EventStore, AuthStore {
       .values({ key, value: JSON.stringify(value) })
       .onConflictDoUpdate({ target: settings.key, set: { value: JSON.stringify(value) } })
       .run()
+  }
+
+  // ---- plugins ----
+  async getPluginState(pluginId: string, userId: string): Promise<{ enabled: boolean; data: Record<string, unknown> }> {
+    const rows = this.db
+      .select()
+      .from(pluginData)
+      .where(and(eq(pluginData.pluginId, pluginId), like(pluginData.key, `user:${userId}:%`)))
+      .all()
+    const read = (key: string): string | undefined => rows.find((r) => r.key === `user:${userId}:${key}`)?.value
+    const enabled = read('enabled') === 'true'
+    let data: Record<string, unknown> = {}
+    const raw = read('data')
+    if (raw) {
+      try {
+        data = JSON.parse(raw) as Record<string, unknown>
+      } catch {
+        // ignore malformed payloads
+      }
+    }
+    return { enabled, data }
+  }
+
+  async setPluginState(pluginId: string, userId: string, patch: { enabled?: boolean; data?: Record<string, unknown> }): Promise<void> {
+    if (patch.enabled !== undefined) {
+      this.db
+        .insert(pluginData)
+        .values({ pluginId, key: `user:${userId}:enabled`, value: patch.enabled ? 'true' : 'false' })
+        .onConflictDoUpdate({ target: [pluginData.pluginId, pluginData.key], set: { value: patch.enabled ? 'true' : 'false' } })
+        .run()
+    }
+    if (patch.data !== undefined) {
+      this.db
+        .insert(pluginData)
+        .values({ pluginId, key: `user:${userId}:data`, value: JSON.stringify(patch.data) })
+        .onConflictDoUpdate({ target: [pluginData.pluginId, pluginData.key], set: { value: JSON.stringify(patch.data) } })
+        .run()
+    }
   }
 
   async claimOwnerlessCalendars(userId: string): Promise<void> {
