@@ -30,7 +30,7 @@ interface Positioned {
 
 const BASE_PX_PER_MIN = 0.5
 const MIN_ZOOM = 0.2
-const MAX_ZOOM = 4
+const MAX_ZOOM = 2
 
 export default function WeekView({ date, days }: WeekViewProps): React.JSX.Element {
   const { events, calendars, refreshEvents, settings, visibleCalendars } = useCalendar()
@@ -102,9 +102,18 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     let pinchStart = 0
     let pinchZoomStart = 1
     const dist = (a: { x: number; y: number }, b: { x: number; y: number }): number => Math.hypot(a.x - b.x, a.y - b.y)
+    const clearAll = (): void => {
+      pointers.clear()
+      pinchStart = 0
+    }
     const onDown = (e: PointerEvent): void => {
       if (e.pointerType !== 'touch') return
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pointers.size > 2) {
+        const recent = [...pointers.entries()].slice(-2)
+        pointers.clear()
+        for (const [id, p] of recent) pointers.set(id, p)
+      }
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()] as [{ x: number; y: number }, { x: number; y: number }]
         pinchStart = dist(a, b)
@@ -115,12 +124,12 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       if (e.pointerType !== 'touch' || !pointers.has(e.pointerId)) return
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pointers.size !== 2 || pinchStart === 0) return
-      e.preventDefault()
       const [a, b] = [...pointers.values()] as [{ x: number; y: number }, { x: number; y: number }]
       const d = dist(a, b)
       if (d < 20) return
       const z1 = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinchZoomStart * (d / pinchStart)))
       if (z1 === zoomRef.current) return
+      e.preventDefault()
       const rect = el.getBoundingClientRect()
       const my = (a.y + b.y) / 2
       const minutes = (my - rect.top + el.scrollTop) / (BASE_PX_PER_MIN * pinchZoomStart)
@@ -129,18 +138,25 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       el.scrollTop = minutes * (BASE_PX_PER_MIN * z1) - (my - rect.top)
     }
     const onUp = (e: PointerEvent): void => {
+      if (e.pointerType !== 'touch') return
       pointers.delete(e.pointerId)
-      if (pointers.size < 2) pinchStart = 0
+      pinchStart = 0
+    }
+    // Window-level cleanup so a swallowed pointerup/cancel (e.g. system gesture)
+    // can never leave a stale pointer that would block future scrolling.
+    const onWindowEnd = (e: PointerEvent): void => {
+      if (e.pointerType === 'touch') clearAll()
     }
     el.addEventListener('pointerdown', onDown)
     el.addEventListener('pointermove', onMove)
-    el.addEventListener('pointerup', onUp)
-    el.addEventListener('pointercancel', onUp)
+    window.addEventListener('pointerup', onWindowEnd, true)
+    window.addEventListener('pointercancel', onWindowEnd, true)
     return () => {
       el.removeEventListener('pointerdown', onDown)
       el.removeEventListener('pointermove', onMove)
-      el.removeEventListener('pointerup', onUp)
-      el.removeEventListener('pointercancel', onUp)
+      window.removeEventListener('pointerup', onWindowEnd, true)
+      window.removeEventListener('pointercancel', onWindowEnd, true)
+      clearAll()
     }
   }, [])
 
