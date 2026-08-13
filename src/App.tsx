@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth, useCalendar } from './store'
 import { onAndroidBack, minimizeApp } from './lib/platform'
 import { bindSettingsProvider } from './lib/notifications'
+import { toast } from './toasts'
 import LoginScreen from './components/LoginScreen'
 import AppShell from './components/AppShell'
 import Toasts from './components/Toasts'
@@ -19,6 +20,30 @@ export default function App(): React.JSX.Element {
   const [helpOpen, setHelpOpen] = useState(false)
   const [setupOpen, setSetupOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(() => __DEMO__ && localStorage.getItem('calendar.tourDone') !== '1')
+
+  useEffect(() => {
+    let lastErrorToast = 0
+    const report = (msg: string): void => {
+      const now = Date.now()
+      if (now - lastErrorToast < 8000) return
+      lastErrorToast = now
+      toast(msg, 'error')
+    }
+    const onError = (e: ErrorEvent): void => {
+      console.error('Uncaught error:', e.error ?? e.message)
+      report('Something went wrong — the app tried to recover.')
+    }
+    const onRejection = (e: PromiseRejectionEvent): void => {
+      console.error('Unhandled rejection:', e.reason)
+      report(typeof e.reason === 'string' ? e.reason : 'A background action failed — the app stays usable.')
+    }
+    window.addEventListener('error', onError)
+    window.addEventListener('unhandledrejection', onRejection)
+    return () => {
+      window.removeEventListener('error', onError)
+      window.removeEventListener('unhandledrejection', onRejection)
+    }
+  }, [])
 
   useEffect(() => {
     void boot()

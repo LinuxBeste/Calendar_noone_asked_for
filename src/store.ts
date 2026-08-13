@@ -374,38 +374,47 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   async refreshCalendars() {
     const token = useAuth.getState().token
     if (!token) return
-    const calendars = (await window.calendarApi.calendars.list(token)) as Calendar[]
-    set((s) => {
-      const visibleCalendars = { ...s.visibleCalendars }
-      for (const c of calendars) {
-        if (visibleCalendars[c.id] === undefined) visibleCalendars[c.id] = c.visible
-      }
-      return { calendars, visibleCalendars }
-    })
+    try {
+      const calendars = (await window.calendarApi.calendars.list(token)) as Calendar[]
+      set((s) => {
+        const visibleCalendars = { ...s.visibleCalendars }
+        for (const c of calendars) {
+          if (visibleCalendars[c.id] === undefined) visibleCalendars[c.id] = c.visible
+        }
+        return { calendars, visibleCalendars }
+      })
+    } catch (err) {
+      console.error('refreshCalendars failed:', err)
+    }
   },
   async refreshEvents(from, to) {
     const token = useAuth.getState().token
     if (!token) return [] as EventOccurrence[]
-    const state = get()
-    const visible = Object.entries(state.visibleCalendars)
-      .filter(([, v]) => v)
-      .map(([id]) => id)
-    const hasVisibilityState = Object.keys(state.visibleCalendars).length > 0
-    const publics = get().publicCalendars
-    const [events, ...publicBatches] = await Promise.all([
-      window.calendarApi.events.listOccurrences(token, from, to, hasVisibilityState ? visible : undefined) as Promise<EventOccurrence[]>,
-      ...publics.map((pc, i) =>
-        (window.calendarApi.public.getOccurrences(pc.token, from, to) as Promise<EventOccurrence[]>).catch(() => [] as EventOccurrence[])
-          .then((occs) => occs.map((occ) => ({
-            ...occ,
-            event: { ...occ.event, id: `pub-${i}-${occ.event.id}`, calendarId: `pub-${i}`, feedId: 'public' }
-          })))
-      )
-    ])
-    const merged = [...(events ?? []), ...publicBatches.flat()]
-    set((s) => ({ events: merged, lastRange: { from, to } }))
-    scheduleReconcile()
-    return merged
+    try {
+      const state = get()
+      const visible = Object.entries(state.visibleCalendars)
+        .filter(([, v]) => v)
+        .map(([id]) => id)
+      const hasVisibilityState = Object.keys(state.visibleCalendars).length > 0
+      const publics = get().publicCalendars
+      const [events, ...publicBatches] = await Promise.all([
+        window.calendarApi.events.listOccurrences(token, from, to, hasVisibilityState ? visible : undefined) as Promise<EventOccurrence[]>,
+        ...publics.map((pc, i) =>
+          (window.calendarApi.public.getOccurrences(pc.token, from, to) as Promise<EventOccurrence[]>).catch(() => [] as EventOccurrence[])
+            .then((occs) => occs.map((occ) => ({
+              ...occ,
+              event: { ...occ.event, id: `pub-${i}-${occ.event.id}`, calendarId: `pub-${i}`, feedId: 'public' }
+            })))
+        )
+      ])
+      const merged = [...(events ?? []), ...publicBatches.flat()]
+      set((s) => ({ events: merged, lastRange: { from, to } }))
+      scheduleReconcile()
+      return merged
+    } catch (err) {
+      console.error('refreshEvents failed:', err)
+      return [] as EventOccurrence[]
+    }
   },
   async refreshVisible() {
     const range = get().lastRange
@@ -448,16 +457,26 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   async restoreTrashed(id) {
     const token = useAuth.getState().token
     if (!token) return
-    await window.calendarApi.events.restore(token, id)
-    toast('Event restored')
-    await Promise.all([get().refreshTrash(), get().refreshVisible()])
+    try {
+      await window.calendarApi.events.restore(token, id)
+      toast('Event restored')
+      await Promise.all([get().refreshTrash(), get().refreshVisible()])
+    } catch (err) {
+      console.error('restoreTrashed failed:', err)
+      toast('Could not restore the event', 'error')
+    }
   },
   async purgeTrashed(id) {
     const token = useAuth.getState().token
     if (!token) return
-    await window.calendarApi.events.purge(token, id)
-    toast('Event deleted permanently')
-    await get().refreshTrash()
+    try {
+      await window.calendarApi.events.purge(token, id)
+      toast('Event deleted permanently')
+      await get().refreshTrash()
+    } catch (err) {
+      console.error('purgeTrashed failed:', err)
+      toast('Could not delete the event', 'error')
+    }
   },
   toggleCalendar(id) {
     set((s) => ({ visibleCalendars: { ...s.visibleCalendars, [id]: !s.visibleCalendars[id] } }))
@@ -499,7 +518,13 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     const { history, historyIndex } = get()
     if (historyIndex <= 0) return
     const action = history[historyIndex - 1]!
-    await applyInverse(action)
+    try {
+      await applyInverse(action)
+    } catch (err) {
+      console.error('Undo failed:', err)
+      toast('Could not undo — check your connection', 'error')
+      return
+    }
     set({ historyIndex: historyIndex - 1 })
     toast('Undo', 'info')
     await refreshAll()
@@ -508,7 +533,13 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     const { history, historyIndex } = get()
     if (historyIndex >= history.length) return
     const action = history[historyIndex]!
-    await applyAction(action)
+    try {
+      await applyAction(action)
+    } catch (err) {
+      console.error('Redo failed:', err)
+      toast('Could not redo — check your connection', 'error')
+      return
+    }
     set({ historyIndex: historyIndex + 1 })
     toast('Redo', 'info')
     await refreshAll()

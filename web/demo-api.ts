@@ -15,7 +15,7 @@ import type {
   User
 } from '@shared/types'
 import type { CalendarApi } from '../electron/preload'
-import { DEMO_TOKEN, demoCalendars, demoUser, seedEvents, seedReminders } from './demo-data'
+import { DEMO_TOKEN, demoCalendars, demoUser, seedEvents, seedExceptions, seedReminders } from './demo-data'
 
 const DAY = 86_400_000
 
@@ -57,9 +57,9 @@ function timeKey(ts: number): string {
   return new Date(ts).toISOString()
 }
 
-const startOfUtcDay = (ts: number): number => {
+const startOfLocalDay = (ts: number): number => {
   const d = new Date(ts)
-  d.setUTCHours(0, 0, 0, 0)
+  d.setHours(0, 0, 0, 0)
   return d.getTime()
 }
 
@@ -69,7 +69,8 @@ function expandStarts(event: Event, from: number, to: number): number[] {
   if (!Number.isFinite(base)) return []
   const rule = parseRrule(event.rrule)
   if (!rule) return base >= from && base <= to ? [base] : []
-  const baseDay = startOfUtcDay(base)
+  const baseDay = startOfLocalDay(base)
+  const tod = base - baseDay
   const out: number[] = []
   let guard = 0
   const consider = (ts: number): void => {
@@ -77,31 +78,30 @@ function expandStarts(event: Event, from: number, to: number): number[] {
     if (ts >= from && ts <= to) out.push(ts)
   }
   if (rule.freq === 'DAILY') {
-    for (let i = 0; i * rule.interval * DAY + baseDay <= to + DAY; i++) {
-      const ts = baseDay + i * rule.interval * DAY
-      if (!Number.isFinite(ts)) break
+    for (let i = 0; ; i++) {
+      const ts = base + i * rule.interval * DAY
+      if (!Number.isFinite(ts) || ts > to) break
       consider(ts)
-      if (ts > to) break
     }
   } else if (rule.freq === 'WEEKLY') {
-    const days = rule.byday.length ? rule.byday : [new Date(base).getUTCDay()]
-    const week0 = baseDay - new Date(baseDay).getUTCDay() * DAY
+    const days = rule.byday.length ? rule.byday : [new Date(base).getDay()]
+    const week0 = baseDay - new Date(baseDay).getDay() * DAY
     for (let w = 0; ; w++) {
       const ws = week0 + w * rule.interval * 7 * DAY
       if (!Number.isFinite(ws) || ws > to + 7 * DAY) break
-      for (const d of days) consider(ws + d * DAY)
+      for (const d of days) consider(ws + d * DAY + tod)
     }
   } else {
     const bd = new Date(base)
-    const bday = bd.getUTCDate()
-    const bmonth = bd.getUTCMonth()
-    const byear = bd.getUTCFullYear()
+    const bday = bd.getDate()
+    const bmonth = bd.getMonth()
+    const byear = bd.getFullYear()
     for (let m = 0; ; m++) {
       const monthIdx = bmonth + m * rule.interval
       const y = byear + Math.floor(monthIdx / 12)
       const mm = ((monthIdx % 12) + 12) % 12
-      const last = new Date(Date.UTC(y, mm + 1, 0)).getUTCDate()
-      const ts = Date.UTC(y, mm, Math.min(bday, last), bd.getUTCHours(), bd.getUTCMinutes())
+      const last = new Date(y, mm + 1, 0).getDate()
+      const ts = new Date(y, mm, Math.min(bday, last), bd.getHours(), bd.getMinutes(), bd.getSeconds()).getTime()
       if (!Number.isFinite(ts) || ts > to) break
       consider(ts)
     }
@@ -155,13 +155,14 @@ function clampRange(fromMs: number, toMs: number): { from: number; to: number } 
 const calSeed = demoCalendars.map((c) => ({ ...c }))
 const evSeed = seedEvents()
 const remSeed = seedReminders(evSeed)
+const exSeed = seedExceptions()
 
 const state: DemoState = {
   seq: 100,
   calendars: calSeed,
   events: evSeed,
   trash: [],
-  exceptions: [],
+  exceptions: exSeed,
   reminders: remSeed,
   settings: {}
 }
