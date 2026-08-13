@@ -25,7 +25,13 @@ export const PORT = Number(process.env.CALENDAR_API_PORT ?? 3001)
 export const HOST = process.env.CALENDAR_API_HOST ?? '0.0.0.0'
 export const API_KEY = process.env.CALENDAR_API_KEY?.trim() || undefined
 
-const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://localhost']
+const DEFAULT_CORS_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://localhost',
+  'http://localhost',
+  'capacitor://localhost'
+]
 
 async function setupDatabase(): Promise<{ store: EventStore & AuthStore; cache: EventCache; using: string; dataDir: string }> {
   const pgUrl = process.env.CALENDAR_PG_URL
