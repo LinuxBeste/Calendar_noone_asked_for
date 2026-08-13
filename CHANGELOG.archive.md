@@ -137,3 +137,23 @@ Fastify backend with SQLite/PostgreSQL + Redis, plus a web/Android client.
   was rendered both as the row title and inside the checkbox control)
 - Settings dialog tabs now stack horizontally on narrow screens and the
   dialog is scrollable on mobile
+
+## [0.6.0] - 2026-08-13
+
+### Fixed
+
+- **Agenda view could freeze the whole tab** — `from`/`to` were recreated on
+  every render, so the refresh effect re-ran after every event fetch, which
+  updated the store, which re-rendered — an endless loop that locked up the
+  renderer (Agenda view only; other views memoized their range). The range is
+  now memoized like the other views.
+- **Events from unchecked calendars still shown** — hiding a calendar only
+  stopped fetching, so events already in the store kept appearing in every
+  view. All views now filter by calendar visibility, and toggling a calendar
+  refetches the current range.
+
+### Changed
+
+- **Product renamed to Calendar** — the app is now called "Calendar" in the
+  UI, release notes, and package metadata (repo, image names, and previous
+  releases keep their old names).
