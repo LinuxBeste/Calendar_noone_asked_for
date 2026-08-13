@@ -102,7 +102,9 @@ async function bootstrap(): Promise<void> {
     origin: (origin, cb) => {
       if (!origin || allowed.includes(origin)) cb(null, true)
       else cb(new Error('Origin not allowed'), false)
-    }
+    },
+    // @fastify/cors 11 defaults to GET,HEAD,POST — the app uses PUT/PATCH/DELETE.
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
   })
   await registerRoutes(app, { auth, calendars, events, ical, feeds, links, store, using: setup.using, apiKey: API_KEY })
 
