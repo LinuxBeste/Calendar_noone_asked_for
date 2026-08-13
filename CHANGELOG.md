@@ -7,6 +7,25 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Mobile-first UI for phones** — the app now behaves like a native Android
+  app on small screens: a bottom navigation bar (Day / Week / Month / Year /
+  Agenda) replaces the desktop view switcher, a floating action button opens
+  the event dialog, dialogs slide up as bottom sheets (event, settings,
+  confirm, trash, find-free-time), the sidebar starts closed and overlays the
+  content as a drawer, toasts float above the bottom bar, and every layout
+  respects device safe areas (notches, gesture bars).
+
+### Fixed
+
+- **Sidebar drawer opened over dialogs** — on narrow screens the drawer
+  rendered above open dialogs (same z-index, later in the DOM) and started
+  open on every launch; it now starts closed, layers below dialogs, and the
+  hamburger button got a bigger touch target.
+
+## [0.6.2]
+
 ### Fixed
 
 - **Demo events clustered at 02:00** — the demo recurrence engine expanded

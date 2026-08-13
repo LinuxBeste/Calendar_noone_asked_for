@@ -7,7 +7,7 @@ export default function Toasts(): React.JSX.Element {
   if (toasts.length === 0) return <></>
 
   return (
-    <div className="fixed bottom-4 right-4 z-[70] flex flex-col gap-2">
+    <div className="fixed bottom-24 sm:bottom-4 right-20 sm:right-4 z-[70] flex flex-col gap-2">
       {toasts.map((t) => (
         <button
           key={t.id}

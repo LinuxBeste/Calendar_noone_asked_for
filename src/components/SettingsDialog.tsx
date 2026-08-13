@@ -170,8 +170,8 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-[820px] max-w-[94vw] h-[600px] max-h-[90vh] flex flex-col md:flex-row overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-[820px] sm:max-w-[94vw] h-[94dvh] sm:h-[600px] sm:max-h-[90vh] flex flex-col md:flex-row overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <aside className="md:w-48 md:shrink-0 md:border-r border-b md:border-b-0 border-gray-200 dark:border-gray-700 p-3 flex md:flex-col gap-1 bg-gray-50 dark:bg-gray-900/40 overflow-x-auto md:overflow-y-auto">
           <h2 className="hidden md:block text-sm font-medium text-gray-900 dark:text-gray-100 px-3 py-2">Settings</h2>
           {SETTING_CATEGORIES.map((c) => (

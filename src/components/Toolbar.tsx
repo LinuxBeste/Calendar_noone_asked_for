@@ -123,7 +123,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
     <div className="min-h-14 shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-wrap items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5">
       <button
         onClick={onToggleSidebar}
-        className="lg:hidden p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 shrink-0"
+        className="lg:hidden p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 shrink-0"
         title="Toggle sidebar"
         aria-label="Toggle sidebar"
       >
@@ -141,7 +141,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
 
       <button
         onClick={() => setNewEventOpen(true)}
-        className="flex items-center gap-1 px-2 md:px-3 py-1.5 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-full shrink-0"
+        className="hidden md:flex items-center gap-1 px-2 md:px-3 py-1.5 text-sm font-medium text-white bg-accent hover:bg-accent-hover rounded-full shrink-0"
         title="New event"
         aria-label="New event"
       >
@@ -211,7 +211,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
         <SearchBox />
       </div>
 
-      <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 shrink-0">
+      <div className="hidden md:flex bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 shrink-0">
         {VIEWS.map((v) => (
           <button
             key={v.id}

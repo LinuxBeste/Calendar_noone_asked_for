@@ -33,9 +33,9 @@ export default function ConfirmDialog({ title, message, confirmLabel = 'Confirm'
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-[420px] max-w-full p-6"
+        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-[420px] sm:max-w-full px-6 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6"
         onClick={(e) => e.stopPropagation()}
         role="alertdialog"
         aria-modal="true"

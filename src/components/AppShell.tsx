@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useCalendar, useAuth, DEFAULT_SETTINGS } from '../store'
 import { applyTheme } from '../utils/theme'
 import NavRail from './NavRail'
+import MobileNav from './MobileNav'
 import Sidebar from './Sidebar'
 import Toolbar from './Toolbar'
 import MonthView from '../views/MonthView'
@@ -35,7 +36,7 @@ function writeUrlState(): void {
 export default function AppShell(): React.JSX.Element {
   const { view, date, refreshCalendars, settings, setSettings, calendars } = useCalendar()
   const { token } = useAuth()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia(NARROW_QUERY).matches)
   const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches)
   const [dragOver, setDragOver] = useState(false)
 
@@ -164,7 +165,7 @@ export default function AppShell(): React.JSX.Element {
   }, [token])
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-900">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-900 pt-[env(safe-area-inset-top)]">
       {__DEMO__ && (
         <div className="shrink-0 px-3 py-1 text-center text-xs bg-gradient-to-r from-accent/15 via-accent/25 to-accent/15 text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
           📅 Live demo — everything runs locally in your browser and resets on reload. No account needed.
@@ -184,7 +185,7 @@ export default function AppShell(): React.JSX.Element {
           <div className="h-full w-1/3 bg-accent animate-[loading-slide_1s_ease-in-out_infinite]" />
         </div>
       )}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden pb-16 md:pb-0">
         {settings.compactSidebar && <NavRail />}
         <Sidebar open={sidebarOpen} narrow={narrow} onClose={() => setSidebarOpen(false)} />
         <main className="flex-1 flex min-w-0 overflow-hidden">
@@ -195,6 +196,7 @@ export default function AppShell(): React.JSX.Element {
           {view === 'agenda' && <AgendaView date={date} days={settings.agendaRangeDays} />}
         </main>
       </div>
+      <MobileNav />
     </div>
   )
 }
