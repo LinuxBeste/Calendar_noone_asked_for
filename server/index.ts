@@ -79,8 +79,19 @@ async function bootstrap(): Promise<void> {
 
   // CORS: only allow explicitly listed origins (browser clients). Same-origin
   // requests and non-browser clients (curl, Electron main) are unaffected.
+  // Browsers send an Origin header on same-origin fetches too — the app may be
+  // served from any host (localhost, LAN IP, a domain), so requests whose
+  // origin matches the request's own Host are treated as same-origin and skip
+  // the CORS allowlist.
   const corsOrigins = (process.env.CALENDAR_CORS_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
   const allowed = corsOrigins.length > 0 ? corsOrigins : DEFAULT_CORS_ORIGINS
+  app.addHook('onRequest', async (request) => {
+    const origin = request.headers.origin
+    const host = request.headers.host
+    if (origin && host && (origin === `http://${host}` || origin === `https://${host}`)) {
+      delete request.headers.origin
+    }
+  })
   await app.register(fastifyCors, {
     origin: (origin, cb) => {
       if (!origin || allowed.includes(origin)) cb(null, true)

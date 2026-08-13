@@ -20,6 +20,8 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
   const [info, setInfo] = useState<{ using: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [serverUrl, setServerUrl] = useState(() => localStorage.getItem('calendar.apiUrl') ?? '')
+  const [serverSaved, setServerSaved] = useState(false)
 
   useEffect(() => {
     if (!token) return
@@ -209,6 +211,54 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
           </div>
           <div className="flex-1 overflow-y-auto p-4 md:p-6">
             {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
+            {!__DEMO__ && (
+              <div className="mb-5 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
+                <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-1">Server</h3>
+                <p className={hint}>On the phone, “localhost” means the phone itself — point the app at your PC instead.</p>
+                <div className="flex gap-2 mt-2">
+                  <input
+                    type="url"
+                    value={serverUrl}
+                    onChange={(e) => {
+                      setServerUrl(e.target.value)
+                      setServerSaved(false)
+                    }}
+                    placeholder="http://192.168.1.50:3001"
+                    aria-label="Server URL"
+                    className={selectCls} />
+                  <button
+                    onClick={() => {
+                      const url = serverUrl.trim()
+                      if (url && !/^https?:\/\/.+/.test(url)) {
+                        setServerSaved(false)
+                        setError('Server URL must start with http:// or https://')
+                        return
+                      }
+                      setError(null)
+                      if (url) localStorage.setItem('calendar.apiUrl', url)
+                      else localStorage.removeItem('calendar.apiUrl')
+                      setServerSaved(true)
+                      setTimeout(() => window.location.reload(), 500)
+                    }}
+                    className="shrink-0 px-4 py-1.5 text-sm rounded-lg bg-accent hover:bg-accent-hover text-white"
+                  >
+                    {serverSaved ? 'Saved — reloading' : 'Save'}
+                  </button>
+                  {serverUrl.length > 0 && (
+                    <button
+                      onClick={() => setServerUrl('')}
+                      className="shrink-0 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <p className={hint + ' mt-2'}>
+                  Android emulator: <code className="text-accent">http://10.0.2.2:3001</code> · Real phone: your PC’s LAN IP (
+                  <code className="text-accent">ip addr</code> on the PC), port 3001
+                </p>
+              </div>
+            )}
             {groups.map((g) => (
               <div key={g.category.id} className="mb-5">
                 {q.length > 0 && (
