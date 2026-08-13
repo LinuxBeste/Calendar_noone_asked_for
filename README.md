@@ -89,20 +89,25 @@ Env vars are read from the shell or from a `.env` file in the project root
 
 SQLite data lives in Electron's `userData` directory (`calendar.db`). A default calendar is created automatically on first run and assigned to the first account that registers or logs in.
 
-## Docker (optional backend)
+## Docker (backend + web client)
 
-The Electron app itself is a desktop GUI and cannot run in Docker, but its
-optional storage backend (PostgreSQL + Redis) can:
+The Electron app itself is a desktop GUI and cannot run in Docker, but the full
+server stack can — PostgreSQL, Redis and the standalone backend (web client +
+API) that the desktop, web and Android clients talk to:
 
 ```bash
-cp .env.example .env     # optional: adjust credentials
+cp .env.example .env     # optional: set CALENDAR_API_KEY etc.
 docker compose up -d
-npm run dev              # app now uses PostgreSQL + Redis automatically
 ```
 
+- Web client + API at `http://localhost:3001/` (same host reachable on the LAN,
+  e.g. `http://192.168.1.50:3001` from a phone)
 - PostgreSQL listens on `localhost:5432`, Redis on `localhost:6379`
-- Data persists in the `pgdata` / `redisdata` volumes; `docker compose down`
-  stops the containers without deleting data
+- Data persists in the `pgdata`, `redisdata` and `calendardata` volumes;
+  `docker compose down` stops the containers without deleting data
+- The `server` service uses the published image
+  `ghcr.io/linuxbeste/calendar_noone_asked_for:latest`; set `CALENDAR_API_KEY`
+  (in `.env`) to lock down `/reminders/*` endpoints
 - If the containers aren't running, the app silently falls back to SQLite +
   in-memory cache
 
