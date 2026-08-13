@@ -54,6 +54,7 @@ jobs:
             upload: |
               release/*.AppImage
               release/*.deb
+              release/*.zip
             updateFile: release/latest*.yml
     runs-on: ${{ matrix.os }}
     steps:

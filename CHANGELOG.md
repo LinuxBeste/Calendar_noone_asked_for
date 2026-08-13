@@ -20,8 +20,11 @@ All notable changes to this project are documented here. Format follows
 - **Live downloads page** — `downloads.html` on GitHub Pages lists the
   current platform's installer first and resolves the latest version from the
   GitHub API on every visit: Windows installer/portable, macOS `.dmg`/`.zip`,
-  Linux `.deb`/`.AppImage`, Android `.apk`, with a fallback link to the
+  Linux `.deb`/`.AppImage`/`.zip`, Android `.apk`, with a fallback link to the
   releases page.
+- **Linux portable `.zip`** — the Linux build now ships a plain `.zip`
+  package alongside the `.deb` installer and `.AppImage`, so Linux users get
+  a portable download like the other platforms.
 
 ### Fixed
 
