@@ -244,11 +244,11 @@ export class PgStore implements EventStore, AuthStore {
   }
 
   async listEvents(from: string, to: string, calendarIds?: string[]): Promise<Event[]> {
-    const timed = and(isNotNull(pgEvents.startsAt), lt(pgEvents.startsAt, to), gt(pgEvents.endsAt, from))
+    const timed = and(isNotNull(pgEvents.startsAt), lt(pgEvents.startsAt, to), or(gt(pgEvents.endsAt, from), isNotNull(pgEvents.rrule)))
     const allDay = and(
       isNotNull(pgEvents.startDate),
       lte(pgEvents.startDate, to),
-      gte(sql`COALESCE(${pgEvents.endDate}, ${pgEvents.startDate})`, from)
+      or(gte(sql`COALESCE(${pgEvents.endDate}, ${pgEvents.startDate})`, from), isNotNull(pgEvents.rrule))
     )
     let where = and(isNull(pgEvents.deletedAt), or(timed, allDay))
     if (calendarIds && calendarIds.length > 0) {

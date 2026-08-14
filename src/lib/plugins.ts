@@ -80,11 +80,16 @@ export const usePlugins = create<PluginsState>((set, get) => ({
     const fresh: PluginId[] = []
     try {
       for (const def of PLUGIN_CATALOG) {
-        const st = (await window.calendarApi.plugins.getState(token, def.id)) as { enabled?: boolean } | null
-        if (st?.enabled) fresh.push(def.id)
+        const st = (await window.calendarApi.plugins.getState(token, def.id)) as Record<string, unknown> | null | undefined
+        if (st && typeof st === 'object' && 'enabled' in st) {
+          if (st.enabled) fresh.push(def.id)
+        } else {
+          set({ loaded: true })
+          return
+        }
       }
     } catch {
-      // offline — keep the cached enabled list
+      // offline or server without plugin routes — keep the cached enabled list
       set({ loaded: true })
       return
     }

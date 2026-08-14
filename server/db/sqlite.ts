@@ -269,12 +269,12 @@ export class SqliteStore implements EventStore, AuthStore {
     const timed = and(
       isNotNull(events.startsAt),
       lt(events.startsAt, to),
-      gt(events.endsAt, from)
+      or(gt(events.endsAt, from), isNotNull(events.rrule))
     )
     const allDay = and(
       isNotNull(events.startDate),
       lte(events.startDate, to),
-      gte(sql`COALESCE(${events.endDate}, ${events.startDate})`, from)
+      or(gte(sql`COALESCE(${events.endDate}, ${events.startDate})`, from), isNotNull(events.rrule))
     )
     let where = and(isNull(events.deletedAt), or(timed, allDay))
     if (calendarIds && calendarIds.length > 0) {
