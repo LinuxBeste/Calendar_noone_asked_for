@@ -162,6 +162,56 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     }
   }, [])
 
+  // Horizontal swipe on the grid navigates one week (left = next, right = previous).
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    if (!window.matchMedia('(pointer: coarse)').matches) return
+    let startX = 0
+    let startY = 0
+    let pointerId = 0
+    let tracking = false
+    const onDown = (e: PointerEvent): void => {
+      if (e.pointerType !== 'touch') return
+      if ((e.target as HTMLElement).closest('button, .rounded-md')) return
+      if (tracking && e.pointerId !== pointerId) {
+        tracking = false
+        return
+      }
+      tracking = true
+      pointerId = e.pointerId
+      startX = e.clientX
+      startY = e.clientY
+    }
+    const onMove = (e: PointerEvent): void => {
+      if (!tracking || e.pointerId !== pointerId) return
+      if (e.pointerType !== 'touch') return
+      const dx = e.clientX - startX
+      const dy = e.clientY - startY
+      if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy) * 1.3) return
+      tracking = false
+      e.preventDefault()
+      suppressClickRef.current = true
+      useCalendar.getState().navigate(dx < 0 ? 1 : -1)
+    }
+    const onEnd = (e: PointerEvent): void => {
+      if (e.pointerId === pointerId) tracking = false
+    }
+    const onWindowCancel = (): void => {
+      tracking = false
+    }
+    el.addEventListener('pointerdown', onDown)
+    el.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onEnd, true)
+    window.addEventListener('pointercancel', onWindowCancel, true)
+    return () => {
+      el.removeEventListener('pointerdown', onDown)
+      el.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onEnd, true)
+      window.removeEventListener('pointercancel', onWindowCancel, true)
+    }
+  }, [])
+
   const zoomBy = (factor: number): void => {
     const el = scrollRef.current
     if (!el) return

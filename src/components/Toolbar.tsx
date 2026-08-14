@@ -233,7 +233,17 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
         </button>
       </div>
 
-      <h2 className="flex-1 min-w-0 text-base sm:text-lg font-normal text-gray-800 dark:text-gray-100 truncate">{headerTitle(view, date, settings.firstDayOfWeek)}</h2>
+      <h2
+        className="flex-1 min-w-0 leading-tight"
+        title={`${format(date, 'EEEE, MMMM d, yyyy')} · ${headerTitle(view, date, settings.firstDayOfWeek)}`}
+      >
+        <span className="block text-[10px] sm:text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500 truncate">
+          {format(date, 'EEEE, MMMM d, yyyy')}
+        </span>
+        <span className="block text-base sm:text-lg font-normal text-gray-800 dark:text-gray-100 truncate">
+          {headerTitle(view, date, settings.firstDayOfWeek)}
+        </span>
+      </h2>
 
       <div className="hidden md:flex min-w-0">
         <SearchBox />

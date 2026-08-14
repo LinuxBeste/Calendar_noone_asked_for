@@ -8,6 +8,12 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 ## [Unreleased]
 
 ### Added
+- **Full date in the header** — the toolbar now shows the complete date
+  (e.g. "Friday, August 14, 2026") above the view title, so you always see
+  exactly which day you're looking at.
+- **Swipe navigation on the week view (touch)** — swipe left to move one week
+  forward, swipe right to move one week back. Swipes starting on an event chip
+  are left alone so drag-and-drop keeps working.
 
 - **Pinch-to-zoom on the week view for phones** — spread two fingers to zoom
   in (max 200%), pinch together to zoom back out; a stale gesture can no
