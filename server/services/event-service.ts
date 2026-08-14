@@ -12,6 +12,8 @@ export class EventService {
       assertCanRead(userId: string, calendarId: string): Promise<void>
       assertCanWrite(userId: string, calendarId: string): Promise<void>
       listCalendarsForUser(userId: string): Promise<{ id: string }[]>
+      /** Resolves the requested calendar set; defaults to everything the user can access. */
+      resolveCalendarIds(userId: string, requested?: string[]): Promise<string[]>
     }
   ) {}
 
@@ -21,14 +23,22 @@ export class EventService {
     if (detail?.feedId) throw new Error('Events from external feeds are read-only')
   }
 
+  /**
+   * The client is never trusted to decide which calendars it may see. When no
+   * explicit set is given (or an empty one is — e.g. all calendars hidden in
+   * the UI), the user's own accessible calendars are used instead of the
+   * whole database.
+   */
+  private async resolveCalendarIds(userId: string, requested?: string[]): Promise<string[]> {
+    return this.permissions.resolveCalendarIds(userId, requested)
+  }
+
   async listEvents(userId: string, from: string, to: string, calendarIds?: string[]): Promise<Event[]> {
-    if (calendarIds && calendarIds.length > 0) {
-      await Promise.all(calendarIds.map((id) => this.permissions.assertCanRead(userId, id)))
-    }
-    const rangeKey = `${from}|${to}|${(calendarIds ?? []).sort().join(',')}`
+    const ids = await this.resolveCalendarIds(userId, calendarIds)
+    const rangeKey = `${from}|${to}|${[...ids].sort().join(',')}`
     const cached = await this.cache.getEvents(rangeKey)
     if (cached) return cached
-    const events = await this.store.listEvents(from, to, calendarIds)
+    const events = await this.store.listEvents(from, to, ids)
     await this.cache.setEvents(rangeKey, events)
     return events
   }
@@ -120,10 +130,8 @@ export class EventService {
   }
 
   async searchEvents(userId: string, query: string, opts?: { limit?: number; calendarIds?: string[] }) {
-    if (opts?.calendarIds && opts.calendarIds.length > 0) {
-      await Promise.all(opts.calendarIds.map((id) => this.permissions.assertCanRead(userId, id)))
-    }
-    return this.store.searchEvents(query, opts)
+    const ids = await this.resolveCalendarIds(userId, opts?.calendarIds)
+    return this.store.searchEvents(query, { ...opts, calendarIds: ids })
   }
 
   async addReminder(userId: string, eventId: string, minutes: number) {
@@ -158,13 +166,11 @@ export class EventService {
 
   /** Lists all occurrences (expanded series) overlapping the range. What the views actually render. */
   async listOccurrencesForRange(userId: string, from: string, to: string, calendarIds?: string[]): Promise<EventOccurrence[]> {
-    if (calendarIds && calendarIds.length > 0) {
-      await Promise.all(calendarIds.map((id) => this.permissions.assertCanRead(userId, id)))
-    }
-    const cacheKey = `occ:${from}|${to}|${(calendarIds ?? []).sort().join(',')}`
+    const ids = await this.resolveCalendarIds(userId, calendarIds)
+    const cacheKey = `occ:${from}|${to}|${[...ids].sort().join(',')}`
     const cached = await this.cache.getEvents(cacheKey)
     if (cached) return cached as unknown as EventOccurrence[]
-    const masterEvents = await this.store.listEvents(from, to, calendarIds)
+    const masterEvents = await this.store.listEvents(from, to, ids)
     const out: EventOccurrence[] = []
     for (const ev of masterEvents) {
       const exceptions = ev.rrule ? await this.store.listExceptions(ev.id) : []
@@ -236,21 +242,18 @@ export class EventService {
     }
     await this.permissions.assertCanWrite(userId, detail.calendarId)
 
-    const occDate = new Date(occurrence + 'T00:00:00')
+    const occDate = new Date(occurrence + 'T00:00:00Z')
     const thisOcc = expandEvent(
       detail,
       [],
       new Date(detail.allDay ? detail.startDate! + 'T00:00:00' : detail.startsAt!),
       new Date(occDate.getTime() + 86400000)
-    ).find((o) => {
-      const d = o.start
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === occurrence
-    })
+    ).find((o) => o.start.toISOString().slice(0, 10) === occurrence)
+    if (!thisOcc) throw new Error('Could not find the occurrence to split at')
 
     const rule = RRule.fromString(detail.rrule.startsWith('DTSTART') ? detail.rrule : withDtstart(detail.rrule, new Date(detail.startsAt ?? detail.startDate! + 'T00:00:00')))
     const options = rule.options
     const freq = options.freq as 0 | 1 | 2 | 3
-    const freqName = ['YEARLY', 'MONTHLY', 'WEEKLY', 'DAILY'][freq]
     const interval = options.interval
     const byweekday = options.byweekday?.length ? options.byweekday[0] : undefined
 
@@ -268,20 +271,21 @@ export class EventService {
       interval,
       ...(byweekday !== undefined ? { byweekday: [byweekday] } : {})
     }).toString()
+    const anchor = detail.allDay ? new Date(occurrence + 'T00:00:00') : occDate
     const created = await this.store.createEvent({
       calendarId: detail.calendarId,
       title: input.title ?? detail.title,
       description: input.description ?? detail.description,
       location: input.location ?? detail.location,
       allDay: input.allDay ?? detail.allDay,
-      startsAt: input.startsAt ?? thisOcc?.start.toISOString(),
-      endsAt: input.endsAt ?? (thisOcc ? new Date(thisOcc.end.getTime()).toISOString() : undefined),
+      startsAt: input.startsAt ?? thisOcc.start.toISOString(),
+      endsAt: input.endsAt ?? new Date(thisOcc.end.getTime()).toISOString(),
       startDate: input.startDate ?? occurrence,
       endDate: input.endDate ?? occurrence,
       timezone: detail.timezone,
       color: input.color ?? detail.color,
       busy: input.busy ?? detail.busy,
-      rrule: withDtstart(newRule, occDate)
+      rrule: withDtstart(newRule, anchor)
     })
     await this.invalidateForCalendar(detail.calendarId)
     await this.cache.publish('events.changed', { type: 'created', eventId: created.id, userId, calendarId: detail.calendarId })

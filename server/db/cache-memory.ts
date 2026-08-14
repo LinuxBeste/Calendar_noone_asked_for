@@ -8,6 +8,7 @@ import type { Event } from '@shared/types'
 export class InMemoryCache implements EventCache {
   private store = new Map<string, { value: Event[]; expiresAt: number }>()
   private subscribers = new Map<string, Set<(payload: unknown) => void>>()
+  private static MAX_ENTRIES = 200
 
   async getEvents(rangeKey: string): Promise<Event[] | undefined> {
     const entry = this.store.get(rangeKey)
@@ -20,6 +21,11 @@ export class InMemoryCache implements EventCache {
   }
 
   async setEvents(rangeKey: string, events: Event[], ttlSeconds = 300): Promise<void> {
+    if (this.store.size >= InMemoryCache.MAX_ENTRIES && !this.store.has(rangeKey)) {
+      // Drop the oldest entry so the map can't grow unbounded.
+      const oldest = this.store.keys().next().value
+      if (oldest !== undefined) this.store.delete(oldest)
+    }
     this.store.set(rangeKey, { value: events, expiresAt: Date.now() + ttlSeconds * 1000 })
   }
 

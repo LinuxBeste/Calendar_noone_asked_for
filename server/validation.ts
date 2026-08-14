@@ -154,6 +154,17 @@ const eventPatchSchema = z
 // ---- sharing ----
 const shareSchema = z.object({ email: emailSchema, role: z.enum(['viewer', 'editor']) })
 
+// ---- ICS feed subscriptions ----
+const feedSchema = z.object({
+  calendarId: idSchema,
+  url: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2000, 'Feed URL is too long')
+    .refine((v) => /^https?:\/\//i.test(v), 'Feed URL must start with http:// or https://')
+})
+
 // ---- settings whitelist (derived from the shared catalog) ----
 const settingOverrides: Record<string, z.ZodType<unknown>> = {
   firstDayOfWeek: z.union([z.literal(0), z.literal(1)]),
@@ -264,6 +275,9 @@ export function validateEventPatch(input: unknown): Partial<EventInput> {
 }
 export function validateShareInput(input: unknown): ShareInput {
   return fromZod(shareSchema)(input) as ShareInput
+}
+export function validateFeedInput(input: unknown): { calendarId: string; url: string } {
+  return fromZod(feedSchema)(input) as { calendarId: string; url: string }
 }
 export function validateSetting(key: string, value: unknown): { key: string; value: unknown } {
   const schema = settingSchemas[key]

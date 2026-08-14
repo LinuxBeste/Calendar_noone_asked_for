@@ -136,7 +136,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }): Re
   for (const c of filtered) if (!groupOrder.includes(c.group)) groupOrder.push(c.group)
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/40 flex items-start justify-center pt-[12vh] px-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-[70] bg-black/40 animate-fade-in flex items-start justify-center pt-[12vh] px-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-400 shrink-0" fill="currentColor">

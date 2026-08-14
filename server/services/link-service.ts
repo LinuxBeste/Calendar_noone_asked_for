@@ -30,9 +30,9 @@ export class LinkService {
     return this.store.listLinks(calendarId)
   }
 
-  async deleteLink(userId: string, token: string): Promise<void> {
+  async deleteLink(userId: string, token: string, calendarId: string): Promise<void> {
     const link = await this.store.getLinkByToken(token)
-    if (!link) throw new Error('Link not found')
+    if (!link || link.calendarId !== calendarId) throw new Error('Link not found')
     await this.permissions.assertCanRead(userId, link.calendarId)
     await this.store.deleteLink(token)
   }

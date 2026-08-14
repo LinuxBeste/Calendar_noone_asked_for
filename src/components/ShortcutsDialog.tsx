@@ -22,7 +22,7 @@ export default function ShortcutsDialog({ onClose }: { onClose: () => void }): R
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-[70] bg-black/40 animate-fade-in flex items-center justify-center p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="animate-dialog-in bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-[420px] max-w-full p-6" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Keyboard shortcuts</h2>
         <div className="divide-y divide-gray-100 dark:divide-gray-700">

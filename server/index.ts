@@ -19,6 +19,7 @@ import { ICalService } from './services/ical-service'
 import { FeedService } from './services/feed-service'
 import { LinkService } from './services/link-service'
 import { WsHub } from './services/ws-hub'
+import { PermissionError } from './services/calendar-service'
 import { registerRoutes } from './routes'
 
 export const PORT = Number(process.env.CALENDAR_API_PORT ?? 3001)
@@ -36,12 +37,14 @@ const DEFAULT_CORS_ORIGINS = [
 async function setupDatabase(): Promise<{ store: EventStore & AuthStore; cache: EventCache; using: string; dataDir: string }> {
   const pgUrl = process.env.CALENDAR_PG_URL
   if (pgUrl) {
+    let store: PgStore | null = null
     try {
-      const store = new PgStore(pgUrl)
+      store = new PgStore(pgUrl)
       await store.migrate()
       return { store, cache: await setupCache(), using: 'postgresql', dataDir: '' }
     } catch (err) {
       console.error('[db] PostgreSQL unavailable, falling back to SQLite:', err)
+      await store?.close().catch(() => undefined)
     }
   }
   const dataDir = process.env.CALENDAR_DATA_DIR ?? join(tmpdir(), 'calendar-server')
@@ -74,14 +77,35 @@ async function bootstrap(): Promise<void> {
   const perms = {
     assertCanRead: (userId: string, calendarId: string) => calendars.assertCanRead(userId, calendarId),
     assertCanWrite: (userId: string, calendarId: string) => calendars.assertCanWrite(userId, calendarId),
-    listCalendarsForUser: (userId: string) => calendars.listCalendarsForUser(userId)
+    listCalendarsForUser: (userId: string) => calendars.listCalendarsForUser(userId),
+    resolveCalendarIds: async (userId: string, requested?: string[]): Promise<string[]> => {
+      const accessible = new Set((await calendars.listCalendarsForUser(userId)).map((c) => c.id))
+      const ids = requested && requested.length > 0 ? requested : [...accessible]
+      for (const id of ids) {
+        if (!accessible.has(id)) throw new PermissionError('You do not have access to this calendar')
+      }
+      return ids
+    }
   }
   const events = new EventService(store, setup.cache, perms)
   const ical = new ICalService(store, setup.cache, perms)
   const feeds = new FeedService(store, setup.cache, { assertCanWrite: perms.assertCanWrite })
   const links = new LinkService(store, setup.cache, { assertCanRead: perms.assertCanRead })
 
-  const app = Fastify({ logger: true })
+  const app = Fastify({
+    logger: {
+      serializers: {
+        // Session tokens (and public share-link tokens) must never reach the
+        // access logs: the WS endpoint receives them as query parameters.
+        req(request: { method: string; raw: { url?: string } }) {
+          const url = (request.raw.url ?? '')
+            .replace(/([?&])token=[^&\s]*/gi, '$1token=[redacted]')
+            .replace(/\/public\/[^/]+/g, '/public/[redacted]')
+          return { method: request.method, url }
+        }
+      }
+    }
+  })
 
   // CORS: only allow explicitly listed origins (browser clients). Same-origin
   // requests and non-browser clients (curl, Electron main) are unaffected.
@@ -130,8 +154,16 @@ async function bootstrap(): Promise<void> {
       })
       .catch(() => connection.close(4001, 'unauthorized'))
   })
-  await setup.cache.subscribe('events.changed', (payload) => void hub.broadcast(payload as { type: string; userId?: string; calendarId?: string }))
-  await setup.cache.subscribe('calendars.changed', (payload) => void hub.broadcast(payload as { type: string; userId?: string; calendarId?: string }))
+  await setup.cache.subscribe('events.changed', (payload) => {
+    hub.broadcast(payload as { type: string; userId?: string; calendarId?: string }).catch((err) => {
+      console.error('[ws] broadcast failed:', err)
+    })
+  })
+  await setup.cache.subscribe('calendars.changed', (payload) => {
+    hub.broadcast(payload as { type: string; userId?: string; calendarId?: string }).catch((err) => {
+      console.error('[ws] broadcast failed:', err)
+    })
+  })
   console.log('[server] live updates enabled (ws://' + HOST + ':' + PORT + '/ws)')
   // ---- maintenance: trash purge + database backups ----
   const trashKeepDays = Math.max(1, Number(process.env.CALENDAR_TRASH_DAYS ?? 30))
@@ -203,6 +235,35 @@ async function bootstrap(): Promise<void> {
     app.log.error(err)
     process.exit(1)
   }
+
+  // ---- graceful shutdown ----
+  let shuttingDown = false
+  const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log(`[server] ${signal} received, shutting down…`)
+    clearInterval(trashSweep)
+    clearInterval(feedSync)
+    if (backupInterval) clearInterval(backupInterval)
+    try {
+      await app.close()
+    } catch (err) {
+      console.error('[server] error while closing http server:', err)
+    }
+    try {
+      if (setup.cache.close) await setup.cache.close()
+    } catch (err) {
+      console.error('[server] error while closing cache:', err)
+    }
+    try {
+      await setup.store.close()
+    } catch (err) {
+      console.error('[server] error while closing store:', err)
+    }
+    process.exit(0)
+  }
+  process.on('SIGTERM', () => void shutdown('SIGTERM'))
+  process.on('SIGINT', () => void shutdown('SIGINT'))
 }
 
 void bootstrap()

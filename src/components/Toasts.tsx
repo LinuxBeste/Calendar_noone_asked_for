@@ -12,7 +12,7 @@ export default function Toasts(): React.JSX.Element {
         <button
           key={t.id}
           onClick={() => dismiss(t.id)}
-          className={`text-left px-4 py-2.5 rounded-xl shadow-lg text-sm text-white max-w-xs break-words ${
+          className={`animate-toast-in text-left px-4 py-2.5 rounded-xl shadow-lg text-sm text-white max-w-xs break-words ${
             t.kind === 'error' ? 'bg-red-600' : t.kind === 'info' ? 'bg-gray-700' : 'bg-gray-900'
           }`}
         >

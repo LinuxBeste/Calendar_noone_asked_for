@@ -39,18 +39,17 @@ export default function YearView({ date }: YearViewProps): React.JSX.Element {
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {months.map((month) => (
+        {months.map((month, m) => (
           <div key={month.name} className="text-sm">
             <h3 className="font-medium text-gray-800 dark:text-gray-100 mb-2">
-              <button onClick={() => jump(new Date(date.getFullYear(), new Date(`${date.getFullYear()}-${month.name}-01`)?.getMonth() ?? 0, 1))} className="hover:text-accent">
+              <button onClick={() => jump(new Date(date.getFullYear(), m, 1))} className="hover:text-accent">
                 {month.name}
               </button>
             </h3>
             <div className="grid grid-cols-7 gap-y-0.5 text-center text-[10px] text-gray-400 mb-1">
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].slice(settings.firstDayOfWeek).concat(['S', 'M', 'T', 'W', 'T', 'F', 'S'].slice(0, settings.firstDayOfWeek)).map((d, i) => (
                 <span key={i}>{d}</span>
-              ))}
-            </div>
+              ))}            </div>
             <div className="grid grid-cols-7 gap-y-0.5">
               {month.days.map((d, i) => {
                 const ev = month.events.find((e) => e.start.slice(0, 10) === format(d, 'yyyy-MM-dd'))

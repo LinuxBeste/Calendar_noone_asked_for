@@ -32,16 +32,52 @@ describe('ical', () => {
     expect(parsed[0]!.reminderMinutes).toBe(10)
   })
 
-  it('round-trips an all-day event', () => {
+  it('round-trips an all-day event (exclusive DTEND)', () => {
     const ev: Event = { ...base, title: 'Vacation', allDay: true, startDate: '2026-08-10', endDate: '2026-08-14' }
     const ics = serializeICal([{ ev, reminders: [] }])
     expect(ics).toContain('DTSTART;VALUE=DATE:20260810')
-    expect(ics).toContain('DTEND;VALUE=DATE:20260814')
+    // iCal all-day DTEND is exclusive — one day after the inclusive endDate.
+    expect(ics).toContain('DTEND;VALUE=DATE:20260815')
 
     const parsed = parseICal(ics)
     expect(parsed[0]!.allDay).toBe(true)
     expect(parsed[0]!.startDate).toBe('2026-08-10')
     expect(parsed[0]!.endDate).toBe('2026-08-14')
+  })
+
+  it('parses an all-day event with exclusive DTEND from external sources', () => {
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VEVENT',
+      'UID:ext-all',
+      'SUMMARY:Hotel',
+      'DTSTART;VALUE=DATE:20261001',
+      'DTEND;VALUE=DATE:20261005',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n')
+    const parsed = parseICal(ics)
+    expect(parsed[0]!.startDate).toBe('2026-10-01')
+    expect(parsed[0]!.endDate).toBe('2026-10-04')
+  })
+
+  it('parses UTC (Z) timed dates at the right instant', () => {
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VEVENT',
+      'UID:ext-z',
+      'SUMMARY:Utc event',
+      'DTSTART:20260901T100000Z',
+      'DTEND:20260901T110000Z',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n')
+    const parsed = parseICal(ics)
+    const expected = new Date('2026-09-01T10:00:00.000Z')
+    const actual = new Date(parsed[0]!.startsAt!)
+    expect(actual.getTime()).toBe(expected.getTime())
   })
 
   it('round-trips a recurring event with DTSTART', () => {

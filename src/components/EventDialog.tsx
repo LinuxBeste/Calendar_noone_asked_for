@@ -302,7 +302,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
     'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent text-sm disabled:opacity-50'
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/30 animate-fade-in flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="animate-dialog-in bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-[560px] sm:max-w-[92vw] max-h-[94dvh] sm:max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="p-6">
           <input
@@ -439,6 +439,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
                   disabled={!editable}
                   className={`text-lg leading-none w-7 h-7 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 ${icon === em ? 'bg-gray-100 dark:bg-gray-700 ring-1 ring-accent' : ''}`}
                   title={em}
+                  aria-label={`Use ${em} as event icon`}
                 >
                   {em}
                 </button>
@@ -458,6 +459,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
                 className="w-5 h-5 rounded-full border border-gray-300 dark:border-gray-500"
                 style={{ background: 'transparent' }}
                 title="Calendar color"
+                aria-label="Use calendar default color"
               />
               {COLORS.map((c) => (
                 <button
@@ -467,6 +469,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
                   className={`w-5 h-5 rounded-full ${color === c ? 'ring-2 ring-offset-1 ring-gray-500' : ''}`}
                   style={{ backgroundColor: c }}
                   title={c}
+                  aria-label={`Use color ${c}`}
                 />
               ))}
             </div>

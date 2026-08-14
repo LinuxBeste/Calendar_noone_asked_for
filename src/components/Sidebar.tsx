@@ -393,8 +393,8 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
   if (narrow) {
     return (
       <>
-        <div className="fixed inset-0 z-30 bg-black/40" onClick={onClose} />
-        <div className="fixed left-0 top-14 bottom-0 z-30 w-72 max-w-[85vw] shadow-xl">{content}</div>
+        <div className="fixed inset-0 z-30 bg-black/40 animate-fade-in" onClick={onClose} />
+        <div className="fixed left-0 top-14 bottom-0 z-30 w-72 max-w-[85vw] shadow-xl animate-panel-in">{content}</div>
       </>
     )
   }

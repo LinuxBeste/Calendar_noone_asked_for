@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
-import { useCalendar } from '../store'
+import { useCalendar, useAuth } from '../store'
 import { EventDialog } from './EventDialog'
-import type { Event } from '@shared/types'
+import type { EventOccurrence } from '@shared/types'
 
 interface Slot {
   start: Date
   end: Date
 }
 
-function findFreeSlots(events: Event[], from: Date, to: Date, durationMinutes: number, windowStart: number, windowEnd: number, ignoreFree: boolean): Slot[] {
+function findFreeSlots(occList: EventOccurrence[], from: Date, to: Date, durationMinutes: number, windowStart: number, windowEnd: number, ignoreFree: boolean): Slot[] {
   const blocked: { start: number; end: number }[] = []
-  for (const ev of events) {
-    if (ignoreFree && ev.busy === false) continue
-    const s = ev.allDay ? new Date((ev.startDate ?? '') + 'T00:00:00') : new Date(ev.startsAt ?? '')
-    let e = ev.allDay ? new Date((ev.endDate ?? ev.startDate ?? '') + 'T00:00:00').getTime() + 86400000 : new Date(ev.endsAt ?? '').getTime()
+  for (const occ of occList) {
+    if (ignoreFree && occ.event.busy === false) continue
+    // Use the occurrence times (not the base event's) so recurring events
+    // block every one of their occurrences, not just the first.
+    const s = occ.allDay ? new Date(occ.start.slice(0, 10) + 'T00:00:00') : new Date(occ.start)
+    const e = occ.allDay ? new Date(occ.end.slice(0, 10) + 'T00:00:00').getTime() + 86400000 : new Date(occ.end).getTime()
     if (Number.isNaN(s.getTime()) || Number.isNaN(e)) continue
     blocked.push({ start: s.getTime(), end: e })
   }
@@ -40,7 +42,8 @@ function findFreeSlots(events: Event[], from: Date, to: Date, durationMinutes: n
 }
 
 export default function FindFreeTimeDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
-  const { events, settings } = useCalendar()
+  const { events, settings, visibleCalendars } = useCalendar()
+  const { token } = useAuth()
   const [from, setFrom] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [days, setDays] = useState(7)
   const [duration, setDuration] = useState(settings.defaultEventDuration ?? 30)
@@ -48,13 +51,39 @@ export default function FindFreeTimeDialog({ onClose }: { onClose: () => void })
   const [windowEnd, setWindowEnd] = useState(settings.workingHoursEnd)
   const [ignoreFree, setIgnoreFree] = useState(false)
   const [editing, setEditing] = useState<Date | null>(null)
+  const [rangeOccurrences, setRangeOccurrences] = useState<EventOccurrence[] | null>(null)
+
+  // The store only holds the current view's range, which may not cover the
+  // requested free-time range (and misses recurrences outside it). Fetch the
+  // exact range (with expanded occurrences) so slots aren't falsely free.
+  useEffect(() => {
+    if (!token) return
+    let cancelled = false
+    const fromDate = new Date(from + 'T00:00:00')
+    const toMs = fromDate.getTime() + days * 86400000
+    const visible = Object.entries(visibleCalendars)
+      .filter(([, v]) => v)
+      .map(([id]) => id)
+    const hasVisibility = Object.keys(visibleCalendars).length > 0
+    window.calendarApi.events
+      .listOccurrences(token, fromDate.toISOString(), new Date(toMs - 1).toISOString(), hasVisibility ? visible : undefined)
+      .then((occs) => {
+        if (!cancelled) setRangeOccurrences(occs as EventOccurrence[])
+      })
+      .catch(() => {
+        if (!cancelled) setRangeOccurrences(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [token, from, days, visibleCalendars])
 
   const slots = useMemo(() => {
     const fromDate = new Date(from + 'T00:00:00')
     const toDate = new Date(fromDate)
     toDate.setDate(toDate.getDate() + days - 1)
-    return findFreeSlots(events.map((o) => o.event), fromDate, toDate, duration, windowStart, windowEnd, ignoreFree)
-  }, [events, from, days, duration, windowStart, windowEnd, ignoreFree])
+    return findFreeSlots(rangeOccurrences ?? events, fromDate, toDate, duration, windowStart, windowEnd, ignoreFree)
+  }, [events, rangeOccurrences, from, days, duration, windowStart, windowEnd, ignoreFree])
 
   const slice = settings.timeFormat === '12h'
     ? { hour: 'numeric', minute: '2-digit', hour12: true } as const
@@ -74,7 +103,7 @@ export default function FindFreeTimeDialog({ onClose }: { onClose: () => void })
   const labelCls = 'text-xs text-gray-500 dark:text-gray-400 mb-1 block'
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-[70] bg-black/40 animate-fade-in flex items-end sm:items-center justify-center p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="animate-dialog-in bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[94dvh] sm:max-h-[80vh]">
         <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">Find free time</h2>

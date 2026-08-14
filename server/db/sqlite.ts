@@ -11,6 +11,9 @@ type Db = BetterSQLite3Database
 const bool = (n: number | null | undefined): boolean => n === 1
 const opt = <T>(v: T | null | undefined): T | undefined => v ?? undefined
 
+/** Upper bound for reminder lead times (mirrors validation.ts's 24h limit). */
+const MAX_REMINDER_MINUTES = 24 * 60
+
 const rowToCalendar = (r: typeof calendars.$inferSelect): Calendar => ({
   id: r.id,
   name: r.name,
@@ -67,6 +70,10 @@ export class SqliteStore implements EventStore, AuthStore {
   /** Creates a consistent snapshot of the database file (SQLite online backup). */
   async backupTo(dest: string): Promise<void> {
     await this.raw.backup(dest)
+  }
+
+  async close(): Promise<void> {
+    this.raw.close()
   }
 
   async migrate(): Promise<void> {
@@ -137,6 +144,7 @@ export class SqliteStore implements EventStore, AuthStore {
         minutes INTEGER NOT NULL,
         sent_at TEXT
       )`,
+      `CREATE INDEX IF NOT EXISTS idx_reminders_sent ON reminders (sent_at, event_id)`,
       `CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -497,6 +505,8 @@ export class SqliteStore implements EventStore, AuthStore {
   }
 
   async listDueReminders(now: string, lookAheadMinutes: number): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]> {
+    const nowMs = new Date(now).getTime()
+    const maxMinutes = MAX_REMINDER_MINUTES
     const rows = this.db
       .select({
         id: reminders.id,
@@ -509,12 +519,20 @@ export class SqliteStore implements EventStore, AuthStore {
       .from(reminders)
       .innerJoin(events, eq(reminders.eventId, events.id))
       .innerJoin(calendars, eq(events.calendarId, calendars.id))
-      .where(and(isNull(reminders.sentAt), isNull(events.deletedAt)))
+      .where(
+        and(
+          isNull(reminders.sentAt),
+          isNull(events.deletedAt),
+          gt(events.startsAt, new Date(nowMs - lookAheadMinutes * 60000).toISOString()),
+          lt(events.startsAt, new Date(nowMs + maxMinutes * 60000).toISOString())
+        )
+      )
       .all()
     return this.collectDue(rows, now, lookAheadMinutes)
   }
 
   async listDueRemindersForUser(now: string, lookAheadMinutes: number, userId: string): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]> {
+    const nowMs = new Date(now).getTime()
     const rows = this.db
       .select({
         id: reminders.id,
@@ -528,12 +546,21 @@ export class SqliteStore implements EventStore, AuthStore {
       .innerJoin(events, eq(reminders.eventId, events.id))
       .innerJoin(calendars, eq(events.calendarId, calendars.id))
       .leftJoin(calendarShares, and(eq(calendarShares.calendarId, events.calendarId), eq(calendarShares.userId, userId)))
-      .where(and(isNull(reminders.sentAt), isNull(events.deletedAt), or(eq(calendars.ownerId, userId), isNotNull(calendarShares.userId))))
+      .where(
+        and(
+          isNull(reminders.sentAt),
+          isNull(events.deletedAt),
+          or(eq(calendars.ownerId, userId), isNotNull(calendarShares.userId)),
+          gt(events.startsAt, new Date(nowMs - lookAheadMinutes * 60000).toISOString()),
+          lt(events.startsAt, new Date(nowMs + MAX_REMINDER_MINUTES * 60000).toISOString())
+        )
+      )
       .all()
     return this.collectDue(rows, now, lookAheadMinutes)
   }
 
   async listUpcomingRemindersForUser(now: string, horizonMs: number, userId: string): Promise<{ id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[]> {
+    const nowMs = new Date(now).getTime()
     const rows = this.db
       .select({
         id: reminders.id,
@@ -547,7 +574,15 @@ export class SqliteStore implements EventStore, AuthStore {
       .innerJoin(events, eq(reminders.eventId, events.id))
       .innerJoin(calendars, eq(events.calendarId, calendars.id))
       .leftJoin(calendarShares, and(eq(calendarShares.calendarId, events.calendarId), eq(calendarShares.userId, userId)))
-      .where(and(isNull(reminders.sentAt), isNull(events.deletedAt), or(eq(calendars.ownerId, userId), isNotNull(calendarShares.userId))))
+      .where(
+        and(
+          isNull(reminders.sentAt),
+          isNull(events.deletedAt),
+          or(eq(calendars.ownerId, userId), isNotNull(calendarShares.userId)),
+          gt(events.startsAt, new Date(nowMs - MAX_REMINDER_MINUTES * 60000).toISOString()),
+          lt(events.startsAt, new Date(nowMs + horizonMs + MAX_REMINDER_MINUTES * 60000).toISOString())
+        )
+      )
       .all()
     return this.collectUpcoming(rows, now, horizonMs)
   }

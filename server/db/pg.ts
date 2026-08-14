@@ -23,6 +23,9 @@ type Db = NodePgDatabase
 
 const opt = <T>(v: T | null | undefined): T | undefined => v ?? undefined
 
+/** Upper bound for reminder lead times (mirrors validation.ts's 24h limit). */
+const MAX_REMINDER_MINUTES = 24 * 60
+
 const rowToCalendar = (r: typeof pgCalendars.$inferSelect): Calendar => ({
   id: r.id,
   name: r.name,
@@ -137,6 +140,7 @@ export class PgStore implements EventStore, AuthStore {
         minutes INTEGER NOT NULL,
         sent_at TEXT
       );
+      CREATE INDEX IF NOT EXISTS idx_reminders_sent ON reminders (sent_at, event_id);
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -484,6 +488,7 @@ export class PgStore implements EventStore, AuthStore {
   }
 
   async listDueReminders(now: string, lookAheadMinutes: number): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]> {
+    const nowMs = new Date(now).getTime()
     const rows = await this.db
       .select({
         id: pgReminders.id,
@@ -496,11 +501,19 @@ export class PgStore implements EventStore, AuthStore {
       .from(pgReminders)
       .innerJoin(pgEvents, eq(pgReminders.eventId, pgEvents.id))
       .innerJoin(pgCalendars, eq(pgEvents.calendarId, pgCalendars.id))
-      .where(and(isNull(pgReminders.sentAt), isNull(pgEvents.deletedAt)))
+      .where(
+        and(
+          isNull(pgReminders.sentAt),
+          isNull(pgEvents.deletedAt),
+          gt(pgEvents.startsAt, new Date(nowMs - lookAheadMinutes * 60000).toISOString()),
+          lt(pgEvents.startsAt, new Date(nowMs + MAX_REMINDER_MINUTES * 60000).toISOString())
+        )
+      )
     return this.collectDue(rows, now, lookAheadMinutes)
   }
 
   async listDueRemindersForUser(now: string, lookAheadMinutes: number, userId: string): Promise<{ id: string; eventId: string; minutes: number; startsAt?: string; title: string; calendarName: string }[]> {
+    const nowMs = new Date(now).getTime()
     const rows = await this.db
       .select({
         id: pgReminders.id,
@@ -514,11 +527,20 @@ export class PgStore implements EventStore, AuthStore {
       .innerJoin(pgEvents, eq(pgReminders.eventId, pgEvents.id))
       .innerJoin(pgCalendars, eq(pgEvents.calendarId, pgCalendars.id))
       .leftJoin(pgCalendarShares, and(eq(pgCalendarShares.calendarId, pgEvents.calendarId), eq(pgCalendarShares.userId, userId)))
-      .where(and(isNull(pgReminders.sentAt), isNull(pgEvents.deletedAt), or(eq(pgCalendars.ownerId, userId), isNotNull(pgCalendarShares.userId))))
+      .where(
+        and(
+          isNull(pgReminders.sentAt),
+          isNull(pgEvents.deletedAt),
+          or(eq(pgCalendars.ownerId, userId), isNotNull(pgCalendarShares.userId)),
+          gt(pgEvents.startsAt, new Date(nowMs - lookAheadMinutes * 60000).toISOString()),
+          lt(pgEvents.startsAt, new Date(nowMs + MAX_REMINDER_MINUTES * 60000).toISOString())
+        )
+      )
     return this.collectDue(rows, now, lookAheadMinutes)
   }
 
   async listUpcomingRemindersForUser(now: string, horizonMs: number, userId: string): Promise<{ id: string; eventId: string; minutes: number; startsAt: string; title: string; calendarName: string }[]> {
+    const nowMs = new Date(now).getTime()
     const rows = await this.db
       .select({
         id: pgReminders.id,
@@ -532,7 +554,15 @@ export class PgStore implements EventStore, AuthStore {
       .innerJoin(pgEvents, eq(pgReminders.eventId, pgEvents.id))
       .innerJoin(pgCalendars, eq(pgEvents.calendarId, pgCalendars.id))
       .leftJoin(pgCalendarShares, and(eq(pgCalendarShares.calendarId, pgEvents.calendarId), eq(pgCalendarShares.userId, userId)))
-      .where(and(isNull(pgReminders.sentAt), isNull(pgEvents.deletedAt), or(eq(pgCalendars.ownerId, userId), isNotNull(pgCalendarShares.userId))))
+      .where(
+        and(
+          isNull(pgReminders.sentAt),
+          isNull(pgEvents.deletedAt),
+          or(eq(pgCalendars.ownerId, userId), isNotNull(pgCalendarShares.userId)),
+          gt(pgEvents.startsAt, new Date(nowMs - MAX_REMINDER_MINUTES * 60000).toISOString()),
+          lt(pgEvents.startsAt, new Date(nowMs + horizonMs + MAX_REMINDER_MINUTES * 60000).toISOString())
+        )
+      )
     return this.collectUpcoming(rows, now, horizonMs)
   }
 

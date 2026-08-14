@@ -234,7 +234,8 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
       </div>
 
       <h2
-        className="flex-1 min-w-0 leading-tight"
+        key={`${format(date, 'yyyy-MM-dd')}-${view}`}
+        className="flex-1 min-w-0 leading-tight animate-fade-up"
         title={`${format(date, 'EEEE, MMMM d, yyyy')} · ${headerTitle(view, date, settings.firstDayOfWeek)}`}
       >
         <span className="block text-[10px] sm:text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500 truncate">

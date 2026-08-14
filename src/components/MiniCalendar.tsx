@@ -41,8 +41,12 @@ export default function MiniCalendar({ weekStartsOn }: MiniCalendarProps): React
   const eventDays = useMemo(() => {
     const set = new Set<string>()
     for (const occ of events) {
-      let d = new Date(occ.start.slice(0, 10) + 'T00:00:00')
-      const end = new Date(occ.end.slice(0, 10) + 'T00:00:00')
+      // All-day occurrences carry UTC midnights (date-based); timed ones are
+      // UTC instants and must be converted to the user's local date.
+      const dayKey = occ.allDay ? occ.start.slice(0, 10) : format(new Date(occ.start), 'yyyy-MM-dd')
+      const endKey = occ.allDay ? occ.end.slice(0, 10) : format(new Date(occ.end), 'yyyy-MM-dd')
+      let d = new Date(dayKey + 'T00:00:00')
+      const end = new Date(endKey + 'T00:00:00')
       while (d <= end) {
         set.add(format(d, 'yyyy-MM-dd'))
         d = addDays(d, 1)

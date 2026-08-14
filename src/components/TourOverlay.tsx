@@ -78,7 +78,7 @@ export default function TourOverlay({ onClose }: { onClose: () => void }): React
   }
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/40 flex" onClick={() => setStep((x) => x + 1)}>
+    <div className="fixed inset-0 z-[100] bg-black/40 animate-fade-in flex" onClick={() => setStep((x) => x + 1)}>
       <div
         className="absolute bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-5 text-gray-800 dark:text-gray-100"
         style={positionStyle()}

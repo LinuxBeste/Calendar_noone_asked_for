@@ -23,6 +23,7 @@ import {
   validateRange,
   validateImportContent,
   validateReminderMinutes,
+  validateFeedInput,
   normalizeEmail,
   validatePassword,
   validateName,
@@ -31,6 +32,7 @@ import {
 } from './validation'
 import { PLUGIN_CATALOG, isPluginId } from '@shared/plugins'
 import { RateLimitError, createRateLimiter } from './rate-limit'
+import { PermissionError } from './services/calendar-service'
 
 export interface Services {
   auth: AuthService
@@ -119,9 +121,11 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
         ? 429
         : error instanceof ValidationError
           ? 400
-          : (error as Error).name === 'AuthError'
-            ? 401
-            : 400
+          : error instanceof PermissionError
+            ? 403
+            : (error as Error).name === 'AuthError'
+              ? 401
+              : 400
     reply.status(status).send({ error: error instanceof Error ? error.message : 'Request failed' })
   })
 
@@ -177,9 +181,9 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
   app.post('/calendars/:id/link', async (req: Params<{ id: string }>) =>
     asOwner(services, req, req.params.id, (uid) => links.createLink(uid, req.params.id)))
   app.get('/calendars/:id/links', async (req: Params<{ id: string }>) =>
-    withUser(services, req, (uid) => links.listLinks(uid, req.params.id)))
+    asOwner(services, req, req.params.id, (uid) => links.listLinks(uid, req.params.id)))
   app.delete('/calendars/:id/link/:token', async (req: Params<{ id: string; token: string }>) =>
-    withUser(services, req, (uid) => links.deleteLink(uid, req.params.token)))
+    asOwner(services, req, req.params.id, (uid) => links.deleteLink(uid, req.params.token, req.params.id)))
 
   // ---- public (no auth) ----
   app.get('/public/:token', async (req: Params<{ token: string }>) => links.getPublic(req.params.token))
@@ -191,7 +195,7 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
 
   // ---- ICS feed subscriptions ----
   app.post('/feeds', async (req: Body<{ calendarId: string; url: string }>) =>
-    withUser(services, req, (uid) => feeds.createFeed(uid, { calendarId: req.body.calendarId, url: req.body.url })))
+    withUser(services, req, (uid) => feeds.createFeed(uid, validateFeedInput(req.body))))
   app.get('/feeds', async (req: FastifyRequest) => withUser(services, req, (uid) => feeds.listFeeds(uid)))
   app.delete('/feeds/:id', async (req: Params<{ id: string }>) =>
     withUser(services, req, (uid) => feeds.deleteFeed(uid, req.params.id)))

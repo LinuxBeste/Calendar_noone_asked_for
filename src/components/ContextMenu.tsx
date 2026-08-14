@@ -43,7 +43,7 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps):
   return (
     <div
       ref={ref}
-      className="fixed z-[60] min-w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-1"
+      className="animate-pop-in fixed z-[60] min-w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-1"
       style={{ left: pos.x, top: pos.y }}
       onMouseDown={(e) => e.stopPropagation()}
     >

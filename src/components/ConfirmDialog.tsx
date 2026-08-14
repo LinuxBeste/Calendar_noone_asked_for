@@ -11,6 +11,7 @@ interface ConfirmDialogProps {
 
 export default function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger = true, onConfirm, onClose }: ConfirmDialogProps): React.JSX.Element {
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -24,24 +25,28 @@ export default function ConfirmDialog({ title, message, confirmLabel = 'Confirm'
 
   const confirm = async (): Promise<void> => {
     setBusy(true)
+    setError(null)
     try {
       await onConfirm()
       onClose()
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
       setBusy(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] bg-black/40 animate-fade-in flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div
         className="animate-dialog-in bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-[420px] sm:max-w-full px-6 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6"
         onClick={(e) => e.stopPropagation()}
         role="alertdialog"
         aria-modal="true"
+        aria-labelledby="confirm-title"
       >
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{title}</h3>
+        <h3 id="confirm-title" className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{title}</h3>
         {message && <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">{message}</p>}
+        {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}

@@ -11,6 +11,7 @@ import ContextMenu from '../components/ContextMenu'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EventQuickView from '../components/EventQuickView'
 import { decorateEvent } from '../lib/plugins'
+import { useSwipeSlide } from '../lib/use-swipe-slide'
 import { toast } from '../toasts'
 
 interface WeekViewProps {
@@ -41,7 +42,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const [dialog, setDialog] = useState<{ event?: Event; date?: Date; occurrence?: string; defaultStart?: string; defaultDuration?: number } | null>(null)
   const [dragCreate, setDragCreate] = useState<{ key: string; startMins: number; curMins: number } | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; event: Event; occurrence: string } | null>(null)
-  const [gridMenu, setGridMenu] = useState<{ x: number; y: number; date: Date } | null>(null)
+  const [gridMenu, setGridMenu] = useState<{ x: number; y: number; date: Date; defaultStart?: string } | null>(null)
   const [confirming, setConfirming] = useState<{ event: Event; occurrence: string; occurrenceOnly: boolean } | null>(null)
   const [hover, setHover] = useState<{ occ: EventOccurrence; x: number; y: number; canEdit: boolean } | null>(null)
   const [preview, setPreview] = useState<{ occ: EventOccurrence; x: number; y: number; canEdit: boolean } | null>(null)
@@ -51,6 +52,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
   const [ghost, setGhost] = useState<{ id: string; title: string; x: number; y: number } | null>(null)
   const dragSessions = useRef(new Map<string, ReturnType<typeof attachPointerDrag>>())
   const suppressClickRef = useRef(false)
+  /** Pending resize ends (event id → end), committed once on pointer release. */
+  const pendingResizeEnds = useRef(new Map<string, Date>())
 
   const consumeClick = (): boolean => {
     if (suppressClickRef.current) {
@@ -162,55 +165,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     }
   }, [])
 
-  // Horizontal swipe on the grid navigates one week (left = next, right = previous).
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    if (!window.matchMedia('(pointer: coarse)').matches) return
-    let startX = 0
-    let startY = 0
-    let pointerId = 0
-    let tracking = false
-    const onDown = (e: PointerEvent): void => {
-      if (e.pointerType !== 'touch') return
-      if ((e.target as HTMLElement).closest('button, .rounded-md')) return
-      if (tracking && e.pointerId !== pointerId) {
-        tracking = false
-        return
-      }
-      tracking = true
-      pointerId = e.pointerId
-      startX = e.clientX
-      startY = e.clientY
-    }
-    const onMove = (e: PointerEvent): void => {
-      if (!tracking || e.pointerId !== pointerId) return
-      if (e.pointerType !== 'touch') return
-      const dx = e.clientX - startX
-      const dy = e.clientY - startY
-      if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy) * 1.3) return
-      tracking = false
-      e.preventDefault()
-      suppressClickRef.current = true
-      useCalendar.getState().navigate(dx < 0 ? 1 : -1)
-    }
-    const onEnd = (e: PointerEvent): void => {
-      if (e.pointerId === pointerId) tracking = false
-    }
-    const onWindowCancel = (): void => {
-      tracking = false
-    }
-    el.addEventListener('pointerdown', onDown)
-    el.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onEnd, true)
-    window.addEventListener('pointercancel', onWindowCancel, true)
-    return () => {
-      el.removeEventListener('pointerdown', onDown)
-      el.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onEnd, true)
-      window.removeEventListener('pointercancel', onWindowCancel, true)
-    }
-  }, [])
+  const { slideRef, slideStyle } = useSwipeSlide(suppressClickRef)
 
   const zoomBy = (factor: number): void => {
     const el = scrollRef.current
@@ -262,9 +217,12 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
     }
     for (const occ of events) {
       if (visibleCalendars[occ.event.calendarId] === false) continue
-      if (occ.allDay || differenceInCalendarDays(new Date(occ.end), new Date(occ.start)) >= 2) {
+      if (occ.allDay) {
+        // Only truly all-day events belong in the top row. Multi-day *timed*
+        // events render as clamped grid segments with ‹ › continuation
+        // markers below — putting them here too made them appear twice.
         allDay.push(occ)
-        if (occ.allDay) continue
+        continue
       }
       const s = new Date(occ.start)
       const e = new Date(occ.end)
@@ -276,10 +234,13 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       const base = startOfDay(s)
       for (let i = 0; i <= dayCount; i++) {
         const day = addDays(base, i)
+        const start = i === 0 ? s : day
+        const end = i === dayCount ? e : endOfDay(day)
+        if (new Date(end).getTime() <= new Date(start).getTime()) continue
         const clamped: EventOccurrence = {
           ...occ,
-          start: (i === 0 ? s : day).toISOString(),
-          end: (i === dayCount ? e : endOfDay(day)).toISOString()
+          start: start.toISOString(),
+          end: end.toISOString()
         }
         push(format(day, 'yyyy-MM-dd'), { occ: clamped, fromPrev: i > 0, toNext: i < dayCount })
       }
@@ -529,7 +490,10 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
       return
     }
     if (clientY === undefined) return
-    const dayEl = document.querySelector(`[data-daycol="${format(day, 'yyyy-MM-dd')}"]`)
+    // The day header cells carry data-daycol too and come first in the DOM, so
+    // querySelector would return the header (wrong rect). Use the last match.
+    const cols = document.querySelectorAll(`[data-daycol="${format(day, 'yyyy-MM-dd')}"]`)
+    const dayEl = cols[cols.length - 1] as HTMLElement | undefined
     if (!dayEl) return
     const rect = dayEl.getBoundingClientRect()
     const mins = Math.max(0, Math.min(1439, Math.round(((clientY - rect.top) / pxPerMin) / snap) * snap))
@@ -573,7 +537,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
-      <div className="flex-1 flex flex-col min-h-0 overflow-x-auto">
+      <div className="flex-1 flex flex-col min-h-0 overflow-x-auto" ref={slideRef} style={slideStyle}>
       {settings.showDayHeaders && (
       <div className="flex shrink-0 border-b border-gray-200 dark:border-gray-700">
         <div className={`${gutterWidth} shrink-0`} />
@@ -656,6 +620,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                                 const day = new Date(d)
                                 const occStart = new Date(occ.start)
                                 const sourceDay = format(occStart, 'yyyy-MM-dd')
+                                // Track the pending end locally and commit exactly once on
+                                // release — committing per pointer move floods the API.
                                 const session = attachPointerDrag(e.currentTarget as HTMLElement, e.pointerId, e.pointerType, e.clientX, e.clientY, {
                                   onClaim() {
                                     suppressClickRef.current = true
@@ -668,13 +634,19 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                                     const newEnd = new Date(end)
                                     newEnd.setDate(end.getDate() + deltaDays)
                                     if (newEnd <= occStart) return
-                                    void resizeAllDayEvent(ev, newEnd, sourceDay)
+                                    pendingResizeEnds.current.set(ev.id, newEnd)
                                   },
                                   onEnd() {
                                     dragSessions.current.delete('resize-all-' + ev.id)
+                                    const end = pendingResizeEnds.current.get(ev.id)
+                                    if (end) {
+                                      pendingResizeEnds.current.delete(ev.id)
+                                      void resizeAllDayEvent(ev, end, sourceDay)
+                                    }
                                   },
                                   onCancel() {
                                     dragSessions.current.delete('resize-all-' + ev.id)
+                                    pendingResizeEnds.current.delete(ev.id)
                                   }
                                 })
                                 dragSessions.current.set('resize-all-' + ev.id, session)
@@ -734,7 +706,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   const mins = Math.max(0, Math.min(1439, Math.round(((e.clientY - rect.top) / pxPerMin) / snap) * snap))
                   const start = new Date(d)
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
-                  setDialog({ date: start })
+                  setDialog({ date: start, defaultStart: start.toISOString() })
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -743,7 +715,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                   const start = new Date(d)
                   start.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
                   setMenu(null)
-                  setGridMenu({ x: e.clientX, y: e.clientY, date: start })
+                  setGridMenu({ x: e.clientX, y: e.clientY, date: start, defaultStart: start.toISOString() })
                 }}
                 onDragOver={(e) => e.preventDefault()}
                 onPointerDown={(e) => {
@@ -873,6 +845,8 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                             if (!colEl) return
                             const startY = e.clientY
                             const origEnd = new Date(p.event.endsAt!).getTime()
+                            // Track the pending end locally and commit exactly once on
+                            // release — committing per pointer move floods the API.
                             const session = attachPointerDrag(e.currentTarget as HTMLElement, e.pointerId, e.pointerType, e.clientX, e.clientY, {
                               onClaim() {
                                 suppressClickRef.current = true
@@ -882,13 +856,19 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
                                 const newEnd = new Date(origEnd + (dy / pxPerMin) * 60000)
                                 newEnd.setMinutes(Math.round(newEnd.getMinutes() / settings.snapInterval) * settings.snapInterval)
                                 if (newEnd <= new Date(p.event.startsAt!)) return
-                                void resizeEvent(p.event, newEnd)
+                                pendingResizeEnds.current.set(p.event.id, newEnd)
                               },
                               onEnd() {
                                 dragSessions.current.delete('resize-' + p.event.id)
+                                const end = pendingResizeEnds.current.get(p.event.id)
+                                if (end) {
+                                  pendingResizeEnds.current.delete(p.event.id)
+                                  void resizeEvent(p.event, end)
+                                }
                               },
                               onCancel() {
                                 dragSessions.current.delete('resize-' + p.event.id)
+                                pendingResizeEnds.current.delete(p.event.id)
                               }
                             })
                             dragSessions.current.set('resize-' + p.event.id, session)
@@ -949,7 +929,7 @@ export default function WeekView({ date, days }: WeekViewProps): React.JSX.Eleme
           x={gridMenu.x}
           y={gridMenu.y}
           onClose={() => setGridMenu(null)}
-          items={[{ label: 'New event', onClick: () => setDialog({ date: gridMenu.date }) }]}
+          items={[{ label: 'New event', onClick: () => setDialog({ date: gridMenu.date, defaultStart: gridMenu.defaultStart }) }]}
         />
       )}
       {menu && (

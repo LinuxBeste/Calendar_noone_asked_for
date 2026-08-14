@@ -11,6 +11,7 @@ import ContextMenu from '../components/ContextMenu'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EventQuickView from '../components/EventQuickView'
 import { decorateEvent } from '../lib/plugins'
+import { useSwipeSlide } from '../lib/use-swipe-slide'
 import { toast } from '../toasts'
 
 interface MonthViewProps {
@@ -36,6 +37,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [ghost, setGhost] = useState<{ id: string; title: string; x: number; y: number } | null>(null)
   const suppressClickRef = useRef(false)
+  const { slideRef, slideStyle } = useSwipeSlide(suppressClickRef)
 
   const consumeClick = (): boolean => {
     if (suppressClickRef.current) {
@@ -212,17 +214,22 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="grid grid-cols-7 text-center text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 py-1 shrink-0">
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
           .slice(settings.firstDayOfWeek)
-          .concat(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].slice(0, settings.firstDayOfWeek))
+          .concat(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].slice(0, settings.firstDayOfWeek))
           .map((d, i) => (
             <span key={i}>{d}</span>
           ))}
       </div>
       <div
-        className="flex-1 grid grid-cols-7 overflow-hidden"
-        style={{ gridTemplateRows: `repeat(${Math.max(5, Math.ceil(days.length / 7))}, 1fr)` }}
+        ref={slideRef}
+        className="flex-1 min-h-0 overflow-hidden"
+        style={slideStyle}
       >
+        <div
+          className="h-full grid grid-cols-7 overflow-hidden"
+          style={{ gridTemplateRows: `repeat(${Math.max(5, Math.ceil(days.length / 7))}, 1fr)` }}
+        >
         {days.map((d, i) => {
           const key = format(d, 'yyyy-MM-dd')
           const dayEvents = byDay.get(key) ?? []
@@ -386,6 +393,7 @@ export default function MonthView({ date }: MonthViewProps): React.JSX.Element {
             </div>
           )
         })}
+        </div>
       </div>
       {dialog && (
         <EventDialog

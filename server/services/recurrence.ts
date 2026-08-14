@@ -43,7 +43,10 @@ export function expandEvent(event: Event, exceptions: EventException[], from: Da
 
   const candidates = rule.between(from, new Date(to.getTime() - 1), true)
   for (const occStart of candidates) {
-    const occKey = `${occStart.getFullYear()}-${String(occStart.getMonth() + 1).padStart(2, '0')}-${String(occStart.getDate()).padStart(2, '0')}`
+    // Occurrence keys are derived from the UTC date of the occurrence's
+    // instant, so client and server (possibly in different timezones) always
+    // agree on which occurrence an edit/delete applies to.
+    const occKey = occStart.toISOString().slice(0, 10)
     const ex = exceptionMap.get(occKey)
     if (ex?.deleted) continue
     if (ex) {

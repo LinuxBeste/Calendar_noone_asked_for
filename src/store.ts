@@ -283,10 +283,20 @@ function savePublicCalendars(items: PublicCalendar[]): void {
 
 const HISTORY_LIMIT = 50
 
+/** Guards against out-of-order responses overwriting fresher data (lost update). */
+let refreshSeq = 0
+
+const FULL_RANGE_FROM = '0000-01-01T00:00:00.000Z'
+const FULL_RANGE_TO = '9999-12-31T23:59:59.999Z'
+
+function isFullRange(from: string, to: string): boolean {
+  return from === FULL_RANGE_FROM && to === FULL_RANGE_TO
+}
+
 function refreshAll(): Promise<void> {
   return useCalendar
     .getState()
-    .refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z')
+    .refreshEvents(FULL_RANGE_FROM, FULL_RANGE_TO)
     .catch(() => undefined) as Promise<void>
 }
 
@@ -416,6 +426,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     }
   },
   async refreshEvents(from, to) {
+    const seq = ++refreshSeq
     const token = useAuth.getState().token
     if (!token) return [] as EventOccurrence[]
     try {
@@ -436,7 +447,8 @@ export const useCalendar = create<CalendarState>((set, get) => ({
         )
       ])
       const merged = [...(events ?? []), ...publicBatches.flat()]
-      set((s) => ({ events: merged, lastRange: { from, to } }))
+      if (seq !== refreshSeq) return merged
+      set((s) => (isFullRange(from, to) ? { events: merged } : { events: merged, lastRange: { from, to } }))
       saveCache({ events: merged })
       scheduleReconcile()
       return merged

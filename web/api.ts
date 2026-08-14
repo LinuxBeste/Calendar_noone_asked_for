@@ -49,6 +49,17 @@ export async function flushQueue(): Promise<number> {
       await replayOp(token, op)
       done++
     } catch (err) {
+      const status = (err as { status?: number }).status
+      if (status !== undefined && status >= 400 && status < 500) {
+        // Permanent rejection (validation, 404, auth…): retrying can never succeed,
+        // so drop just this op and let the rest of the queue drain.
+        logger.warn('dropping permanently rejected queued op:', op.op, err)
+        toast('A queued change could not be synced and was dropped', 'error')
+        const remaining = loadQueue().filter((r) => r.id !== op.id)
+        clearQueue()
+        for (const r of remaining) enqueueOp(r.op, r.payload)
+        continue
+      }
       logger.warn('queue replay stopped:', err)
       const remaining = loadQueue()
       clearQueue()
@@ -324,7 +335,9 @@ async function call(method: string, path: string, token: string | null, body?: u
   }
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(data.error ?? `Request failed (${res.status})`)
+    const err = new Error(data.error ?? `Request failed (${res.status})`) as Error & { status?: number }
+    err.status = res.status
+    throw err
   }
   if (res.status === 204) return undefined
   return res.json().catch(() => undefined)

@@ -17,6 +17,9 @@ export class RedisCache implements EventCache {
       maxRetriesPerRequest: 2,
       retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000))
     })
+    // Without a listener, ioredis throws on 'error' when the retry strategy
+    // gives up, which would crash the whole server.
+    this.redis.on('error', (err) => console.error('[RedisCache] connection error:', err?.message ?? err))
   }
 
   async connect(): Promise<void> {
@@ -58,7 +61,14 @@ export class RedisCache implements EventCache {
 
   async invalidateAll(): Promise<void> {
     try {
-      const keys = await this.redis.keys('events:*')
+      // SCAN instead of KEYS: KEYS blocks Redis and is O(N) across the key space.
+      const keys: string[] = []
+      let cursor = '0'
+      do {
+        const [next, batch] = await this.redis.scan(cursor, 'MATCH', 'events:*', 'COUNT', 200)
+        cursor = next
+        keys.push(...batch)
+      } while (cursor !== '0')
       if (keys.length > 0) await this.redis.del(...keys)
     } catch {
       // non-fatal
@@ -75,6 +85,7 @@ export class RedisCache implements EventCache {
 
   async subscribe(channel: string, handler: (payload: unknown) => void): Promise<() => void> {
     const subscriber = this.redis.duplicate({ lazyConnect: true })
+    subscriber.on('error', (err) => console.error('[RedisCache] subscriber error:', err?.message ?? err))
     await subscriber.connect()
     subscriber.on('message', (_ch, message) => {
       try {

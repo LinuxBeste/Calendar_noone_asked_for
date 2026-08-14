@@ -42,6 +42,9 @@ export interface EventStore {
 
   // ---- search ----
   searchEvents(query: string, opts?: { limit?: number; calendarIds?: string[] }): Promise<Event[]>
+
+  /** Release DB resources. */
+  close(): Promise<void>
 }
 
 /** Storage for users, sessions and calendar shares (multi-user). */
@@ -93,4 +96,7 @@ export interface EventCache {
   invalidateAll(): Promise<void>
   publish(channel: string, payload: unknown): Promise<void>
   subscribe(channel: string, handler: (payload: unknown) => void): Promise<() => void>
+
+  /** Release cache resources (optional). */
+  close?(): Promise<void>
 }
