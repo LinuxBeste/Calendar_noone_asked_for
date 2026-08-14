@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth, useCalendar, DEFAULT_SETTINGS } from '../store'
 import { HOLIDAY_COUNTRIES } from '../utils/holidays'
-import { ACCENT_PRESETS, applyTheme, isDarkMode } from '../utils/theme'
+import { ACCENT_PRESETS, applyTheme, isDarkMode, type ThemeSettings } from '../utils/theme'
 import { toErrorMessage } from '../utils/errors'
 import { SETTING_CATEGORIES, SETTING_DEFS, type SettingDef } from '@shared/settings'
 import { PLUGIN_CATALOG } from '@shared/plugins'
@@ -93,7 +93,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
         }
       }
       setSettings(draft)
-      applyTheme(draft)
+      applyTheme(draft as ThemeSettings, calendars)
       onClose()
       scheduleReconcile(1500)
       void refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
@@ -104,7 +104,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
     }
   }
 
-  const isDark = (mode: string): boolean => isDarkMode(mode)
+  const isDark = (mode: string): boolean => isDarkMode(mode, draft.darkModeStart as number | undefined, draft.darkModeEnd as number | undefined)
 
   const row = 'flex items-center justify-between gap-4 py-2.5'
   const label = 'text-sm text-gray-700 dark:text-gray-200'
@@ -123,7 +123,8 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
     }
     if (def.dynamic === 'holidays') return HOLIDAY_COUNTRIES.map((c) => ({ value: c.code, label: c.label }))
     if (def.dynamic === 'calendars') {
-      return [{ value: '', label: 'First calendar' }, ...calendars.map((c) => ({ value: c.id, label: c.name }))]
+      const label = def.key === 'accentFollowsCalendar' ? 'Off (use accent color)' : 'First calendar'
+      return [{ value: '', label }, ...calendars.map((c) => ({ value: c.id, label: c.name }))]
     }
     return []
   }
@@ -131,10 +132,12 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
   const q = search.trim().toLowerCase()
   const matches = (def: SettingDef): boolean =>
     q.length === 0 || def.label.toLowerCase().includes(q) || (def.hint ?? '').toLowerCase().includes(q) || def.key.toLowerCase().includes(q)
+  const visible = (def: SettingDef): boolean =>
+    !def.showWhen || String(draft[def.showWhen.key as keyof typeof DEFAULT_SETTINGS]) === def.showWhen.value
   const groups = q.length === 0
-    ? [{ category: SETTING_CATEGORIES.find((c) => c.id === tab)!, defs: SETTING_DEFS.filter((d) => d.category === tab) }]
+    ? [{ category: SETTING_CATEGORIES.find((c) => c.id === tab)!, defs: SETTING_DEFS.filter((d) => d.category === tab && visible(d)) }]
     : SETTING_CATEGORIES
-        .map((c) => ({ category: c, defs: SETTING_DEFS.filter((d) => d.category === c.id && matches(d)) }))
+        .map((c) => ({ category: c, defs: SETTING_DEFS.filter((d) => d.category === c.id && matches(d) && visible(d)) }))
         .filter((g) => g.defs.length > 0)
 
   const renderControl = (def: SettingDef): React.JSX.Element => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth, useCalendar, DEFAULT_SETTINGS } from '../store'
 import { HOLIDAY_COUNTRIES } from '../utils/holidays'
+import { isDarkMode } from '../utils/theme'
 import { toErrorMessage } from '../utils/errors'
 
 const selectCls =
@@ -30,7 +31,7 @@ export default function SetupDialog({ onClose }: { onClose: () => void }): React
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const isDark = (mode: string): boolean => mode === 'dark' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const isDark = (mode: string): boolean => isDarkMode(mode, DEFAULT_SETTINGS.darkModeStart, DEFAULT_SETTINGS.darkModeEnd)
 
   const finish = (): void => {
     localStorage.setItem('calendar.setupDone', '1')
@@ -107,12 +108,13 @@ export default function SetupDialog({ onClose }: { onClose: () => void }): React
             <span className={label}>Appearance</span>
             <select
               value={draft.darkMode}
-              onChange={(e) => setDraft({ ...draft, darkMode: e.target.value as 'light' | 'dark' | 'auto' })}
+              onChange={(e) => setDraft({ ...draft, darkMode: e.target.value as 'light' | 'dark' | 'auto' | 'scheduled' })}
               className={selectCls + ' w-52'}
             >
               <option value="light">Light</option>
               <option value="dark">Dark</option>
               <option value="auto">Follow system</option>
+              <option value="scheduled">Scheduled</option>
             </select>
           </div>
           <div className={row}>

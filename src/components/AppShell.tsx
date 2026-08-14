@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useCalendar, useAuth, DEFAULT_SETTINGS } from '../store'
-import { applyTheme } from '../utils/theme'
+import { applyTheme, isDarkMode } from '../utils/theme'
 import NavRail from './NavRail'
 import MobileNav from './MobileNav'
 import Sidebar from './Sidebar'
@@ -99,12 +99,24 @@ export default function AppShell(): React.JSX.Element {
   }, [token, setSettings])
 
   useEffect(() => {
-    applyTheme(settings)
+    applyTheme(settings, calendars)
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const apply = (): void => applyTheme(settings)
+    const apply = (): void => applyTheme(settings, calendars)
     mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
-  }, [settings.darkMode, settings.accentColor])
+    const timer =
+      settings.darkMode === 'scheduled'
+        ? window.setInterval(() => {
+            const { darkModeStart, darkModeEnd } = useCalendar.getState().settings
+            const dark = isDarkMode('scheduled', darkModeStart, darkModeEnd)
+            const wasDark = document.documentElement.classList.contains('dark')
+            if (dark !== wasDark) applyTheme(useCalendar.getState().settings, useCalendar.getState().calendars)
+          }, 60_000)
+        : undefined
+    return () => {
+      mq.removeEventListener('change', apply)
+      if (timer !== undefined) window.clearInterval(timer)
+    }
+  }, [settings.darkMode, settings.accentColor, settings.accentFollowsCalendar, settings.darkModeStart, settings.darkModeEnd, calendars])
 
   useEffect(() => {
     document.documentElement.style.fontSize = `${settings.fontScale}%`

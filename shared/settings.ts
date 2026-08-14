@@ -19,6 +19,8 @@ export interface SettingDef {
   options?: SettingOption[]
   /** Fill options dynamically (client-side): timezone list, holiday regions, user calendars, accent presets. */
   dynamic?: 'timezones' | 'holidays' | 'calendars' | 'accent'
+  /** Only show this setting when another setting has the given value. */
+  showWhen?: { key: string; value: string }
   defaultValue: string | number | boolean
 }
 
@@ -69,12 +71,16 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: 'autoStartWithSystem', label: 'Start with system', hint: 'Desktop app launches on login', category: 'general', type: 'boolean', defaultValue: false },
 
   // ---- Appearance ----
-  { key: 'darkMode', label: 'Theme', hint: 'Auto follows your operating system', category: 'appearance', type: 'select', options: [
+  { key: 'darkMode', label: 'Theme', hint: 'Auto follows your operating system; Scheduled switches at fixed hours', category: 'appearance', type: 'select', options: [
     { value: 'light', label: 'Light' },
     { value: 'dark', label: 'Dark' },
-    { value: 'auto', label: 'Auto' }
+    { value: 'auto', label: 'Auto' },
+    { value: 'scheduled', label: 'Scheduled' }
   ], defaultValue: 'light' },
+  { key: 'darkModeStart', label: 'Dark mode starts at', hint: 'Hour of the day, 0 = midnight. Equal start and end = always dark', category: 'appearance', type: 'number', min: 0, max: 23, defaultValue: 22, showWhen: { key: 'darkMode', value: 'scheduled' } },
+  { key: 'darkModeEnd', label: 'Dark mode ends at', category: 'appearance', type: 'number', min: 0, max: 23, defaultValue: 7, showWhen: { key: 'darkMode', value: 'scheduled' } },
   { key: 'accentColor', label: 'Accent color', hint: 'Used for buttons, highlights and today', category: 'appearance', type: 'color', dynamic: 'accent', defaultValue: '#1a73e8' },
+  { key: 'accentFollowsCalendar', label: 'Accent follows calendar', hint: 'The UI accent takes this calendar’s color (empty = accent color)', category: 'appearance', type: 'select', dynamic: 'calendars', defaultValue: '' },
   { key: 'secondaryTimezone', label: 'Secondary timezone', hint: 'Shown next to event times (empty = off)', category: 'appearance', type: 'select', dynamic: 'timezones', defaultValue: '' },
   { key: 'fontScale', label: 'Interface font size', hint: 'Applies to the whole interface (%)', category: 'appearance', type: 'number', min: 80, max: 130, step: 5, defaultValue: 100 },
   { key: 'density', label: 'Density', hint: 'Spacing between list items', category: 'appearance', type: 'select', options: [

@@ -7,6 +7,12 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 
 ## [Unreleased]
 
+### Added
+
+- **Scheduled dark mode** — the Theme setting gains a "Scheduled" option that switches between light and dark at hours you choose (e.g. 22:00–07:00, wrapping over midnight), updating live while the app is open.
+- **Accent follows calendar** — the UI accent can take the color of any of your calendars, so the app always matches the calendar you care about.
+- **More accent presets** — Amber, Fuchsia, Indigo and Cyan join the accent picker.
+
 ## [0.6.10] - 2026-08-14
 
 ### Added
