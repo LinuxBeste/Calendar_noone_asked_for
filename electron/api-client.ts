@@ -9,11 +9,7 @@ export interface FieldError {
   message: string
 }
 
-/**
- * Typed API error. All fields are own enumerable properties so the error
- * survives Electron's contextBridge serialization with code/status/details
- * intact (the renderer reads them via duck-typing).
- */
+/** Own enumerable fields survive contextBridge serialization (renderer duck-types). */
 export class ApiError extends Error {
   readonly code: string
   readonly statusCode?: number
@@ -31,6 +27,7 @@ export class ApiError extends Error {
 /** Thin HTTP client for the calendar backend. All methods mirror the IPC surface. */
 class ApiClient {
   private async call(method: string, path: string, token?: string | null, body?: unknown, system = false): Promise<unknown> {
+    // Abort after 30 s — the renderer has no timeout of its own.
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
     let res: Response

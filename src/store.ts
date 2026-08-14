@@ -293,6 +293,7 @@ function savePublicCalendars(items: PublicCalendar[]): void {
 const HISTORY_LIMIT = 50
 
 /** Guards against out-of-order responses overwriting fresher data (lost update). */
+// Incremented per refresh so stale responses can be discarded.
 let refreshSeq = 0
 
 const FULL_RANGE_FROM = '0000-01-01T00:00:00.000Z'
@@ -392,8 +393,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   settings: { ...DEFAULT_SETTINGS, ...(loadCache()?.settings as Partial<typeof DEFAULT_SETTINGS> | undefined) },
   lastRange: null,
   publicCalendars: loadPublicCalendars(),
-  birthdaysVisible: localStorage.getItem('calendar.birthdaysVisible') !== '0',
-  setView(view) {
+  birthdaysVisible: localStorage.getItem('calendar.birthdaysVisible') !== '0',  setView(view) {
     const { view: current } = get()
     if (current === view) return
     set((s) => ({ view, viewHistory: [...s.viewHistory, current].slice(-20) }))
@@ -460,8 +460,10 @@ export const useCalendar = create<CalendarState>((set, get) => ({
       const merged = [
         ...(events ?? []),
         ...publicBatches.flat(),
+        // Birthdays are client-only; merge so views treat them like normal events.
         ...(state.birthdaysVisible ? birthdayOccurrences(parseContacts(state.settings.contacts), from, to) : [])
       ]
+      // Drop responses that lost a refresh race (a slow old response must not clobber fresh data).
       if (seq !== refreshSeq) return merged
       set((s) => (isFullRange(from, to) ? { events: merged } : { events: merged, lastRange: { from, to } }))
       saveCache({ events: merged })
@@ -561,6 +563,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     saveCache({ settings: { ...useCalendar.getState().settings, ...patch } })
   },
   async setContacts(contacts) {
+    // Optimistic save; refreshVisible re-merges birthday occurrences.
     const token = useAuth.getState().token
     const json = serializeContacts(contacts)
     set((s) => ({ settings: { ...s.settings, contacts: json } }))
@@ -576,6 +579,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     }
   },
   setBirthdaysVisible(visible) {
+    // Device-local preference; not synced to the server.
     localStorage.setItem('calendar.birthdaysVisible', visible ? '1' : '0')
     set({ birthdaysVisible: visible })
     void get().refreshVisible()

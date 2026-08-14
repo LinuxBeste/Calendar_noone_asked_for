@@ -9,6 +9,7 @@ export default function SplitView({ date }: { date: Date }): React.JSX.Element {
       <div className="flex-1 min-h-0 overflow-hidden">
         <MonthView date={date} />
       </div>
+      {/* Agenda gets a fixed slice; the month grid takes the rest. */}
       <div className="h-[42%] min-h-[180px] border-t border-gray-200 dark:border-gray-700">
         <AgendaView date={date} days={settings.agendaRangeDays} />
       </div>

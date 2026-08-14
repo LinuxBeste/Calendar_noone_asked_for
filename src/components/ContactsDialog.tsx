@@ -30,6 +30,7 @@ export default function ContactsDialog({ onClose }: { onClose: () => void }): Re
       return
     }
     setError(null)
+    // Local id — contacts are client-side entities, not server rows.
     const next = [...contacts, { id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, name: trimmed, birthDate, note: note.trim() || undefined }]
     setLocal(next)
     void setContacts(next)

@@ -104,6 +104,7 @@ export default function AppShell(): React.JSX.Element {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const apply = (): void => applyTheme(settings, calendars)
     mq.addEventListener('change', apply)
+    // Poll once a minute — scheduled mode has no OS event to react to.
     const timer =
       settings.darkMode === 'scheduled'
         ? window.setInterval(() => {

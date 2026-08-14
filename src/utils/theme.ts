@@ -41,6 +41,7 @@ export function darkenHex(hex: string, amount: number): string {
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`
 }
 
+// Fallbacks for "scheduled" before settings load.
 const DEFAULT_DARK_START = 22
 const DEFAULT_DARK_END = 7
 
@@ -71,6 +72,7 @@ export function resolveAccent(settings: ThemeSettings, calendars?: CalendarLike[
 export function applyTheme(settings: ThemeSettings, calendars?: CalendarLike[]): void {
   const root = document.documentElement
   const dark = isDarkMode(settings.darkMode, settings.darkModeStart, settings.darkModeEnd)
+  // Unknown ids silently fall back to the fixed accent.
   const accent = resolveAccent(settings, calendars)
   root.classList.toggle('dark', dark)
   root.style.setProperty('--accent', hexToTriplet(accent))

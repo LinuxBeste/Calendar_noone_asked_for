@@ -4,6 +4,7 @@ import type { Event, EventOccurrence } from '@shared/types'
 export const BIRTHDAYS_CAL_ID = 'birthdays'
 export const BIRTHDAYS_COLOR = '#db2777'
 export const BIRTHDAYS_NAME = 'Birthdays'
+// Marks synthetic events with no server row behind them.
 const ID_PREFIX = 'birthday-'
 
 export interface Contact {
@@ -60,16 +61,19 @@ function occurrencesForContact(contact: Contact, from: Date, to: Date): EventOcc
   const out: EventOccurrence[] = []
   const birthYear = Number(contact.birthDate.slice(0, 4))
   const monthDay = contact.birthDate.slice(5)
+  // Clamp to 1900-2100: full-range queries span years 0000-9999.
   const firstYear = Math.max(from.getFullYear(), Number.isFinite(birthYear) ? 1900 : from.getFullYear())
   const lastYear = Math.min(to.getFullYear(), 2100)
   for (let year = firstYear; year <= lastYear; year++) {
     const month = Number(monthDay.slice(0, 2)) - 1
+    // So Feb 29 only exists in leap years.
     const day = Math.min(Number(monthDay.slice(3, 5)), new Date(year, month + 1, 0).getDate())
     const date = new Date(year, month, day)
     if (Number.isNaN(date.getTime())) continue
     if (date < from || date > to) continue
-    const startStr = `${localDateStr(date)}T00:00:00`
+    // +1 day end, matching server all-day events (inclusive start, exclusive end).
     const end = new Date(date.getTime() + 86400000)
+    const startStr = `${localDateStr(date)}T00:00:00`
     out.push({
       event: {
         id: `${ID_PREFIX}${contact.id}`,
@@ -98,6 +102,7 @@ function occurrencesForContact(contact: Contact, from: Date, to: Date): EventOcc
 /** Synthetic all-day occurrences for all contacts within [from, to] (local dates). */
 export function birthdayOccurrences(contacts: Contact[], from: string, to: string): EventOccurrence[] {
   if (contacts.length === 0) return []
+  // Local midnight (no Z): UTC would render as the previous day in positive timezones.
   const fromD = new Date(from.length > 10 ? from : from + 'T00:00:00')
   const toD = new Date(to.length > 10 ? to : to + 'T00:00:00')
   if (Number.isNaN(fromD.getTime()) || Number.isNaN(toD.getTime())) return []
