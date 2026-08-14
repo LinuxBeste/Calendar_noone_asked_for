@@ -7,6 +7,7 @@ Released versions older than the latest are archived in [CHANGELOG.archive.md](.
 ### Added
 - Scheduled dark mode, accent follows calendar, more accent presets.
 - "Month + Agenda" split view (toolbar, keyboard `s`, mobile nav, command palette).
+- Birthdays & contacts: manage contacts (sidebar), birthdays shown as yearly all-day events on a virtual calendar (read-only previews, synced via settings).
 
 ## [0.6.10] - 2026-08-14
 

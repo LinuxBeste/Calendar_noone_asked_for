@@ -9,6 +9,8 @@ import { enabledWidgets, usePlugins } from '../lib/plugins'
 import ContextMenu from './ContextMenu'
 import ConfirmDialog from './ConfirmDialog'
 import TrashDialog from './TrashDialog'
+import ContactsDialog from './ContactsDialog'
+import { BIRTHDAYS_COLOR, BIRTHDAYS_NAME } from '../utils/birthdays'
 import type { Calendar, ICalFeed } from '@shared/types'
 
 const API_BASE = (): string => localStorage.getItem('calendar.apiUrl') ?? 'http://localhost:3001'
@@ -25,7 +27,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.JSX.Element | null {
-  const { calendars, visibleCalendars, toggleCalendar, settings, trash, publicCalendars, addPublicCalendar, removePublicCalendar } = useCalendar()
+  const { calendars, visibleCalendars, toggleCalendar, settings, trash, publicCalendars, addPublicCalendar, removePublicCalendar, birthdaysVisible, setBirthdaysVisible } = useCalendar()
   const { token, user } = useAuth()
   const enabledPlugins = usePlugins((s) => s.enabled)
   const widgets = enabledWidgets()
@@ -45,6 +47,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
   const [addingPublic, setAddingPublic] = useState(false)
   const [publicUrl, setPublicUrl] = useState('')
   const [busyFeed, setBusyFeed] = useState<string | null>(null)
+  const [contactsOpen, setContactsOpen] = useState(false)
 
   const loadFeeds = (): void => {
     if (!token) return
@@ -223,6 +226,31 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
           <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">Signed in as {user.name}</p>
         )}
 
+        <div className="mt-2 px-4">
+          <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Other</h3>
+          <div className="group flex items-center gap-2 px-1 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+            <input
+              type="checkbox"
+              checked={birthdaysVisible}
+              onChange={() => setBirthdaysVisible(!birthdaysVisible)}
+              className="accent-accent"
+              title="Show birthdays"
+            />
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: BIRTHDAYS_COLOR }} />
+            <span className="flex-1 text-sm truncate text-gray-700 dark:text-gray-200">{BIRTHDAYS_NAME}</span>
+            <button
+              onClick={() => setContactsOpen(true)}
+              className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 hover:text-accent"
+              title="Manage contacts"
+              aria-label="Manage contacts"
+            >
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                <path d="M12 15a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zm0 2c-3.5 0-5 1.8-5 3v1h10v-1c0-1.2-1.5-3-5-3zm-8.5 0a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5zM3.5 19c0-1.1 1-2 3-2 .4 0 .8.05 1.1.15-.5.6-.8 1.3-.9 2.1-.3.2-.6.3-1 .3-1.3 0-2.2-.4-2.2-2.25zm16.5-1.5c0 1.3-1 2-2.4 2-1.4 0-2.4-.7-2.4-2 0-1.5 1.6-2.5 2.4-2.5s2.4 1 2.4 2.5zM19 17a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
         <h3 className="mt-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Subscribed feeds</h3>
         {feeds.length > 0 && (
           <div className="space-y-1 mb-1">
@@ -363,6 +391,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
       {linkFor && <LinkDialog calendar={linkFor} onClose={() => setLinkFor(null)} />}
       {transfer && <TransferDialog onClose={() => setTransfer(false)} />}
       {trashOpen && <TrashDialog onClose={() => setTrashOpen(false)} />}
+      {contactsOpen && <ContactsDialog onClose={() => setContactsOpen(false)} />}
       {menu && (
         <ContextMenu
           x={menu.x}

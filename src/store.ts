@@ -4,6 +4,7 @@ import { SETTING_DEFS } from '@shared/settings'
 import { scheduleReconcile } from './lib/notifications'
 import { loadCache, saveCache, useConnection } from './offline'
 import { errorInfo, logError } from './utils/errors'
+import { birthdayOccurrences, parseContacts, serializeContacts, type Contact } from './utils/birthdays'
 import type { Calendar, Event, EventOccurrence, User, ViewType, EventDetail, EventInput } from '@shared/types'
 
 export const DEFAULT_SETTINGS = {
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS = {
   showHolidays: false,
   holidaysCountry: 'de' as 'de' | 'at' | 'ch' | 'us' | 'gb' | 'fr' | 'es' | 'it' | 'nl' | 'pl' | 'se' | 'jp',
   accentColor: '#1a73e8',
+  contacts: '',
   agendaRangeDays: 14,
   monthMaxEvents: 3,
   language: 'en',
@@ -241,6 +243,7 @@ interface CalendarState {
   settings: typeof DEFAULT_SETTINGS
   lastRange: { from: string; to: string } | null
   publicCalendars: PublicCalendar[]
+  birthdaysVisible: boolean
   setView(view: ViewType): void
   backView(): boolean
   setDate(date: Date): void
@@ -254,6 +257,8 @@ interface CalendarState {
   purgeTrashed(id: string): Promise<void>
   toggleCalendar(id: string): void
   setSettings(patch: Partial<typeof DEFAULT_SETTINGS>): void
+  setContacts(contacts: Contact[]): Promise<void>
+  setBirthdaysVisible(visible: boolean): void
   addPublicCalendar(input: PublicCalendar): void
   removePublicCalendar(token: string): void
   history: HistoryAction[]
@@ -387,6 +392,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   settings: { ...DEFAULT_SETTINGS, ...(loadCache()?.settings as Partial<typeof DEFAULT_SETTINGS> | undefined) },
   lastRange: null,
   publicCalendars: loadPublicCalendars(),
+  birthdaysVisible: localStorage.getItem('calendar.birthdaysVisible') !== '0',
   setView(view) {
     const { view: current } = get()
     if (current === view) return
@@ -451,7 +457,11 @@ export const useCalendar = create<CalendarState>((set, get) => ({
             })))
         )
       ])
-      const merged = [...(events ?? []), ...publicBatches.flat()]
+      const merged = [
+        ...(events ?? []),
+        ...publicBatches.flat(),
+        ...(state.birthdaysVisible ? birthdayOccurrences(parseContacts(state.settings.contacts), from, to) : [])
+      ]
       if (seq !== refreshSeq) return merged
       set((s) => (isFullRange(from, to) ? { events: merged } : { events: merged, lastRange: { from, to } }))
       saveCache({ events: merged })
@@ -549,6 +559,26 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   setSettings(patch) {
     set((s) => ({ settings: { ...s.settings, ...patch } }))
     saveCache({ settings: { ...useCalendar.getState().settings, ...patch } })
+  },
+  async setContacts(contacts) {
+    const token = useAuth.getState().token
+    const json = serializeContacts(contacts)
+    set((s) => ({ settings: { ...s.settings, contacts: json } }))
+    saveCache({ settings: useCalendar.getState().settings })
+    if (!token) return
+    try {
+      await window.calendarApi.settings.set(token, 'contacts', json)
+      scheduleReconcile()
+      await get().refreshVisible()
+    } catch (err) {
+      logError('setContacts', err)
+      toastError(err)
+    }
+  },
+  setBirthdaysVisible(visible) {
+    localStorage.setItem('calendar.birthdaysVisible', visible ? '1' : '0')
+    set({ birthdaysVisible: visible })
+    void get().refreshVisible()
   },
   history: [],
   historyIndex: 0,

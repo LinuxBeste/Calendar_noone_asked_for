@@ -133,7 +133,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
   const matches = (def: SettingDef): boolean =>
     q.length === 0 || def.label.toLowerCase().includes(q) || (def.hint ?? '').toLowerCase().includes(q) || def.key.toLowerCase().includes(q)
   const visible = (def: SettingDef): boolean =>
-    !def.showWhen || String(draft[def.showWhen.key as keyof typeof DEFAULT_SETTINGS]) === def.showWhen.value
+    !def.hidden && (!def.showWhen || String(draft[def.showWhen.key as keyof typeof DEFAULT_SETTINGS]) === def.showWhen.value)
   const groups = q.length === 0
     ? [{ category: SETTING_CATEGORIES.find((c) => c.id === tab)!, defs: SETTING_DEFS.filter((d) => d.category === tab && visible(d)) }]
     : SETTING_CATEGORIES

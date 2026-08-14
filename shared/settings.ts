@@ -21,6 +21,8 @@ export interface SettingDef {
   dynamic?: 'timezones' | 'holidays' | 'calendars' | 'accent'
   /** Only show this setting when another setting has the given value. */
   showWhen?: { key: string; value: string }
+  /** Never shown in the settings UI (e.g. serialized contact data). */
+  hidden?: boolean
   defaultValue: string | number | boolean
 }
 
@@ -194,6 +196,7 @@ export const SETTING_DEFS: SettingDef[] = [
   ], defaultValue: 'busy' },
   { key: 'defaultAllDay', label: 'New events are all-day', category: 'events', type: 'boolean', defaultValue: false },
   { key: 'defaultColor', label: 'Default event color', hint: 'Hex like #ff8800, empty = calendar color', category: 'events', type: 'text', defaultValue: '' },
+  { key: 'contacts', label: 'Contacts (birthdays)', category: 'events', type: 'text', max: 50000, defaultValue: '', hidden: true },
   { key: 'showEndTimeOnEvent', label: 'Show end time on events', category: 'events', type: 'boolean', defaultValue: true },
   { key: 'dragAndDropEnabled', label: 'Drag & drop events', category: 'events', type: 'boolean', defaultValue: true },
   { key: 'resizeEnabled', label: 'Resize events by dragging', category: 'events', type: 'boolean', defaultValue: true },

@@ -4,6 +4,7 @@ import { useAuth, useCalendar } from '../store'
 import { toast, toastError } from '../toasts'
 import { formatInTz } from '../utils/date'
 import { formatFieldErrors, toErrorMessage } from '../utils/errors'
+import { isBirthdayEvent, parseContacts, turnsAge } from '../utils/birthdays'
 import { saveTemplate } from '../utils/templates'
 import type { Event, EventDetail, EventInput } from '@shared/types'
 import ConfirmDialog from './ConfirmDialog'
@@ -122,6 +123,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
 
   useEffect(() => {
     if (!event || !token) return
+    if (isBirthdayEvent(event)) return
     void (async () => {
       const d = (await window.calendarApi.events.get(token, event.id)) as EventDetail
       setDetail(d)
@@ -302,6 +304,33 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
 
   const inputCls =
     'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent text-sm disabled:opacity-50'
+
+  if (event && isBirthdayEvent(event)) {
+    const contacts = parseContacts(settings.contacts)
+    const contact = contacts.find((c) => event.id === `birthday-${c.id}`)
+    const day = occurrence ?? event.startDate ?? ''
+    const age = /^\d{4}/.test(day) ? turnsAge(contact?.birthDate ?? '', Number(day.slice(0, 4))) : null
+    return (
+      <div className="fixed inset-0 z-50 bg-black/30 animate-fade-in flex items-end sm:items-center justify-center" onClick={onClose}>
+        <div className="animate-dialog-in bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-[420px] sm:max-w-[92vw] p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-start gap-3">
+            <span className="text-4xl leading-none" aria-hidden>🎂</span>
+            <div className="min-w-0">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 break-words">{event.title}</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {day ? format(new Date(day + (day.length === 10 ? 'T00:00:00' : '')), 'MMMM d, yyyy') : ''}
+                {age !== null ? ` · turns ${age}` : ''}
+              </p>
+              {contact?.note && <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 break-words">{contact.note}</p>}
+            </div>
+          </div>
+          <div className="flex justify-end mt-6">
+            <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-accent-hover text-white">Close</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 animate-fade-in flex items-end sm:items-center justify-center" onClick={onClose}>
