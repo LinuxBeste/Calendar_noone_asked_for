@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth, useCalendar, DEFAULT_SETTINGS } from '../store'
 import { HOLIDAY_COUNTRIES } from '../utils/holidays'
 import { ACCENT_PRESETS, applyTheme, isDarkMode } from '../utils/theme'
+import { toErrorMessage } from '../utils/errors'
 import { SETTING_CATEGORIES, SETTING_DEFS, type SettingDef } from '@shared/settings'
 import { PLUGIN_CATALOG } from '@shared/plugins'
 import { compareVersions, fetchLatestRelease, isElectron, openUpdateDownload, type UpdateInfo } from '../updater'
@@ -54,7 +55,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
       }
     } catch (err) {
       setUpdateState('idle')
-      setUpdateError(err instanceof Error ? err.message : 'Update check failed')
+      setUpdateError(err instanceof Error ? err.message : toErrorMessage(err))
     }
   }
 
@@ -97,7 +98,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }): Re
       scheduleReconcile(1500)
       void refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed')
+      setError(toErrorMessage(err))
     } finally {
       setSaving(false)
     }

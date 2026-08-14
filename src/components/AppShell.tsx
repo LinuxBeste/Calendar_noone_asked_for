@@ -10,7 +10,7 @@ import WeekView from '../views/WeekView'
 import YearView from '../views/YearView'
 import AgendaView from '../views/AgendaView'
 import { usePlugins } from '../lib/plugins'
-import { toast } from '../toasts'
+import { toast, toastError } from '../toasts'
 
 const NARROW_QUERY = '(max-width: 1023px)'
 
@@ -159,7 +159,7 @@ export default function AppShell(): React.JSX.Element {
           toast(`Imported ${count} event${count === 1 ? '' : 's'} from ${file.name}`)
           await useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
         } catch (err) {
-          toast(err instanceof Error ? err.message : 'Import failed', 'error')
+          toastError(err)
         }
       })()
     }

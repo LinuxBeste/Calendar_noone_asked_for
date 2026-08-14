@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../store'
+import { toErrorMessage } from '../utils/errors'
 
 export default function LoginScreen(): React.JSX.Element {
   const { login, register } = useAuth()
@@ -18,7 +19,7 @@ export default function LoginScreen(): React.JSX.Element {
       if (mode === 'login') await login(email, password)
       else await register(email, name, password)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(toErrorMessage(err))
     } finally {
       setBusy(false)
     }

@@ -2,10 +2,37 @@ import type { CalendarInput, EventInput, ShareInput, FeedInput } from '@shared/t
 
 const BASE = process.env.CALENDAR_API_URL ?? 'http://localhost:3001'
 const API_KEY = process.env.CALENDAR_API_KEY?.trim() || undefined
+const REQUEST_TIMEOUT_MS = 30_000
+
+export interface FieldError {
+  path: string
+  message: string
+}
+
+/**
+ * Typed API error. All fields are own enumerable properties so the error
+ * survives Electron's contextBridge serialization with code/status/details
+ * intact (the renderer reads them via duck-typing).
+ */
+export class ApiError extends Error {
+  readonly code: string
+  readonly statusCode?: number
+  readonly details?: FieldError[]
+
+  constructor(message: string, code = 'BAD_REQUEST', statusCode?: number, details?: FieldError[]) {
+    super(message)
+    this.name = 'ApiError'
+    this.code = code
+    this.statusCode = statusCode
+    this.details = details
+  }
+}
 
 /** Thin HTTP client for the calendar backend. All methods mirror the IPC surface. */
 class ApiClient {
   private async call(method: string, path: string, token?: string | null, body?: unknown, system = false): Promise<unknown> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
     let res: Response
     try {
       res = await fetch(`${BASE}${path}`, {
@@ -15,14 +42,33 @@ class ApiClient {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(system && API_KEY ? { 'X-Api-Key': API_KEY } : {})
         },
-        body: body !== undefined ? JSON.stringify(body) : undefined
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: controller.signal
       })
     } catch (err) {
-      throw new Error(`Backend unreachable at ${BASE} — is the server running? (${err instanceof Error ? err.message : 'network error'})`)
+      const timedOut = err instanceof Error && err.name === 'AbortError'
+      throw new ApiError(
+        `Backend unreachable at ${BASE} — is the server running?${timedOut ? ' (request timed out)' : ''}`,
+        'NETWORK',
+        undefined,
+        undefined
+      )
+    } finally {
+      clearTimeout(timer)
     }
     if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string }
-      throw new Error(data.error ?? `Request failed (${res.status})`)
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string; details?: FieldError[] }
+      const fallbackCode =
+        res.status === 401
+          ? 'UNAUTHORIZED'
+          : res.status === 403
+            ? 'FORBIDDEN'
+            : res.status === 404
+              ? 'NOT_FOUND'
+              : res.status === 429
+                ? 'RATE_LIMIT'
+                : 'BAD_REQUEST'
+      throw new ApiError(data.error ?? `Request failed (${res.status})`, data.code ?? fallbackCode, res.status, data.details)
     }
     if (res.status === 204) return undefined
     return res.json().catch(() => undefined)

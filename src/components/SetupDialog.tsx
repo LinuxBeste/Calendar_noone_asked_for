@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth, useCalendar, DEFAULT_SETTINGS } from '../store'
 import { HOLIDAY_COUNTRIES } from '../utils/holidays'
+import { toErrorMessage } from '../utils/errors'
 
 const selectCls =
   'px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent'
@@ -53,7 +54,7 @@ export default function SetupDialog({ onClose }: { onClose: () => void }): React
       finish()
       void refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed')
+      setError(toErrorMessage(err))
       setSaving(false)
     }
   }

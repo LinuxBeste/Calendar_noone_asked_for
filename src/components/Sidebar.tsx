@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import QRCode from 'qrcode'
 import { useAuth, useCalendar } from '../store'
-import { toast } from '../toasts'
+import { toast, toastError } from '../toasts'
 import { nativeShare } from '../lib/platform'
+import { toErrorMessage } from '../utils/errors'
 import MiniCalendar from './MiniCalendar'
 import { enabledWidgets, usePlugins } from '../lib/plugins'
 import ContextMenu from './ContextMenu'
@@ -77,7 +78,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
       loadFeeds()
       toast('Feed subscribed — events will sync automatically')
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to subscribe', 'error')
+      toastError(err)
     } finally {
       setBusyFeed(null)
     }
@@ -92,7 +93,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
       loadFeeds()
       await useCalendar.getState().refreshVisible()
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Sync failed', 'error')
+      toastError(err)
       loadFeeds()
     } finally {
       setBusyFeed(null)
@@ -122,7 +123,7 @@ export default function Sidebar({ open, narrow, onClose }: SidebarProps): React.
       setAddingPublic(false)
       toast(`Subscribed to “${data.calendar.name}”`)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to add public calendar', 'error')
+      toastError(err)
     }
   }
 
@@ -450,7 +451,7 @@ function LinkDialog({ calendar, onClose }: { calendar: Calendar; onClose: () => 
       await window.calendarApi.calendars.createLink(token, calendar.id)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create link')
+      setError(toErrorMessage(err))
     }
   }
 
@@ -565,7 +566,7 @@ function TransferDialog({ onClose }: { onClose: () => void }): React.JSX.Element
         )
       }
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Operation failed')
+      setMessage(toErrorMessage(err))
     } finally {
       setBusy(null)
     }
@@ -648,7 +649,7 @@ function ShareDialog({ calendar, onClose }: { calendar: Calendar; onClose: () =>
       setEmail('')
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sharing failed')
+      setError(toErrorMessage(err))
     }
   }
 

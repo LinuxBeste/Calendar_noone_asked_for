@@ -298,3 +298,14 @@ Fastify backend with SQLite/PostgreSQL + Redis, plus a web/Android client.
 - **Product renamed to Calendar** — the app is now called "Calendar" in the
   UI, release notes, and package metadata (repo, image names, and previous
   releases keep their old names).
+
+## [0.6.9] - 2026-08-14
+
+### Added
+
+- **Full date in the header** — the toolbar now shows the complete date
+  (e.g. "Friday, August 14, 2026") above the view title, so you always see
+  exactly which day you're looking at.
+- **Swipe navigation on the week view (touch)** — swipe left to move one week
+  forward, swipe right to move one week back. Swipes starting on an event chip
+  are left alone so drag-and-drop keeps working.

@@ -5,6 +5,7 @@ import { bindSettingsProvider } from './lib/notifications'
 import './lib/plugin-smart-tags'
 import './lib/plugin-daily-quote'
 import { toast } from './toasts'
+import { logError } from './utils/errors'
 import { compareVersions, fetchLatestRelease, isInstalled } from './updater'
 import LoginScreen from './components/LoginScreen'
 import AppShell from './components/AppShell'
@@ -34,11 +35,11 @@ export default function App(): React.JSX.Element {
       toast(msg, 'error')
     }
     const onError = (e: ErrorEvent): void => {
-      console.error('Uncaught error:', e.error ?? e.message)
+      logError('uncaught-error', e.error ?? e.message)
       report('Something went wrong — the app tried to recover.')
     }
     const onRejection = (e: PromiseRejectionEvent): void => {
-      console.error('Unhandled rejection:', e.reason)
+      logError('unhandled-rejection', e.reason)
       report(typeof e.reason === 'string' ? e.reason : 'A background action failed — the app stays usable.')
     }
     window.addEventListener('error', onError)

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { toErrorMessage } from '../utils/errors'
 
 interface ConfirmDialogProps {
   title: string
@@ -30,7 +31,7 @@ export default function ConfirmDialog({ title, message, confirmLabel = 'Confirm'
       await onConfirm()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(toErrorMessage(err))
       setBusy(false)
     }
   }

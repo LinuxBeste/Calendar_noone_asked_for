@@ -1,6 +1,7 @@
 import { useAuth, useCalendar } from '../store'
 import { headerTitle } from '../utils/date'
 import { parseQuickAdd } from '../utils/quickadd'
+import { toErrorMessage } from '../utils/errors'
 import { listTemplates, removeTemplate, type EventTemplate } from '../utils/templates'
 import { exportEventsCsv, printEvents } from '../utils/export'
 import type { ViewType } from '@shared/types'
@@ -119,7 +120,7 @@ export default function Toolbar({ onToggleSidebar }: ToolbarProps): React.JSX.El
       setQuickAddError(null)
       await useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
     } catch (err) {
-      setQuickAddError(err instanceof Error ? err.message : 'Could not create event')
+      setQuickAddError(toErrorMessage(err))
     }
   }
 

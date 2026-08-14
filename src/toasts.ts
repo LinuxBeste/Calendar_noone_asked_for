@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { toErrorMessage } from './utils/errors'
 
 export interface Toast {
   id: number
@@ -30,4 +31,9 @@ export const useToasts = create<ToastState>((set) => ({
 
 export function toast(message: string, kind: Toast['kind'] = 'success'): void {
   useToasts.getState().push(message, kind)
+}
+
+/** Shows a backend error as an error toast with a friendly, mapped message. */
+export function toastError(err: unknown): void {
+  useToasts.getState().push(toErrorMessage(err), 'error')
 }

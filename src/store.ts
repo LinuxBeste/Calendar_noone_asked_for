@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import { toast } from './toasts'
+import { toast, toastError } from './toasts'
 import { SETTING_DEFS } from '@shared/settings'
 import { scheduleReconcile } from './lib/notifications'
 import { loadCache, saveCache, useConnection } from './offline'
+import { errorInfo, logError } from './utils/errors'
 import type { Calendar, Event, EventOccurrence, User, ViewType, EventDetail, EventInput } from '@shared/types'
 
 export const DEFAULT_SETTINGS = {
@@ -422,7 +423,8 @@ export const useCalendar = create<CalendarState>((set, get) => ({
         return { calendars, visibleCalendars }
       })
     } catch (err) {
-      console.error('refreshCalendars failed:', err)
+      logError('refreshCalendars', err)
+      if (errorInfo(err).code === 'NETWORK') useConnection.getState().setOnline(false)
     }
   },
   async refreshEvents(from, to) {
@@ -453,7 +455,8 @@ export const useCalendar = create<CalendarState>((set, get) => ({
       scheduleReconcile()
       return merged
     } catch (err) {
-      console.error('refreshEvents failed:', err)
+      logError('refreshEvents', err)
+      if (errorInfo(err).code === 'NETWORK') useConnection.getState().setOnline(false)
       return [] as EventOccurrence[]
     }
   },
@@ -504,8 +507,8 @@ export const useCalendar = create<CalendarState>((set, get) => ({
       toast('Event restored')
       await Promise.all([get().refreshTrash(), get().refreshVisible()])
     } catch (err) {
-      console.error('restoreTrashed failed:', err)
-      toast('Could not restore the event', 'error')
+      logError('restoreTrashed', err)
+      toastError(err)
     }
   },
   async purgeTrashed(id) {
@@ -516,8 +519,8 @@ export const useCalendar = create<CalendarState>((set, get) => ({
       toast('Event deleted permanently')
       await get().refreshTrash()
     } catch (err) {
-      console.error('purgeTrashed failed:', err)
-      toast('Could not delete the event', 'error')
+      logError('purgeTrashed', err)
+      toastError(err)
     }
   },
   toggleCalendar(id) {
@@ -564,8 +567,8 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     try {
       await applyInverse(action)
     } catch (err) {
-      console.error('Undo failed:', err)
-      toast('Could not undo — check your connection', 'error')
+      logError('undo', err)
+      toastError(err)
       return
     }
     set({ historyIndex: historyIndex - 1 })
@@ -579,8 +582,8 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     try {
       await applyAction(action)
     } catch (err) {
-      console.error('Redo failed:', err)
-      toast('Could not redo — check your connection', 'error')
+      logError('redo', err)
+      toastError(err)
       return
     }
     set({ historyIndex: historyIndex + 1 })

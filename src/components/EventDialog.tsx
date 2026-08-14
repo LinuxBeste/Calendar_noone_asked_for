@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { useAuth, useCalendar } from '../store'
-import { toast } from '../toasts'
+import { toast, toastError } from '../toasts'
 import { formatInTz } from '../utils/date'
+import { formatFieldErrors, toErrorMessage } from '../utils/errors'
 import { saveTemplate } from '../utils/templates'
 import type { Event, EventDetail, EventInput } from '@shared/types'
 import ConfirmDialog from './ConfirmDialog'
@@ -272,8 +273,9 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
       await s.refreshCalendars()
       await s.refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed')
-      toast(err instanceof Error ? err.message : 'Save failed', 'error')
+      const fieldLines = formatFieldErrors(err)
+      setError(toErrorMessage(err) + (fieldLines.length > 0 ? ` — ${fieldLines.join(', ')}` : ''))
+      toastError(err)
     } finally {
       setSaving(false)
     }
@@ -294,7 +296,7 @@ export default function EventDialog({ event, defaultDate, defaultStart, defaultD
       toast(isSeriesEdit && editMode === 'this' ? 'Event occurrence deleted' : 'Event deleted')
       await useCalendar.getState().refreshEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z').catch(() => undefined)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Delete failed', 'error')
+      toastError(err)
     }
   }
 

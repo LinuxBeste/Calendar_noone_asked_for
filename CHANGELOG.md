@@ -7,6 +7,8 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 
 ## [Unreleased]
 
+## [0.6.10] - 2026-08-14
+
 ### Added
 - **Swipe navigation on the month view (touch)** — the same gesture now works
   on the month grid: swipe left for the next month, right for the previous
@@ -39,6 +41,17 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
   of 30 s, CORS rejections reply 403 instead of 500, and the startup log
   prints the full effective configuration (storage, cache backend, version,
   thresholds).
+- **Client-side error UX** — backend errors now keep their machine-readable
+  `code`/`details` all the way into the UI and are mapped to friendly,
+  actionable messages (server unreachable, rate-limited, session expired, …).
+  Validation details from the server appear as per-field hints in the event
+  dialog, error toasts are used consistently across the app, the error
+  boundary offers "Try again" in addition to a full reload, and uncaught
+  errors log the code/status/stack instead of just a string.
+- **Request timeout on the desktop client** — API calls made by the Electron
+  app abort after 30 s (previously they could hang forever) and surface as
+  a clear "server unreachable" message; network failures also mark the app
+  offline so the offline banner appears.
 
 ### Fixed
 
@@ -119,13 +132,3 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 - **Server shutdown was abrupt** — SIGTERM/SIGINT now stops intervals, the
   HTTP server, the cache and the database cleanly.
 
-## [0.6.9] - 2026-08-14
-
-### Added
-
-- **Full date in the header** — the toolbar now shows the complete date
-  (e.g. "Friday, August 14, 2026") above the view title, so you always see
-  exactly which day you're looking at.
-- **Swipe navigation on the week view (touch)** — swipe left to move one week
-  forward, swipe right to move one week back. Swipes starting on an event chip
-  are left alone so drag-and-drop keeps working.
