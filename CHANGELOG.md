@@ -21,11 +21,24 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 - **Structured server logging & typed API errors** — the server now logs
   through pino (ISO timestamps, `CALENDAR_LOG_LEVEL`, request ids that
   propagate via `X-Request-Id`, redacted credentials and tokens, rich error
-  serializers). Every API error carries a machine-readable `code`
-  (UNAUTHORIZED, FORBIDDEN, VALIDATION, RATE_LIMIT, NOT_FOUND, …) with a
-  matching HTTP status, 5xx responses never leak internals, and uncaught
-  exceptions / unhandled rejections are logged instead of dying silently.
-  Feed, validation, permission and not-found failures are typed end-to-end.
+  serializers; `CALENDAR_LOG_PRETTY=1` for human-readable dev output,
+  `CALENDAR_LOG_FILE` to write to a file). Every API error carries a
+  machine-readable `code` (UNAUTHORIZED, FORBIDDEN, VALIDATION, RATE_LIMIT,
+  NOT_FOUND, …) with a matching HTTP status (Fastify's own errors included —
+  413/415/400), 5xx responses never leak internals, and uncaught exceptions /
+  unhandled rejections are logged instead of dying silently. Feed,
+  validation, permission and not-found failures are typed end-to-end.
+- **Request correlation & audit logging** — authenticated requests bind the
+  `userId`/`email` to every log line; auth events (register, login, failed
+  login, logout), calendar shares, rate-limit hits (with IP + route), feed
+  sync failures (with feed id), WebSocket connect/disconnect and socket
+  errors are all logged. Requests slower than `CALENDAR_SLOW_MS` (default
+  5 s) get an explicit warning with response time, and unknown API routes
+  reply with a typed 404 instead of the SPA fallback.
+- **Server hardening** — request body capped at 20 MB (413), request timeout
+  of 30 s, CORS rejections reply 403 instead of 500, and the startup log
+  prints the full effective configuration (storage, cache backend, version,
+  thresholds).
 
 ### Fixed
 

@@ -20,6 +20,15 @@ export const LOG_LEVEL = (() => {
   return 'info'
 })()
 
+/** Human-readable log output for local development (CALENDAR_LOG_PRETTY=1). */
+export const LOG_PRETTY = process.env.CALENDAR_LOG_PRETTY === '1' || process.env.CALENDAR_LOG_PRETTY === 'true'
+
+/** Optional file destination (CALENDAR_LOG_FILE=/path/to/server.log). */
+export const LOG_FILE = process.env.CALENDAR_LOG_FILE?.trim() || undefined
+
+/** Requests slower than this (ms) get an explicit warning line. */
+export const SLOW_REQUEST_MS = Math.max(0, Number(process.env.CALENDAR_SLOW_MS ?? 5000))
+
 /** Redacts sensitive bits from an incoming URL before it can hit the logs. */
 export function redactUrl(url: string): string {
   return url
@@ -32,18 +41,25 @@ export function serializeErr(err: unknown): Record<string, unknown> {
   if (err instanceof Error) {
     const statusCode = (err as { statusCode?: number }).statusCode
     const code = (err as { code?: string }).code
+    const details = (err as { details?: unknown }).details
     return {
       type: err.name,
       message: err.message,
       stack: err.stack,
       ...(statusCode !== undefined ? { statusCode } : {}),
-      ...(code !== undefined ? { code } : {})
+      ...(code !== undefined ? { code } : {}),
+      ...(details !== undefined ? { details } : {})
     }
   }
   return { type: typeof err, value: String(err) }
 }
 
 export function createLoggerOptions(): pino.LoggerOptions {
+  const transport = LOG_FILE
+    ? { target: 'pino/file', options: { destination: LOG_FILE } }
+    : LOG_PRETTY
+      ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'SYS:standard', ignore: 'pid,hostname' } }
+      : undefined
   return {
     level: LOG_LEVEL,
     base: { service: 'calendar-server' },
@@ -73,7 +89,8 @@ export function createLoggerOptions(): pino.LoggerOptions {
       err(err: unknown) {
         return serializeErr(err)
       }
-    }
+    },
+    ...(transport !== undefined ? { transport } : {})
   }
 }
 

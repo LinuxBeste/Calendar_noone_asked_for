@@ -33,6 +33,7 @@ import {
 import { PLUGIN_CATALOG, isPluginId } from '@shared/plugins'
 import { createRateLimiter } from './rate-limit'
 import { toAppError } from './errors'
+import { SLOW_REQUEST_MS } from './logger'
 
 export interface Services {
   auth: AuthService
@@ -61,10 +62,11 @@ function bearer(request: FastifyRequest): string {
   return header.slice('Bearer '.length)
 }
 
-/** Validates the session and runs fn with the userId. */
+/** Validates the session and runs fn with the userId (binding it to the log). */
 async function withUser<T>(services: Services, request: FastifyRequest, fn: (userId: string) => Promise<T> | T): Promise<T> {
   const user = await services.auth.validateSession(bearer(request))
   if (!user) throw new AuthError('Not authenticated')
+  request.log = request.log.child({ userId: user.id, email: user.email })
   return fn(user.id)
 }
 
@@ -123,13 +125,20 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
     else request.log.warn(details, 'request rejected')
     reply.status(appError.statusCode).send({
       error: isServerFault ? 'Internal server error' : appError.message,
-      code: appError.code
+      code: appError.code,
+      ...(appError.details !== undefined ? { details: appError.details } : {})
     })
+  })
+
+  app.addHook('onResponse', async (request, reply) => {
+    if (reply.elapsedTime >= SLOW_REQUEST_MS) {
+      request.log.warn({ responseTime: reply.elapsedTime, statusCode: reply.statusCode }, 'slow request')
+    }
   })
 
   // ---- auth ----
   app.post('/auth/register', async (req: Body<{ email: string; name: string; password: string }>) => {
-    authLimiter(req.ip)
+    authLimiter(req.ip, 'POST ' + req.routeOptions.url)
     const email = normalizeEmail(req.body.email)
     validatePassword(req.body.password)
     const name = validateName(req.body.name)
@@ -138,7 +147,7 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
     return result
   })
   app.post('/auth/login', async (req: Body<{ email: string; password: string }>) => {
-    authLimiter(req.ip)
+    authLimiter(req.ip, 'POST ' + req.routeOptions.url)
     normalizeEmail(req.body.email)
     if (typeof req.body.password !== 'string' || req.body.password.length === 0) throw new ValidationError('Password is required')
     const result = await auth.login(req.body.email, req.body.password)

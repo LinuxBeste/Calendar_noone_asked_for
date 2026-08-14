@@ -18,6 +18,9 @@ export class WsHub {
 
   add(socket: WebSocket, userId: string): void {
     this.sockets.set(socket, userId)
+    socket.on('error', (err) => {
+      logger.warn({ err, userId }, '[ws] socket error')
+    })
     socket.on('close', () => {
       this.sockets.delete(socket)
     })

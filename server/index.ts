@@ -21,7 +21,7 @@ import { FeedService } from './services/feed-service'
 import { LinkService } from './services/link-service'
 import { WsHub } from './services/ws-hub'
 import { PermissionError } from './errors'
-import { logger, loggerOptions, genRequestId } from './logger'
+import { logger, loggerOptions, genRequestId, SLOW_REQUEST_MS, LOG_LEVEL } from './logger'
 import { registerRoutes } from './routes'
 
 export const PORT = Number(process.env.CALENDAR_API_PORT ?? 3001)
@@ -96,7 +96,9 @@ async function bootstrap(): Promise<void> {
 
   const app = Fastify({
     logger: loggerOptions,
-    genReqId: genRequestId
+    genReqId: genRequestId,
+    bodyLimit: 20 * 1024 * 1024,
+    requestTimeout: 30_000
   })
 
   // CORS: only allow explicitly listed origins (browser clients). Same-origin
@@ -117,7 +119,7 @@ async function bootstrap(): Promise<void> {
   await app.register(fastifyCors, {
     origin: (origin, cb) => {
       if (!origin || allowed.includes(origin)) cb(null, true)
-      else cb(new Error('Origin not allowed'), false)
+      else cb(new PermissionError('Origin not allowed by CORS policy'), false)
     },
     // @fastify/cors 11 defaults to GET,HEAD,POST — the app uses PUT/PATCH/DELETE.
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
@@ -217,21 +219,46 @@ async function bootstrap(): Promise<void> {
 
   // Serve the built web client (SPA) when available
   const webDir = process.env.CALENDAR_WEB_DIR ?? join(process.cwd(), 'web', 'dist')
-  if (existsSync(join(webDir, 'index.html'))) {
+  const webIndex = join(webDir, 'index.html')
+  if (existsSync(webIndex)) {
     await app.register(fastifyStatic, { root: webDir, wildcard: false })
-    app.setNotFoundHandler((request, reply) => {
-      const accept = request.headers.accept ?? ''
-      if (request.method === 'GET' && (accept.includes('text/html') || accept === '*/*' || accept === '')) {
-        return reply.type('text/html').sendFile('index.html')
-      }
-      reply.code(404).send({ error: 'Not found' })
-    })
     app.log.info({ webDir }, 'serving web client')
   }
+  // Unified not-found handling: SPA fallback for HTML navigation, a typed
+  // JSON 404 for everything else.
+  app.setNotFoundHandler((request, reply) => {
+    const accept = request.headers.accept ?? ''
+    const wantsHtml =
+      request.method === 'GET' &&
+      existsSync(webIndex) &&
+      (accept.includes('text/html') || accept.includes('*/*') || accept === '')
+    if (wantsHtml) {
+      return reply.type('text/html').sendFile('index.html')
+    }
+    request.log.warn({ url: request.url }, 'route not found')
+    reply.code(404).send({ error: 'Not found', code: 'NOT_FOUND' })
+  })
 
   try {
     await app.listen({ port: PORT, host: HOST })
-    app.log.info({ host: HOST, port: PORT, storage: setup.using, apiKeySet: !!API_KEY, version: (createRequire(import.meta.url)('../package.json') as { version: string }).version }, 'server listening')
+    app.log.info(
+      {
+        host: HOST,
+        port: PORT,
+        storage: setup.using,
+        cache: setup.cache.constructor.name,
+        apiKeySet: !!API_KEY,
+        version: (createRequire(import.meta.url)('../package.json') as { version: string }).version,
+        node: process.version,
+        logLevel: LOG_LEVEL,
+        slowRequestMs: SLOW_REQUEST_MS,
+        trashDays: trashKeepDays,
+        feedIntervalMin,
+        corsOrigins: allowed.length,
+        webClient: existsSync(webIndex)
+      },
+      'server listening'
+    )
   } catch (err) {
     app.log.error({ err }, 'failed to start server')
     process.exit(1)

@@ -33,10 +33,12 @@ function fromZod(schema: z.ZodType<unknown>): (input: unknown) => unknown {
   return (input: unknown) => {
     const result = schema.safeParse(input)
     if (!result.success) {
-      const message = result.error.issues
+      const issues = result.error.issues
+      const message = issues
         .map((i) => (i.path.length > 0 ? `${i.path.join('.')}: ${i.message}` : i.message))
         .join('; ')
-      throw new ValidationError(message || 'Invalid input')
+      const details = issues.map((i) => ({ path: i.path.join('.'), message: i.message }))
+      throw new ValidationError(message || 'Invalid input', details)
     }
     return result.data
   }

@@ -2,12 +2,12 @@ import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'crypto'
 import { promisify } from 'util'
 import type { AuthStore } from '../db/storage'
 import type { LoginResult, User, ShareInput } from '@shared/types'
+import { logger } from '../logger'
+import { AuthError } from '../errors'
+export { AuthError }
 
 const scrypt = promisify(scryptCb)
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
-
-import { AuthError } from '../errors'
-export { AuthError }
 
 export class AuthService {
   constructor(private store: AuthStore) {}
@@ -22,22 +22,32 @@ export class AuthService {
     const user = await this.store.createUser({ email, name: input.name.trim() || email.split('@')[0]!, passwordHash })
     await this.store.claimOwnerlessCalendars(user.id)
     const token = await this.createSession(user.id)
+    logger.info({ event: 'auth.register', userId: user.id, email }, 'user registered')
     return { token, user }
   }
 
   async login(email: string, password: string): Promise<LoginResult> {
-    const user = await this.store.getUserByEmail(email.trim().toLowerCase())
-    if (!user) throw new AuthError('Invalid email or password')
+    const normalized = email.trim().toLowerCase()
+    const user = await this.store.getUserByEmail(normalized)
+    if (!user) {
+      logger.warn({ event: 'auth.login_failed', email: normalized }, 'login failed')
+      throw new AuthError('Invalid email or password')
+    }
     const ok = await this.verifyPassword(password, user.passwordHash)
-    if (!ok) throw new AuthError('Invalid email or password')
+    if (!ok) {
+      logger.warn({ event: 'auth.login_failed', email: normalized }, 'login failed')
+      throw new AuthError('Invalid email or password')
+    }
     await this.store.claimOwnerlessCalendars(user.id)
     const token = await this.createSession(user.id)
+    logger.info({ event: 'auth.login', userId: user.id, email: normalized }, 'user logged in')
     const { passwordHash: _ph, ...safeUser } = user
     return { token, user: safeUser }
   }
 
   async logout(token: string): Promise<void> {
     await this.store.deleteSession(token)
+    logger.info({ event: 'auth.logout' }, 'session closed')
   }
 
   /** Returns the user for a valid, non-expired session token. */
@@ -57,11 +67,13 @@ export class AuthService {
     if (!target) throw new AuthError('No user found with that email')
     if (target.id === ownerId) throw new AuthError('You already own this calendar')
     await this.store.upsertShare(calendarId, target.id, input.role)
+    logger.info({ event: 'calendar.share', calendarId, byUserId: ownerId, userId: target.id, role: input.role, email: target.email }, 'calendar shared')
     return { userId: target.id, role: input.role }
   }
 
   async unshareCalendar(calendarId: string, userId: string): Promise<void> {
     await this.store.removeShare(calendarId, userId)
+    logger.info({ event: 'calendar.unshare', calendarId, userId }, 'calendar unshared')
   }
 
   async listShares(calendarId: string): Promise<{ userId: string; role: 'viewer' | 'editor'; email?: string }[]> {

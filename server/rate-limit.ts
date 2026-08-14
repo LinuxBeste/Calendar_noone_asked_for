@@ -1,14 +1,15 @@
 /** Simple in-memory per-IP rate limiter for sensitive endpoints (auth). */
 
+import { RateLimitError } from './errors'
+import { logger } from './logger'
+export { RateLimitError }
+
 interface LimiterOptions {
   max: number
   windowMs: number
 }
 
-import { RateLimitError } from './errors'
-export { RateLimitError }
-
-export function createRateLimiter({ max, windowMs }: LimiterOptions): (ip: string) => void {
+export function createRateLimiter({ max, windowMs }: LimiterOptions): (ip: string, route?: string) => void {
   const hits = new Map<string, number[]>()
   const cleanup = setInterval(() => {
     const cutoff = Date.now() - windowMs
@@ -20,11 +21,12 @@ export function createRateLimiter({ max, windowMs }: LimiterOptions): (ip: strin
   }, Math.max(windowMs, 60_000))
   cleanup.unref()
 
-  return (ip: string) => {
+  return (ip: string, route?: string) => {
     const now = Date.now()
     const times = (hits.get(ip) ?? []).filter((t) => now - t < windowMs)
     if (times.length >= max) {
       hits.set(ip, times)
+      logger.warn({ ip, route, limit: max, windowSec: Math.round(windowMs / 1000) }, 'rate limit exceeded')
       throw new RateLimitError('Too many attempts, try again later')
     }
     times.push(now)

@@ -78,11 +78,34 @@ export function isAppError(err: unknown): err is AppError {
   return err instanceof AppError
 }
 
+/** Fastify's own error codes (e.g. body too large) mapped to HTTP statuses. */
+const FASTIFY_ERROR_STATUS: Record<string, number> = {
+  FST_ERR_CTP_BODY_TOO_LARGE: 413,
+  FST_ERR_CTP_INVALID_MEDIA_TYPE: 415,
+  FST_ERR_CTP_INVALID_JSON_BODY: 400,
+  FST_ERR_CTP_EMPTY_JSON_BODY: 400,
+  FST_ERR_BAD_URL: 400,
+  FST_ERR_VALIDATION: 400,
+  FST_ERR_NOT_FOUND: 404
+}
+
+function clientStatusCode(err: Error): number | undefined {
+  const code = (err as { code?: string }).code
+  if (code && code in FASTIFY_ERROR_STATUS) return FASTIFY_ERROR_STATUS[code]!
+  const statusCode = (err as { statusCode?: unknown }).statusCode
+  if (typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500) return statusCode
+  return undefined
+}
+
 /** Normalizes any thrown value into an AppError (unknown errors become 500). */
 export function toAppError(err: unknown): AppError {
   if (err instanceof AppError) return err
   if (err instanceof Error) {
-    return new AppError(err.message, 500, 'INTERNAL', { cause: err.message })
+    const statusCode = clientStatusCode(err)
+    if (statusCode !== undefined) {
+      return new AppError(err.message, statusCode, 'BAD_REQUEST', { cause: err.message })
+    }
+    return new AppError('Internal server error', 500, 'INTERNAL', { cause: err.message })
   }
   return new AppError('Internal server error', 500, 'INTERNAL')
 }

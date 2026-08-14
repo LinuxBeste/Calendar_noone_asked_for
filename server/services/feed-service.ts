@@ -4,6 +4,7 @@ import type { EventInput, ICalFeed } from '@shared/types'
 import { randomUUID } from 'crypto'
 import { lookup } from 'dns/promises'
 import { parseICal, toEventInputs } from './ical'
+import { logger, redactUrl } from '../logger'
 
 const FEED_FETCH_TIMEOUT_MS = 15000
 const FEED_MAX_BYTES = 2 * 1024 * 1024
@@ -181,6 +182,7 @@ export class FeedService {
       return { created, updated }
     } catch (err) {
       await this.store.updateFeedState(feed.id, { lastFetchedAt: new Date().toISOString(), lastError: err instanceof Error ? err.message : String(err) })
+      logger.warn({ err, feedId: feed.id, calendarId: feed.calendarId, url: redactUrl(feed.url) }, '[feeds] sync failed')
       throw err
     } finally {
       this.syncing.delete(feedId)
