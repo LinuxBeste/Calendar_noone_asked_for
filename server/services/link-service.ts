@@ -1,4 +1,5 @@
 import type { EventStore, AuthStore, EventCache } from '../db/storage'
+import { NotFoundError } from '../errors'
 import type { Calendar, CalendarLink, EventOccurrence, PublicCalendarView } from '@shared/types'
 import { randomBytes } from 'crypto'
 import { expandEvent } from './recurrence'
@@ -32,16 +33,16 @@ export class LinkService {
 
   async deleteLink(userId: string, token: string, calendarId: string): Promise<void> {
     const link = await this.store.getLinkByToken(token)
-    if (!link || link.calendarId !== calendarId) throw new Error('Link not found')
+    if (!link || link.calendarId !== calendarId) throw new NotFoundError('Link not found')
     await this.permissions.assertCanRead(userId, link.calendarId)
     await this.store.deleteLink(token)
   }
 
   async getPublic(token: string): Promise<PublicCalendarView> {
     const link = await this.store.getLinkByToken(token)
-    if (!link) throw new Error('Link not found or revoked')
+    if (!link) throw new NotFoundError('Link not found or revoked')
     const cal = await this.store.getCalendar(link.calendarId)
-    if (!cal) throw new Error('Calendar not found')
+    if (!cal) throw new NotFoundError('Calendar not found')
     const events = await this.store.listEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z', [cal.id])
     return {
       calendar: { id: cal.id, name: cal.name, color: cal.color, description: cal.description },
@@ -51,7 +52,7 @@ export class LinkService {
 
   async getPublicOccurrences(token: string, from: string, to: string): Promise<EventOccurrence[]> {
     const link = await this.store.getLinkByToken(token)
-    if (!link) throw new Error('Link not found or revoked')
+    if (!link) throw new NotFoundError('Link not found or revoked')
     const master = await this.store.listEvents(from, to, [link.calendarId])
     const out: EventOccurrence[] = []
     for (const ev of master) {
@@ -73,7 +74,7 @@ export class LinkService {
 
   async exportPublicICal(token: string): Promise<string> {
     const link = await this.store.getLinkByToken(token)
-    if (!link) throw new Error('Link not found or revoked')
+    if (!link) throw new NotFoundError('Link not found or revoked')
     const events = await this.store.listEvents('0000-01-01T00:00:00.000Z', '9999-12-31T23:59:59.999Z', [link.calendarId])
     const withReminders = await Promise.all(events.map(async (ev) => ({ ev, reminders: (await this.store.listReminders(ev.id)) as [] })))
     return serializeICal(withReminders)

@@ -31,8 +31,8 @@ import {
   LIMITS
 } from './validation'
 import { PLUGIN_CATALOG, isPluginId } from '@shared/plugins'
-import { RateLimitError, createRateLimiter } from './rate-limit'
-import { PermissionError } from './services/calendar-service'
+import { createRateLimiter } from './rate-limit'
+import { toAppError } from './errors'
 
 export interface Services {
   auth: AuthService
@@ -115,18 +115,16 @@ export async function registerRoutes(app: FastifyInstance, services: Services): 
     }
   }
 
-  app.addHook('onError', async (_request, reply, error) => {
-    const status =
-      error instanceof RateLimitError
-        ? 429
-        : error instanceof ValidationError
-          ? 400
-          : error instanceof PermissionError
-            ? 403
-            : (error as Error).name === 'AuthError'
-              ? 401
-              : 400
-    reply.status(status).send({ error: error instanceof Error ? error.message : 'Request failed' })
+  app.addHook('onError', async (request, reply, error) => {
+    const appError = toAppError(error)
+    const isServerFault = appError.statusCode >= 500
+    const details = { err: error, statusCode: appError.statusCode, code: appError.code, requestId: request.id }
+    if (isServerFault) request.log.error(details, 'request failed')
+    else request.log.warn(details, 'request rejected')
+    reply.status(appError.statusCode).send({
+      error: isServerFault ? 'Internal server error' : appError.message,
+      code: appError.code
+    })
   })
 
   // ---- auth ----

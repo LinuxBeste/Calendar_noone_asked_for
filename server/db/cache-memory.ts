@@ -1,4 +1,5 @@
 import type { EventCache } from './storage'
+import { logger } from '../logger'
 import type { Event } from '@shared/types'
 
 /**

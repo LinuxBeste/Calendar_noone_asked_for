@@ -1,4 +1,5 @@
 import Redis from 'ioredis'
+import { logger } from '../logger'
 import type { EventCache } from './storage'
 import type { Event } from '@shared/types'
 

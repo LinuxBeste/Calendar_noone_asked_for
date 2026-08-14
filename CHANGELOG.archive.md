@@ -3,6 +3,87 @@
 Released versions that have been superseded. Newest changes live in
 [CHANGELOG.md](./CHANGELOG.md).
 
+## [0.6.8]
+
+### Added
+
+- **Plugins system** — a built-in plugin catalog (starting with the daily
+  quote and smart tags plugins) can decorate events with extra content; a
+  Settings → Plugins panel enables/disables plugins, and per-user plugin
+  state and data are stored server-side.
+- **Preview-first event clicks** — clicking an event opens a quick preview
+  instead of jumping straight into the editor.
+- **Drag-to-resize events** — dragging an event's bottom edge changes its
+  duration.
+- **Animations** — transitions and motion polish across views and dialogs.
+- **"Today" navigation fix** — the Today button now lands on the correct
+  week/day.
+- **Desktop launcher icon** — the packaged desktop app ships a proper
+  launcher icon.
+
+### Fixed
+
+- **Recurring events in narrow ranges** — occurrence expansion queried the
+  wrong range, so series could show stale or missing occurrences; the
+  recurring-range queries now match the requested window.
+- **Plugin state load guard** — loading plugin state no longer trips over
+  missing data at startup.
+
+## [0.6.7]
+
+### Added
+
+- **Pinch-to-zoom on the week view for phones** — spread two fingers to zoom
+  in (max 200%), pinch together to zoom back out; a stale gesture can no
+  longer swallow your scroll afterwards. The +/− controls now sit above the
+  "New event" button instead of hidden underneath it.
+
+## [0.6.6]
+
+### Added
+
+- **Auto-updates on every platform** —
+  - Android: the app checks GitHub once per day (silently, throttled) and
+    shows a notification ("Update available — open Settings to install") plus
+    a Settings → Updates panel with a manual "Check for updates" button; the
+    download opens in the system browser and installs like any APK.
+  - Desktop (Windows/macOS/Linux): a "Check for updates…" entry in the tray
+    menu and an Updates panel in Settings that triggers the built-in updater
+    with the usual download/restart confirmation dialogs.
+  - The web demo is always served as the latest version, so it needs no
+    updater itself.
+
+## [0.6.5]
+
+### Added
+
+- **Offline mode for installed clients (Android, desktop)** — the app keeps a
+  local cache of events, calendars, trash and settings. When the server can't
+  be reached it no longer blocks on a connection screen: the app opens with
+  the cached data, shows an "Offline" banner, and every event change
+  (create / edit / delete, single occurrences, series splits, settings) is
+  queued with a "saved offline" confirmation. The moment the server is back
+  (automatic polling, network events, or the Retry button) the queued changes
+  are replayed and all data refreshes — no data loss, no manual resolution.
+- **Connection handling overhaul** — requests have timeouts (8 s) and failed
+  requests mark the client offline immediately; while offline a watch polls
+  the server every 8 s; the full-screen "Backend unreachable" gate only
+  appears when there is nothing cached yet (e.g. first install), and even it
+  now retries automatically.
+
+### Fixed
+
+- **Network blips logged you out** — session validation that fails because the
+  server is unreachable no longer drops the token; the cached session (and
+  user) is kept so the app can start offline.
+- **Capacity WebView origins rejected** — the Android app (native shell,
+  bundled UI, API-only traffic) sends `Origin: https://localhost`; those
+  requests are now in the CORS default allowlist (plus legacy
+  `capacitor://localhost`).
+- **Background setting loads spammed errors while offline** — the per-key
+  settings fetch is now guarded and keeps cached values instead of raising
+  unhandled rejections for every key.
+
 ## [0.6.4]
 
 ### Added

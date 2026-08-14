@@ -1,4 +1,5 @@
 import type { EventStore, AuthStore, EventCache } from '../db/storage'
+import { PermissionError, NotFoundError, ValidationError } from '../errors'
 import type { Event, EventInput, EventDetail, EventOccurrence } from '@shared/types'
 import { expandEvent, withDtstart } from './recurrence'
 import { createRequire } from 'module'
@@ -20,7 +21,7 @@ export class EventService {
   /** Feed-sourced events are read-only. */
   private async assertNotFeedEvent(id: string): Promise<void> {
     const detail = await this.store.getEvent(id)
-    if (detail?.feedId) throw new Error('Events from external feeds are read-only')
+    if (detail?.feedId) throw new PermissionError('Events from external feeds are read-only')
   }
 
   /**
@@ -53,7 +54,7 @@ export class EventService {
 
   async updateEvent(userId: string, id: string, input: Partial<EventInput>): Promise<Event> {
     const existing = await this.store.getEvent(id)
-    if (!existing) throw new Error('Event not found')
+    if (!existing) throw new NotFoundError('Event not found')
     await this.assertNotFeedEvent(id)
     await this.permissions.assertCanWrite(userId, existing.calendarId)
     if (input.calendarId && input.calendarId !== existing.calendarId) {
@@ -71,7 +72,7 @@ export class EventService {
 
   async deleteEvent(userId: string, id: string): Promise<void> {
     const existing = await this.store.getEvent(id)
-    if (!existing) throw new Error('Event not found')
+    if (!existing) throw new NotFoundError('Event not found')
     await this.assertNotFeedEvent(id)
     await this.permissions.assertCanWrite(userId, existing.calendarId)
     await this.store.deleteEvent(id)
@@ -81,7 +82,7 @@ export class EventService {
 
   async restoreEvent(userId: string, id: string): Promise<void> {
     const event = (await this.store.listTrashedEvents()).find((e) => e.id === id)
-    if (!event) throw new Error('Event not found')
+    if (!event) throw new NotFoundError('Event not found')
     await this.permissions.assertCanWrite(userId, event.calendarId)
     await this.store.restoreEvent(id)
     await this.invalidateForCalendar(event.calendarId)
@@ -90,8 +91,8 @@ export class EventService {
 
   async purgeEvent(userId: string, id: string): Promise<void> {
     const event = (await this.store.listTrashedEvents()).find((e) => e.id === id)
-    if (!event) throw new Error('Event not found')
-    if (event.feedId) throw new Error('Events from external feeds are read-only')
+    if (!event) throw new NotFoundError('Event not found')
+    if (event.feedId) throw new PermissionError('Events from external feeds are read-only')
     await this.permissions.assertCanWrite(userId, event.calendarId)
     await this.store.purgeEvent(id)
     await this.invalidateForCalendar(event.calendarId)
@@ -120,7 +121,7 @@ export class EventService {
 
   async getEvent(userId: string, id: string): Promise<EventDetail> {
     const event = await this.store.getEvent(id)
-    if (!event) throw new Error('Event not found')
+    if (!event) throw new NotFoundError('Event not found')
     await this.permissions.assertCanRead(userId, event.calendarId)
     const [reminders, exceptions] = await Promise.all([
       this.store.listReminders(id),
@@ -137,14 +138,14 @@ export class EventService {
   async addReminder(userId: string, eventId: string, minutes: number) {
     const event = await this.getEvent(userId, eventId)
     await this.permissions.assertCanWrite(userId, event.calendarId)
-    if (!event.startsAt) throw new Error('Cannot remind all-day or undated events')
-    if (!(minutes > 0)) throw new Error('Reminder minutes must be positive')
+    if (!event.startsAt) throw new ValidationError('Cannot remind all-day or undated events')
+    if (!(minutes > 0)) throw new ValidationError('Reminder minutes must be positive')
     return this.store.createReminder(eventId, minutes)
   }
 
   async removeReminder(userId: string, reminderId: string) {
     const reminder = await this.store.getReminder(reminderId)
-    if (!reminder) throw new Error('Reminder not found')
+    if (!reminder) throw new NotFoundError('Reminder not found')
     const event = await this.getEvent(userId, reminder.eventId)
     await this.permissions.assertCanWrite(userId, event.calendarId)
     return this.store.deleteReminder(reminderId)
@@ -194,7 +195,7 @@ export class EventService {
   /** Edits a single occurrence of a series by creating/updating an exception. */
   async updateOccurrence(userId: string, eventId: string, occurrence: string, input: Partial<EventInput>): Promise<void> {
     const detail = await this.getEvent(userId, eventId)
-    if (detail.feedId) throw new Error('Events from external feeds are read-only')
+    if (detail.feedId) throw new PermissionError('Events from external feeds are read-only')
     if (!detail.rrule) {
       await this.updateEvent(userId, eventId, input)
       return
@@ -221,7 +222,7 @@ export class EventService {
   /** Deletes a single occurrence of a series (exception marked deleted). */
   async deleteOccurrence(userId: string, eventId: string, occurrence: string): Promise<void> {
     const detail = await this.getEvent(userId, eventId)
-    if (detail.feedId) throw new Error('Events from external feeds are read-only')
+    if (detail.feedId) throw new PermissionError('Events from external feeds are read-only')
     if (!detail.rrule) {
       await this.deleteEvent(userId, eventId)
       return
@@ -235,7 +236,7 @@ export class EventService {
   /** Splits the series at an occurrence: old series ends before it, a new series starts there. */
   async splitSeries(userId: string, eventId: string, occurrence: string, input: Partial<EventInput>): Promise<Event> {
     const detail = await this.getEvent(userId, eventId)
-    if (detail.feedId) throw new Error('Events from external feeds are read-only')
+    if (detail.feedId) throw new PermissionError('Events from external feeds are read-only')
     if (!detail.rrule) {
       await this.updateEvent(userId, eventId, input)
       return (await this.getEvent(userId, eventId))!
@@ -249,7 +250,7 @@ export class EventService {
       new Date(detail.allDay ? detail.startDate! + 'T00:00:00' : detail.startsAt!),
       new Date(occDate.getTime() + 86400000)
     ).find((o) => o.start.toISOString().slice(0, 10) === occurrence)
-    if (!thisOcc) throw new Error('Could not find the occurrence to split at')
+    if (!thisOcc) throw new NotFoundError('Could not find the occurrence to split at')
 
     const rule = RRule.fromString(detail.rrule.startsWith('DTSTART') ? detail.rrule : withDtstart(detail.rrule, new Date(detail.startsAt ?? detail.startDate! + 'T00:00:00')))
     const options = rule.options

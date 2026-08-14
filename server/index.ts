@@ -7,6 +7,7 @@ import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 import { readdir, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
+import { createRequire } from 'module'
 import type { EventStore, AuthStore, EventCache } from './db/storage'
 import { SqliteStore } from './db/sqlite'
 import { PgStore } from './db/pg'
@@ -19,7 +20,8 @@ import { ICalService } from './services/ical-service'
 import { FeedService } from './services/feed-service'
 import { LinkService } from './services/link-service'
 import { WsHub } from './services/ws-hub'
-import { PermissionError } from './services/calendar-service'
+import { PermissionError } from './errors'
+import { logger, loggerOptions, genRequestId } from './logger'
 import { registerRoutes } from './routes'
 
 export const PORT = Number(process.env.CALENDAR_API_PORT ?? 3001)
@@ -43,7 +45,7 @@ async function setupDatabase(): Promise<{ store: EventStore & AuthStore; cache: 
       await store.migrate()
       return { store, cache: await setupCache(), using: 'postgresql', dataDir: '' }
     } catch (err) {
-      console.error('[db] PostgreSQL unavailable, falling back to SQLite:', err)
+      logger.error({ err }, '[db] PostgreSQL unavailable, falling back to SQLite')
       await store?.close().catch(() => undefined)
     }
   }
@@ -60,9 +62,9 @@ async function setupCache(): Promise<EventCache> {
     try {
       const cache = new RedisCache(redisUrl)
       if (await cache.ping()) return cache
-      console.warn('[cache] Redis unreachable, using in-memory cache')
+      logger.warn('[cache] Redis unreachable, using in-memory cache')
     } catch (err) {
-      console.warn('[cache] Redis error, using in-memory cache:', err)
+      logger.warn({ err }, '[cache] Redis error, using in-memory cache')
     }
   }
   return new InMemoryCache()
@@ -93,18 +95,8 @@ async function bootstrap(): Promise<void> {
   const links = new LinkService(store, setup.cache, { assertCanRead: perms.assertCanRead })
 
   const app = Fastify({
-    logger: {
-      serializers: {
-        // Session tokens (and public share-link tokens) must never reach the
-        // access logs: the WS endpoint receives them as query parameters.
-        req(request: { method: string; raw: { url?: string } }) {
-          const url = (request.raw.url ?? '')
-            .replace(/([?&])token=[^&\s]*/gi, '$1token=[redacted]')
-            .replace(/\/public\/[^/]+/g, '/public/[redacted]')
-          return { method: request.method, url }
-        }
-      }
-    }
+    logger: loggerOptions,
+    genReqId: genRequestId
   })
 
   // CORS: only allow explicitly listed origins (browser clients). Same-origin
@@ -147,30 +139,38 @@ async function bootstrap(): Promise<void> {
       .validateSession(token)
       .then((user) => {
         if (!user) {
+          req.log.warn({ ip: req.ip }, 'ws connection rejected (unauthorized)')
           connection.close(4001, 'unauthorized')
           return
         }
         hub.add(connection, user.id)
+        req.log.info({ userId: user.id }, 'ws client connected')
+        connection.on('close', () => {
+          req.log.info({ userId: user.id }, 'ws client disconnected')
+        })
       })
-      .catch(() => connection.close(4001, 'unauthorized'))
+      .catch((err) => {
+        req.log.warn({ err }, 'ws connection rejected (session lookup failed)')
+        connection.close(4001, 'unauthorized')
+      })
   })
   await setup.cache.subscribe('events.changed', (payload) => {
     hub.broadcast(payload as { type: string; userId?: string; calendarId?: string }).catch((err) => {
-      console.error('[ws] broadcast failed:', err)
+      app.log.error({ err }, '[ws] events.changed broadcast failed')
     })
   })
   await setup.cache.subscribe('calendars.changed', (payload) => {
     hub.broadcast(payload as { type: string; userId?: string; calendarId?: string }).catch((err) => {
-      console.error('[ws] broadcast failed:', err)
+      app.log.error({ err }, '[ws] calendars.changed broadcast failed')
     })
   })
-  console.log('[server] live updates enabled (ws://' + HOST + ':' + PORT + '/ws)')
+  app.log.info({ path: '/ws' }, 'live updates enabled')
   // ---- maintenance: trash purge + database backups ----
   const trashKeepDays = Math.max(1, Number(process.env.CALENDAR_TRASH_DAYS ?? 30))
   const trashSweep = setInterval(() => {
     events.purgeExpiredTrash(trashKeepDays).then((n) => {
-      if (n > 0) console.log(`[maintenance] purged ${n} trashed event(s) older than ${trashKeepDays} day(s)`)
-    }).catch((err) => console.error('[maintenance] trash purge failed:', err))
+      if (n > 0) app.log.info({ purged: n, olderThanDays: trashKeepDays }, '[maintenance] trash purge completed')
+    }).catch((err) => app.log.error({ err }, '[maintenance] trash purge failed'))
   }, 6 * 3600000)
   trashSweep.unref()
 
@@ -178,8 +178,9 @@ async function bootstrap(): Promise<void> {
   const feedIntervalMin = Math.max(5, Number(process.env.CALENDAR_FEED_INTERVAL_MIN ?? 15))
   const feedSync = setInterval(() => {
     feeds.syncAll().then(({ ok, failed }) => {
-      console.log(`[feeds] synced ${ok} feed(s)${failed > 0 ? `, ${failed} failed` : ''}`)
-    }).catch((err) => console.error('[feeds] sync run failed:', err))
+      if (failed > 0) app.log.warn({ synced: ok, failed }, '[feeds] sync run completed with failures')
+      else app.log.info({ synced: ok }, '[feeds] sync run completed')
+    }).catch((err) => app.log.error({ err }, '[feeds] sync run failed'))
   }, feedIntervalMin * 60000)
   feedSync.unref()
 
@@ -200,9 +201,9 @@ async function bootstrap(): Promise<void> {
         for (const f of files.slice(0, -backupKeep)) {
           await unlink(join(backupDir, f)).catch(() => undefined)
         }
-        console.log(`[maintenance] database backup written to ${dest} (keeping last ${backupKeep})`)
+        app.log.info({ dest, keep: backupKeep }, '[maintenance] database backup written')
       } catch (err) {
-        console.error('[maintenance] backup failed:', err)
+        app.log.error({ err }, '[maintenance] database backup failed')
       }
     }
     backupInterval = setInterval(() => void runBackup(), 86400000)
@@ -225,14 +226,14 @@ async function bootstrap(): Promise<void> {
       }
       reply.code(404).send({ error: 'Not found' })
     })
-    console.log(`[server] serving web client from ${webDir}`)
+    app.log.info({ webDir }, 'serving web client')
   }
 
   try {
     await app.listen({ port: PORT, host: HOST })
-    console.log(`[server] listening on http://${HOST}:${PORT} (storage: ${setup.using})`)
+    app.log.info({ host: HOST, port: PORT, storage: setup.using, apiKeySet: !!API_KEY, version: (createRequire(import.meta.url)('../package.json') as { version: string }).version }, 'server listening')
   } catch (err) {
-    app.log.error(err)
+    app.log.error({ err }, 'failed to start server')
     process.exit(1)
   }
 
@@ -241,29 +242,38 @@ async function bootstrap(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     if (shuttingDown) return
     shuttingDown = true
-    console.log(`[server] ${signal} received, shutting down…`)
+    app.log.info({ signal }, 'shutting down…')
     clearInterval(trashSweep)
     clearInterval(feedSync)
     if (backupInterval) clearInterval(backupInterval)
     try {
       await app.close()
     } catch (err) {
-      console.error('[server] error while closing http server:', err)
+      app.log.error({ err }, 'error while closing http server')
     }
     try {
       if (setup.cache.close) await setup.cache.close()
     } catch (err) {
-      console.error('[server] error while closing cache:', err)
+      app.log.error({ err }, 'error while closing cache')
     }
     try {
       await setup.store.close()
     } catch (err) {
-      console.error('[server] error while closing store:', err)
+      app.log.error({ err }, 'error while closing store')
     }
+    app.log.info('shutdown complete')
     process.exit(0)
   }
   process.on('SIGTERM', () => void shutdown('SIGTERM'))
   process.on('SIGINT', () => void shutdown('SIGINT'))
 }
+
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'uncaught exception — exiting')
+  process.exit(1)
+})
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'unhandled promise rejection')
+})
 
 void bootstrap()

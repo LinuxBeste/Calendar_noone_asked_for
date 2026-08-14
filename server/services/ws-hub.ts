@@ -1,4 +1,5 @@
 import type { WebSocket } from 'ws'
+import { logger } from '../logger'
 
 export interface WsPayload {
   type: string
@@ -29,6 +30,7 @@ export class WsHub {
       if (readers.size === 0 && payload.userId) readers.add(payload.userId)
     }
     const message = JSON.stringify({ type: payload.type })
+    let sent = 0
     for (const [socket, userId] of this.sockets) {
       try {
         if (socket.readyState !== socket.OPEN) {
@@ -36,11 +38,16 @@ export class WsHub {
           continue
         }
         const match = readers ? readers.has(userId) : !payload.userId || payload.userId === userId
-        if (match) socket.send(message)
-      } catch {
+        if (match) {
+          socket.send(message)
+          sent++
+        }
+      } catch (err) {
+        logger.warn({ err, userId }, '[ws] dropping dead socket')
         this.sockets.delete(socket)
       }
     }
+    if (sent > 0) logger.debug({ sent, type: payload.type, connected: this.sockets.size }, '[ws] broadcast delivered')
   }
 
   get size(): number {

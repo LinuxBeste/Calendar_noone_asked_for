@@ -5,12 +5,8 @@ interface LimiterOptions {
   windowMs: number
 }
 
-export class RateLimitError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'RateLimitError'
-  }
-}
+import { RateLimitError } from './errors'
+export { RateLimitError }
 
 export function createRateLimiter({ max, windowMs }: LimiterOptions): (ip: string) => void {
   const hits = new Map<string, number[]>()

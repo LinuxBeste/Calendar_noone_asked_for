@@ -6,12 +6,8 @@ import type { LoginResult, User, ShareInput } from '@shared/types'
 const scrypt = promisify(scryptCb)
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
-export class AuthError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'AuthError'
-  }
-}
+import { AuthError } from '../errors'
+export { AuthError }
 
 export class AuthService {
   constructor(private store: AuthStore) {}

@@ -1,4 +1,5 @@
 import type { EventStore, AuthStore, EventCache } from '../db/storage'
+import { ValidationError } from '../errors'
 import type { Event, EventInput, Reminder } from '@shared/types'
 import { serializeICal, parseICal, toEventInputs } from './ical'
 import { validateEventInput } from '../validation'
@@ -53,13 +54,13 @@ export class ICalService {
     try {
       parsed = JSON.parse(content) as { version?: number; calendars: Array<{ calendar: { name: string; color?: string }; events: EventInput[] }> }
     } catch {
-      throw new Error('Invalid backup file — not valid JSON')
+      throw new ValidationError('Invalid backup file — not valid JSON')
     }
-    if (!Array.isArray(parsed?.calendars)) throw new Error('Invalid backup file')
+    if (!Array.isArray(parsed?.calendars)) throw new ValidationError('Invalid backup file')
     let count = 0
     for (const { calendar, events } of parsed.calendars) {
       if (!calendar || typeof calendar.name !== 'string' || typeof events !== 'object' || events === null) {
-        throw new Error('Invalid backup file — malformed calendar entry')
+        throw new ValidationError('Invalid backup file — malformed calendar entry')
       }
       const created = await this.store.createCalendar({ name: calendar.name.slice(0, 100), color: typeof calendar.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(calendar.color) ? calendar.color : '#1a73e8', ownerId: userId })
       for (const input of events) {

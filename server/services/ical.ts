@@ -1,4 +1,5 @@
 import type { Event, EventInput, Reminder } from '@shared/types'
+import { ValidationError } from '../errors'
 
 export interface ICalEvent {
   uid: string
@@ -64,7 +65,7 @@ function localIso(d: Date): string {
 /** Parses a raw DTSTART/DTEND value; a trailing Z means UTC. */
 function toDate(ical: string): Date {
   const m = ical.match(/(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?(Z)?/)
-  if (!m) throw new Error('Invalid date: ' + ical)
+  if (!m) throw new ValidationError('Invalid date: ' + ical)
   if (m[7]) {
     return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), m[4] ? Number(m[4]) : 0, m[5] ? Number(m[5]) : 0, m[6] ? Number(m[6]) : 0))
   }

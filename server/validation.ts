@@ -3,12 +3,8 @@ import type { CalendarInput, EventInput, ShareInput, ViewType } from '@shared/ty
 import { SETTING_DEFS } from '@shared/settings'
 
 /** Server-side input validation (Zod). All failures reject with a 400-status error. */
-export class ValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ValidationError'
-  }
-}
+import { ValidationError } from './errors'
+export { ValidationError }
 
 export const LIMITS = {
   titleMax: 200,

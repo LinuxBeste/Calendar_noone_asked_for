@@ -1,4 +1,5 @@
 import type { EventStore, AuthStore, EventCache } from '../db/storage'
+import { ValidationError, PermissionError, NotFoundError, BadGatewayError } from '../errors'
 import type { EventInput, ICalFeed } from '@shared/types'
 import { randomUUID } from 'crypto'
 import { lookup } from 'dns/promises'
@@ -38,19 +39,19 @@ async function assertSafeFeedUrl(url: string): Promise<void> {
   try {
     parsed = new URL(url)
   } catch {
-    throw new Error('Invalid feed URL')
+    throw new ValidationError('Invalid feed URL')
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('Feed URL must use http or https')
+    throw new ValidationError('Feed URL must use http or https')
   }
   let addresses: string[]
   try {
     addresses = (await lookup(parsed.hostname, { all: true })).map((r) => r.address)
   } catch {
-    throw new Error('Feed host does not resolve')
+    throw new ValidationError('Feed host does not resolve')
   }
   if (addresses.length === 0 || addresses.some(isPrivateAddress)) {
-    throw new Error('Feed URL must point to a public host')
+    throw new ValidationError('Feed URL must point to a public host')
   }
 }
 
@@ -68,9 +69,9 @@ async function fetchFeedText(startUrl: string, signal: AbortSignal): Promise<str
       url = new URL(res.headers.get('location')!, url).toString()
       continue
     }
-    if (!res.ok) throw new Error('HTTP ' + res.status)
+    if (!res.ok) throw new BadGatewayError('Feed responded with HTTP ' + res.status)
     const declared = Number(res.headers.get('content-length') ?? 0)
-    if (declared > FEED_MAX_BYTES) throw new Error('Feed too large')
+    if (declared > FEED_MAX_BYTES) throw new BadGatewayError('Feed too large')
     if (!res.body) return res.text()
     const reader = res.body.getReader()
     const chunks: Uint8Array[] = []
@@ -79,12 +80,12 @@ async function fetchFeedText(startUrl: string, signal: AbortSignal): Promise<str
       const { done, value } = await reader.read()
       if (done) break
       total += value.byteLength
-      if (total > FEED_MAX_BYTES) throw new Error('Feed too large')
+      if (total > FEED_MAX_BYTES) throw new BadGatewayError('Feed too large')
       chunks.push(value)
     }
     return Buffer.concat(chunks).toString('utf8')
   }
-  throw new Error('Feed redirected too many times')
+  throw new BadGatewayError('Feed redirected too many times')
 }
 
 /**
@@ -120,8 +121,8 @@ export class FeedService {
 
   async deleteFeed(userId: string, feedId: string): Promise<void> {
     const feed = await this.store.getFeed(feedId)
-    if (!feed) throw new Error('Feed not found')
-    if (feed.ownerId !== userId) throw new Error('Not your feed')
+    if (!feed) throw new NotFoundError('Feed not found')
+    if (feed.ownerId !== userId) throw new PermissionError('Not your feed')
     await this.store.deleteFeed(feedId)
     await this.cache.invalidateAll()
     await this.cache.publish('events.changed', { type: 'deleted', userId, calendarId: feed.calendarId })

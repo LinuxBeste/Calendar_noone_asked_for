@@ -8,13 +8,6 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 ## [Unreleased]
 
 ### Added
-- **Full date in the header** — the toolbar now shows the complete date
-  (e.g. "Friday, August 14, 2026") above the view title, so you always see
-  exactly which day you're looking at.
-- **Swipe navigation on the week view (touch)** — swipe left to move one week
-  forward, swipe right to move one week back. Swipes starting on an event chip
-  are left alone so drag-and-drop keeps working. The week now slides out and
-  the next one slides in with a short fade animation instead of snapping.
 - **Swipe navigation on the month view (touch)** — the same gesture now works
   on the month grid: swipe left for the next month, right for the previous
   one, with the same slide-out/slide-in animation.
@@ -23,20 +16,16 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
   backdrop fades in, and the header date gently fades up whenever you navigate
   to a different day, week or month.
 
-- **Pinch-to-zoom on the week view for phones** — spread two fingers to zoom
-  in (max 200%), pinch together to zoom back out; a stale gesture can no
-  longer swallow your scroll afterwards. The +/− controls now sit above the
-  "New event" button instead of hidden underneath it.
-- **Auto-updates on every platform** —
-  - Android: the app checks GitHub once per day (silently, throttled) and
-    shows a notification ("Update available — open Settings to install") plus
-    a Settings → Updates panel with a manual "Check for updates" button; the
-    download opens in the system browser and installs like any APK.
-  - Desktop (Windows/macOS/Linux): a "Check for updates…" entry in the tray
-    menu and an Updates panel in Settings that triggers the built-in updater
-    with the usual download/restart confirmation dialogs.
-  - The web demo is always served as the latest version, so it needs no
-    updater itself.
+### Changed
+
+- **Structured server logging & typed API errors** — the server now logs
+  through pino (ISO timestamps, `CALENDAR_LOG_LEVEL`, request ids that
+  propagate via `X-Request-Id`, redacted credentials and tokens, rich error
+  serializers). Every API error carries a machine-readable `code`
+  (UNAUTHORIZED, FORBIDDEN, VALIDATION, RATE_LIMIT, NOT_FOUND, …) with a
+  matching HTTP status, 5xx responses never leak internals, and uncaught
+  exceptions / unhandled rejections are logged instead of dying silently.
+  Feed, validation, permission and not-found failures are typed end-to-end.
 
 ### Fixed
 
@@ -117,33 +106,13 @@ latest one are archived in [CHANGELOG.archive.md](./CHANGELOG.archive.md).
 - **Server shutdown was abrupt** — SIGTERM/SIGINT now stops intervals, the
   HTTP server, the cache and the database cleanly.
 
-## [0.6.5] - 2026-08-13
+## [0.6.9] - 2026-08-14
 
 ### Added
 
-- **Offline mode for installed clients (Android, desktop)** — the app keeps a
-  local cache of events, calendars, trash and settings. When the server can't
-  be reached it no longer blocks on a connection screen: the app opens with
-  the cached data, shows an "Offline" banner, and every event change
-  (create / edit / delete, single occurrences, series splits, settings) is
-  queued with a "saved offline" confirmation. The moment the server is back
-  (automatic polling, network events, or the Retry button) the queued changes
-  are replayed and all data refreshes — no data loss, no manual resolution.
-- **Connection handling overhaul** — requests have timeouts (8 s) and failed
-  requests mark the client offline immediately; while offline a watch polls
-  the server every 8 s; the full-screen "Backend unreachable" gate only
-  appears when there is nothing cached yet (e.g. first install), and even it
-  now retries automatically.
-
-### Fixed
-
-- **Network blips logged you out** — session validation that fails because the
-  server is unreachable no longer drops the token; the cached session (and
-  user) is kept so the app can start offline.
-- **Capacity WebView origins rejected** — the Android app (native shell,
-  bundled UI, API-only traffic) sends `Origin: https://localhost`; those
-  requests are now in the CORS default allowlist (plus legacy
-  `capacitor://localhost`).
-- **Background setting loads spammed errors while offline** — the per-key
-  settings fetch is now guarded and keeps cached values instead of raising
-  unhandled rejections for every key.
+- **Full date in the header** — the toolbar now shows the complete date
+  (e.g. "Friday, August 14, 2026") above the view title, so you always see
+  exactly which day you're looking at.
+- **Swipe navigation on the week view (touch)** — swipe left to move one week
+  forward, swipe right to move one week back. Swipes starting on an event chip
+  are left alone so drag-and-drop keeps working.

@@ -1,12 +1,8 @@
 import type { EventStore, AuthStore, EventCache } from '../db/storage'
 import type { Calendar, CalendarInput } from '@shared/types'
 
-export class PermissionError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'PermissionError'
-  }
-}
+import { PermissionError } from '../errors'
+export { PermissionError }
 
 /**
  * User-scoped calendar access: resolves which calendars a user can see
