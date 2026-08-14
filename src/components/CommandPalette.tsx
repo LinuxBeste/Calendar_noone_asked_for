@@ -63,7 +63,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }): Re
         keywords: 'trash deleted restore bin',
         run: () => window.dispatchEvent(new Event('calendar:trash'))
       },
-      ...(['day', 'week', 'month', 'year', 'agenda'] as const).map((v) => ({
+      ...(['day', 'week', 'month', 'year', 'agenda', 'split'] as const).map((v) => ({
         id: `view-${v}`,
         group: 'View',
         label: `${v[0]!.toUpperCase()}${v.slice(1)} view`,

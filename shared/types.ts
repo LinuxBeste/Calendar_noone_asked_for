@@ -142,7 +142,7 @@ export interface EventDetail extends Event {
   exceptions: EventException[]
 }
 
-export type ViewType = 'day' | 'week' | 'month' | 'year' | 'agenda'
+export type ViewType = 'day' | 'week' | 'month' | 'year' | 'agenda' | 'split'
 
 export interface AppSettings {
   firstDayOfWeek: 0 | 1

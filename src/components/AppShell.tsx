@@ -6,6 +6,7 @@ import MobileNav from './MobileNav'
 import Sidebar from './Sidebar'
 import Toolbar from './Toolbar'
 import MonthView from '../views/MonthView'
+import SplitView from '../views/SplitView'
 import WeekView from '../views/WeekView'
 import YearView from '../views/YearView'
 import AgendaView from '../views/AgendaView'
@@ -20,7 +21,7 @@ function readUrlState(): void {
     const view = params.get('view') as ReturnType<typeof useCalendar.getState>['view'] | null
     const date = params.get('date')
     const s = useCalendar.getState()
-    if (view && ['day', 'week', 'month', 'year', 'agenda'].includes(view)) s.setView(view)
+    if (view && ['day', 'week', 'month', 'year', 'agenda', 'split'].includes(view)) s.setView(view)
     if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) s.setDate(new Date(date + 'T00:00:00'))
   } catch {
     // ignore malformed URLs
@@ -216,6 +217,7 @@ export default function AppShell(): React.JSX.Element {
             {view === 'day' && <WeekView date={date} days={1} />}
             {view === 'year' && <YearView date={date} />}
             {view === 'agenda' && <AgendaView date={date} days={settings.agendaRangeDays} />}
+            {view === 'split' && <SplitView date={date} />}
           </div>
         </main>
       </div>

@@ -45,7 +45,8 @@ export const SETTING_DEFS: SettingDef[] = [
     { value: 'week', label: 'Week' },
     { value: 'month', label: 'Month' },
     { value: 'year', label: 'Year' },
-    { value: 'agenda', label: 'Agenda' }
+    { value: 'agenda', label: 'Agenda' },
+    { value: 'split', label: 'Month + Agenda' }
   ], defaultValue: 'week' },
   { key: 'firstDayOfWeek', label: 'Week starts on', hint: 'First day of the week in all views', category: 'general', type: 'select', options: [
     { value: '1', label: 'Monday' },

@@ -21,7 +21,8 @@ const VIEWS: { id: ViewType; label: string; key: string }[] = [
   { id: 'week', label: 'Week', key: 'w' },
   { id: 'month', label: 'Month', key: 'm' },
   { id: 'year', label: 'Year', key: 'y' },
-  { id: 'agenda', label: 'Agenda', key: 'a' }
+  { id: 'agenda', label: 'Agenda', key: 'a' },
+  { id: 'split', label: 'Month + Agenda', key: 's' }
 ]
 
 interface ToolbarProps {

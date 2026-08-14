@@ -22,7 +22,7 @@ const STEPS: TourStep[] = [
   },
   {
     title: 'Switch views',
-    body: 'Day, Week, Month, Year and Agenda views — bottom bar on phones, top bar on desktop. Try the Agenda for a clean list!',
+    body: 'Day, Week, Month, Year, Agenda and Month + Agenda views — bottom bar on phones, top bar on desktop. Try the Agenda for a clean list!',
     selector: '.bg-gray-100',
     position: 'bottom'
   },

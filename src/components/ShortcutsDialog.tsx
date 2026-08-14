@@ -4,7 +4,7 @@ const SHORTCUTS: { keys: string; action: string }[] = [
   { keys: 'n', action: 'New event' },
   { keys: 'q', action: 'Quick add event' },
   { keys: 't', action: 'Go to today' },
-  { keys: 'd / w / m / y / a', action: 'Switch day / week / month / year / agenda' },
+  { keys: 'd / w / m / y / a / s', action: 'Switch day / week / month / year / agenda / month+agenda' },
   { keys: '/', action: 'Search events' },
   { keys: '← / →', action: 'Navigate previous / next' },
   { keys: 'Ctrl+Z / Ctrl+Shift+Z', action: 'Undo / redo' },

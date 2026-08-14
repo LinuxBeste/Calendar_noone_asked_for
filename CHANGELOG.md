@@ -6,6 +6,7 @@ Released versions older than the latest are archived in [CHANGELOG.archive.md](.
 
 ### Added
 - Scheduled dark mode, accent follows calendar, more accent presets.
+- "Month + Agenda" split view (toolbar, keyboard `s`, mobile nav, command palette).
 
 ## [0.6.10] - 2026-08-14
 

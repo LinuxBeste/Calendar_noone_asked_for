@@ -407,7 +407,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     const d = new Date(date)
     if (view === 'day') d.setDate(d.getDate() + delta)
     else if (view === 'week') d.setDate(d.getDate() + delta * 7)
-    else if (view === 'month') d.setMonth(d.getMonth() + delta)
+    else if (view === 'month' || view === 'split') d.setMonth(d.getMonth() + delta)
     else if (view === 'year') d.setFullYear(d.getFullYear() + delta)
     else d.setDate(d.getDate() + delta)
     set({ date: d })

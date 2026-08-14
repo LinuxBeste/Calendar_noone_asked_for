@@ -59,7 +59,7 @@ const colorSchema = z.string().regex(COLOR_RE, 'expected #rrggbb')
 const dateSchema = z.string().regex(DATE_RE, 'expected yyyy-MM-dd')
 const isoTimestampSchema = z.string().refine((v) => !Number.isNaN(new Date(v).getTime()), 'expected ISO timestamp')
 const rruleSchema = z.string().regex(RRULE_RE, 'invalid recurrence rule')
-const viewsSchema = z.enum(['day', 'week', 'month', 'year', 'agenda'])
+const viewsSchema = z.enum(['day', 'week', 'month', 'year', 'agenda', 'split'])
 
 // ---- auth ----
 const registerSchema = z.object({ email: emailSchema, name: nameSchema, password: passwordSchema })

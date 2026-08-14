@@ -58,6 +58,20 @@ const TABS: { id: ViewType; label: string; icon: React.JSX.Element }[] = [
         <circle cx="4.5" cy="17" r="1" />
       </svg>
     )
+  },
+  {
+    id: 'split',
+    label: 'Month + Agenda',
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <rect x="3" y="4" width="18" height="9" rx="1.5" />
+        <path d="M3 9h18M9 4v9M15 4v9" />
+        <path d="M8 17h11" />
+        <circle cx="4.5" cy="17" r="1" />
+        <path d="M8 21h11" />
+        <circle cx="4.5" cy="21" r="1" />
+      </svg>
+    )
   }
 ]
 

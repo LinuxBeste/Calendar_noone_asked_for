@@ -22,13 +22,14 @@ import {
 export const toISO = (d: Date): string => d.toISOString()
 export const toDate = (iso?: string): Date | undefined => (iso ? parseISO(iso) : undefined)
 
-export function rangeStart(view: 'day' | 'week' | 'month' | 'year' | 'agenda', date: Date, weekStartsOn: 0 | 1): Date {
+export function rangeStart(view: 'day' | 'week' | 'month' | 'year' | 'agenda' | 'split', date: Date, weekStartsOn: 0 | 1): Date {
   switch (view) {
     case 'day':
       return startOfDay(date)
     case 'week':
       return startOfWeek(date, { weekStartsOn })
     case 'month':
+    case 'split':
       return startOfWeek(startOfMonth(date), { weekStartsOn })
     case 'year':
       return startOfMonth(startOfYear(date))
@@ -37,13 +38,14 @@ export function rangeStart(view: 'day' | 'week' | 'month' | 'year' | 'agenda', d
   }
 }
 
-export function rangeEnd(view: 'day' | 'week' | 'month' | 'year' | 'agenda', date: Date, weekStartsOn: 0 | 1): Date {
+export function rangeEnd(view: 'day' | 'week' | 'month' | 'year' | 'agenda' | 'split', date: Date, weekStartsOn: 0 | 1): Date {
   switch (view) {
     case 'day':
       return endOfDay(date)
     case 'week':
       return endOfWeek(date, { weekStartsOn })
     case 'month':
+    case 'split':
       return endOfWeek(endOfMonth(date), { weekStartsOn })
     case 'year':
       return endOfMonth(endOfYear(date))
@@ -59,6 +61,7 @@ export const addPeriod = (view: string, date: Date, delta: number): Date => {
     case 'week':
       return addWeeks(date, delta)
     case 'month':
+    case 'split':
       return addMonths(date, delta)
     case 'year':
       return addYears(date, delta)
@@ -80,6 +83,7 @@ export function headerTitle(view: string, date: Date, weekStartsOn: 0 | 1): stri
       return `${format(s, 'MMM d, yyyy')} – ${format(e, 'MMM d, yyyy')}`
     }
     case 'month':
+    case 'split':
       return format(date, 'MMMM yyyy')
     case 'year':
       return format(date, 'yyyy')

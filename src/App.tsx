@@ -140,6 +140,9 @@ export default function App(): React.JSX.Element {
         case 'a':
           cal.setView('agenda')
           break
+        case 's':
+          cal.setView('split')
+          break
         case 'j':
           cal.navigate(1)
           break
